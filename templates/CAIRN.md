@@ -47,6 +47,151 @@ Required fields: `title`, `type`, `created`, `updated`, `tags`.
 `source` is required for `source-summary` pages, optional for others.
 `aliases` is optional.
 
+## Page Templates
+
+Use these structures when creating wiki pages. Sections can be omitted if genuinely empty, but prefer filling them.
+
+### Concept
+
+```yaml
+---
+title: <Name>
+type: concept
+created: YYYY-MM-DD
+updated: YYYY-MM-DD
+tags: [topic/subtopic]
+---
+```
+
+#### Definition
+What this is, in 2-3 sentences.
+
+#### Examples
+Concrete instances or usage.
+
+#### Related Concepts
+- [[Concept A]] — how it relates
+- [[Concept B]] — how it differs
+
+#### When to Use
+Situations where this applies.
+
+#### Backlinks
+- [[Page]] — context of reference
+
+### Entity
+
+```yaml
+---
+title: <Name>
+type: entity
+created: YYYY-MM-DD
+updated: YYYY-MM-DD
+tags: [topic/subtopic]
+---
+```
+
+#### Description
+What this is and why it matters.
+
+#### Role / Purpose
+What function it serves.
+
+#### Relationships
+- [[Entity A]] — relationship description
+- [[Entity B]] — relationship description
+
+#### Links
+External URLs, docs, repos.
+
+#### Backlinks
+- [[Page]] — context of reference
+
+### Source Summary
+
+```yaml
+---
+title: <Source Title>
+type: source-summary
+source: "[[raw/filename.md]]" or URL
+created: YYYY-MM-DD
+updated: YYYY-MM-DD
+tags: [topic/subtopic]
+---
+```
+
+#### Source
+Link to original: [[raw/filename.md]] or URL.
+
+#### Key Takeaways
+Numbered list of the most important points.
+
+#### Notable Quotes
+Direct quotes with context.
+
+#### Impact on Existing Knowledge
+What this changes, confirms, or contradicts in the vault.
+
+#### Backlinks
+- [[Page]] — context of reference
+
+### Comparison
+
+```yaml
+---
+title: <X vs Y>
+type: comparison
+created: YYYY-MM-DD
+updated: YYYY-MM-DD
+tags: [topic/subtopic]
+---
+```
+
+#### Criteria
+What dimensions matter for this comparison.
+
+#### Trade-offs
+| Criterion | X | Y |
+|-----------|---|---|
+| ...       |   |   |
+
+#### Recommendation
+Which to pick and why.
+
+#### When to Pick Each
+Situations favoring X. Situations favoring Y.
+
+#### Backlinks
+- [[Page]] — context of reference
+
+### Overview
+
+```yaml
+---
+title: <Topic Area>
+type: overview
+created: YYYY-MM-DD
+updated: YYYY-MM-DD
+tags: [topic/subtopic]
+---
+```
+
+#### Introduction
+What this topic area covers and why it matters.
+
+#### Key Pages
+- [[Page A]] — what it covers
+- [[Page B]] — what it covers
+
+#### Gaps
+Topics not yet covered that should be.
+
+#### Reading Order
+Suggested sequence for someone new to this area.
+
+#### Backlinks
+- [[Page]] — context of reference
+
 ## Markdown Conventions
 
 ### Wikilinks
