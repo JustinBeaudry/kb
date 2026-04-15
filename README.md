@@ -60,6 +60,26 @@ Ask Claude to check vault health:
 Reports orphan pages, dead links, missing frontmatter, stale content,
 missing types, and contradictions.
 
+### Refine
+Ask Claude to improve vault structure:
+
+> "Refine the vault"
+
+Finds stale pages, under-connected pages, merge/split candidates, and
+backlink gaps. Presents findings for approval, then applies changes.
+Shows vault health before and after.
+
+### Extract
+Extract knowledge from session summaries into wiki pages:
+
+> "Extract from sessions"
+
+Sessions are sources. Claude reads unprocessed session summaries, presents
+extraction candidates (entities, concepts, decisions, patterns), and runs
+the standard ingest workflow on confirmed items.
+
+Toggle session-start nudge: `/cairn:extract on` or `/cairn:extract off`.
+
 ## Page types
 
 Every wiki page has a `type` in frontmatter:
@@ -71,6 +91,8 @@ Every wiki page has a `type` in frontmatter:
 | `source-summary` | Digest of a `raw/` document |
 | `comparison` | X vs Y trade-off analysis |
 | `overview` | Guided index of a topic area |
+
+Each type has a structural template defined in CAIRN.md with recommended sections.
 
 ## Vault structure
 
@@ -93,6 +115,27 @@ via `CAIRN_BUDGET` env var):
 1. **`context.md`** — working set, always first
 2. **`index.md`** — categorized page index
 3. **Recent sessions** — newest first, fills remaining budget
+
+## Search (optional)
+
+For larger vaults, [qmd](https://github.com/qntx-labs/qmd) provides
+BM25 + vector hybrid search over markdown files.
+
+```bash
+# Install
+curl -fsSL https://sh.qntx.fun/qmd | sh
+
+# Register vault
+qmd collection add ~/cairn --name cairn --mask "**/*.md"
+qmd embed
+
+# Add MCP server to Claude Code
+# In your Claude Code MCP config:
+# { "mcpServers": { "qmd": { "command": "qmd", "args": ["mcp"] } } }
+```
+
+When qmd MCP tools are available, Query and Refine workflows use
+`qmd_deep_search` before falling back to manual index reading.
 
 ## Model choice
 
