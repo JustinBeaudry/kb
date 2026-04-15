@@ -20,6 +20,7 @@ describe("cairn init (integration)", () => {
     expect(existsSync(join(vaultDir, "CAIRN.md"))).toBe(true);
     expect(existsSync(join(vaultDir, "index.md"))).toBe(true);
     expect(existsSync(join(vaultDir, "log.md"))).toBe(true);
+    expect(existsSync(join(vaultDir, "context.md"))).toBe(true);
     expect(existsSync(join(vaultDir, ".cairn", "state.json"))).toBe(true);
 
     rmSync(vaultDir, { recursive: true });

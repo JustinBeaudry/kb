@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { DEFAULT_VAULT_PATH, VAULT_DIRS, VAULT_FILES, VERSION } from "./constants";
-import { getCairnMdTemplate, INDEX_MD_STUB, LOG_MD_STUB } from "./templates";
+import { getCairnMdTemplate, INDEX_MD_STUB, LOG_MD_STUB, CONTEXT_MD_STUB } from "./templates";
 
 export type VaultState = "empty" | "cairn" | "obsidian" | "occupied";
 
@@ -42,6 +42,7 @@ const FILE_CONTENT: Record<string, string> = {
   "CAIRN.md": getCairnMdTemplate(),
   "index.md": INDEX_MD_STUB,
   "log.md": LOG_MD_STUB,
+  "context.md": CONTEXT_MD_STUB,
 };
 
 export function scaffoldVault(vaultPath: string): ScaffoldResult {

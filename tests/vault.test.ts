@@ -110,4 +110,15 @@ describe("scaffoldVault", () => {
 
     rmSync(testDir, { recursive: true });
   });
+
+  it("should create context.md", () => {
+    const testDir = join(tmpdir(), `cairn-test-${Date.now()}`);
+    scaffoldVault(testDir);
+
+    expect(existsSync(join(testDir, "context.md"))).toBe(true);
+    const content = readFileSync(join(testDir, "context.md"), "utf-8");
+    expect(content).toContain("Working Set");
+
+    rmSync(testDir, { recursive: true });
+  });
 });

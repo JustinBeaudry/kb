@@ -23,3 +23,14 @@ Chronological record of vault operations.
 
 <!-- Cairn will append entries here automatically. -->
 `;
+
+export const CONTEXT_MD_STUB = `# Working Set
+
+Current focus areas for context injection. Updated by the agent when focus shifts.
+
+## Active
+<!-- Pages and topics currently being worked on -->
+
+## Background
+<!-- Reference material relevant to active work -->
+`;
