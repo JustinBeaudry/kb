@@ -123,7 +123,7 @@ BM25 + vector hybrid search over markdown files.
 
 ```bash
 # Install
-curl -fsSL https://sh.qntx.fun/qmd | sh
+npm install -g @tobilu/qmd
 
 # Register vault
 qmd collection add ~/cairn --name cairn --mask "**/*.md"

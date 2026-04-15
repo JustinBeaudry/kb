@@ -341,7 +341,7 @@ When [qmd](https://github.com/qntx-labs/qmd) is available (via MCP tools `qmd_se
 
 ### Setup (user responsibility)
 
-1. Install qmd: `curl -fsSL https://sh.qntx.fun/qmd | sh`
+1. Install qmd: `npm install -g @tobilu/qmd`
 2. Register the vault: `qmd collection add ~/cairn --name cairn --mask "**/*.md"`
 3. Generate embeddings: `qmd embed`
 4. Add MCP server to Claude Code config:
