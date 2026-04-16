@@ -32,6 +32,7 @@ describe("entire detection", () => {
     });
 
     it("should return true when entire is enabled in project", async () => {
+      if (!Bun.which("entire")) return;
       const { isEntireEnabled } = await import("../src/lib/entire");
       // This test runs in the cairn project which has entire enabled
       const result = await isEntireEnabled(process.cwd());
@@ -41,6 +42,7 @@ describe("entire detection", () => {
 
   describe("isEntireOnPath", () => {
     it("should return true when entire CLI is installed", async () => {
+      if (!Bun.which("entire")) return;
       const { isEntireOnPath } = await import("../src/lib/entire");
       const result = await isEntireOnPath();
       expect(result).toBe(true);

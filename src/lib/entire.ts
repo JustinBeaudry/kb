@@ -9,15 +9,7 @@
  * Check if `entire` CLI is on PATH.
  */
 export async function isEntireOnPath(): Promise<boolean> {
-  try {
-    const proc = Bun.spawn(["which", "entire"], {
-      stdout: "ignore",
-      stderr: "ignore",
-    });
-    return (await proc.exited) === 0;
-  } catch {
-    return false;
-  }
+  return !!Bun.which("entire");
 }
 
 /**
@@ -59,7 +51,7 @@ export async function getHeadCheckpointId(cwd: string): Promise<string | null> {
     const exitCode = await proc.exited;
     if (exitCode !== 0) return null;
 
-    const match = output.match(/Entire-Checkpoint:\s*([a-f0-9]+)/);
+    const match = output.match(/Entire-Checkpoint:\s*([a-f0-9]+)/i);
     return match?.[1] ?? null;
   } catch {
     return null;
