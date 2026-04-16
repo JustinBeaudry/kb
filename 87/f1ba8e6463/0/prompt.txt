@@ -1,0 +1,13 @@
+How can we make the cairn / commands more explicit? Is it best practice to have them not availanle in autocomlete via : ?
+
+---
+
+Love it, what about QMD support? Does it favor that when available?
+
+---
+
+Love these change ideas
+
+---
+
+all, no tracking
