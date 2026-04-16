@@ -15,3 +15,7 @@ yes
 ---
 
 and make sure we're setup locally
+
+---
+
+gitignore away
