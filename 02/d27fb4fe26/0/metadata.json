@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "02d27fb4fe26",
+  "session_id": "8891262b-9aab-44b1-832d-71727adfe4d3",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-16T13:12:11.58327Z",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "89f9d21eeae1",
+  "token_usage": {
+    "input_tokens": 935,
+    "cache_creation_tokens": 727389,
+    "cache_read_tokens": 19675698,
+    "output_tokens": 51768,
+    "api_call_count": 140
+  },
+  "session_metrics": {
+    "turn_count": 6
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
