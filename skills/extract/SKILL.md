@@ -63,6 +63,28 @@ When the user runs `/cairn:extract` (no arguments):
 Extracted from sessions: YYYY-MM-DDTHH-MM-SS. Created [[Page A]], [[Page B]]. Updated [[Page C]].
 ```
 
+## Entire Checkpoint Provenance
+
+When a session summary has `entire_checkpoint` in its frontmatter, the session
+was captured by Entire and the full transcript is available via `entire explain`.
+
+During extraction:
+
+1. Note the checkpoint ID from the session's `entire_checkpoint` field.
+2. When creating wiki pages from this session, set the `source` field to:
+   ```yaml
+   source: "entire://<checkpoint-id>"
+   ```
+3. This enables future re-extraction: `entire explain --checkpoint <id>` retrieves
+   the full session context, not just the lossy summary.
+4. Do NOT copy Entire session data to `raw/` — the checkpoint branch is the
+   provenance store. `raw/` is for non-Entire sources only.
+5. If you need more context than the summary provides, run:
+   ```bash
+   entire explain --checkpoint <id> --no-pager
+   ```
+   to get the detailed view with scoped prompts and file changes.
+
 ## Key Rules
 
 1. Sessions are sources — treat extraction like any other ingest.
