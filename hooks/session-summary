@@ -3,7 +3,9 @@
 # Reads hook input JSON from stdin, extracts transcript,
 # pipes through claude -p for summarization, writes to sessions/.
 
-set -eo pipefail
+# NOTE: no pipefail — head/grep pipes legitimately close early (SIGPIPE),
+# and pipefail turns that into a fatal exit under set -e.
+set -e
 
 # Read hook input from stdin
 INPUT=$(cat)
@@ -125,7 +127,7 @@ printf '%s\n' "$SUMMARY" > "$SESSION_FILE"
 # Append to log.md
 LOG_FILE="${VAULT_PATH}/log.md"
 if [ -f "$LOG_FILE" ]; then
-  DESCRIPTION=$(echo "$SUMMARY" | grep -A1 "## Summary" | tail -1 | head -c 120)
+  DESCRIPTION=$(echo "$SUMMARY" | grep -A1 "## Summary" | tail -1 | head -c 120 || true)
   printf '\n## [%s] session | %s\n' "$TODAY" "$DESCRIPTION" >> "$LOG_FILE"
 fi
 
