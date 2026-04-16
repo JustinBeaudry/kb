@@ -1,7 +1,7 @@
 {
   "name": "cairn",
   "description": "Persistent memory vault for Claude Code. Markdown-based, session-aware, compaction-resilient.",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "author": {
     "name": "Justin Beaudry"
   },
