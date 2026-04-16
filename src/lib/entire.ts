@@ -60,7 +60,7 @@ export async function getHeadCheckpointId(cwd: string): Promise<string | null> {
     if (exitCode !== 0) return null;
 
     const match = output.match(/Entire-Checkpoint:\s*([a-f0-9]+)/);
-    return match ? match[1] : null;
+    return match?.[1] ?? null;
   } catch {
     return null;
   }
