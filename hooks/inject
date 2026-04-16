@@ -79,6 +79,11 @@ if [ -d "$SESSIONS_DIR" ]; then
   fi
 fi
 
+# 4. Entire status indicator (one line if enabled)
+if command -v entire >/dev/null 2>&1 && entire status 2>/dev/null | grep -q "Enabled"; then
+  append_if_fits "\n### Entire\nEntire is enabled in this project. Session summaries may have \`entire_checkpoint\` fields for richer extraction via \`entire explain\`." || true
+fi
+
 # Escape for JSON
 escape_for_json() {
   local s="$1"
