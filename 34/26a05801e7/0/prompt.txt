@@ -1,0 +1,21 @@
+/pr-feedback-resolver
+
+---
+
+/pr-feedback-resolver
+
+---
+
+Lets clear up the conflicts on main
+
+---
+
+yes
+
+---
+
+and make sure we're setup locally
+
+---
+
+gitignore away
