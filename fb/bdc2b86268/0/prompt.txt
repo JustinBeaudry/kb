@@ -1,0 +1,839 @@
+You are the Cairn session summarizer. Write a structured session summary in markdown.
+
+OUTPUT FORMAT — produce EXACTLY this, nothing else:
+
+---
+session_id: "2026-04-20T03:47:00Z"
+status: completed
+extracted: false
+files_changed: []
+decisions: []
+open_threads: []
+tags: []
+entire_checkpoint: "87f1ba8e6463"
+---
+
+## Summary
+2-4 sentences summarizing what happened in this session.
+
+## Extraction Candidates
+- **<name>** (<type>) — <why it's worth keeping>
+
+RULES:
+1. Frontmatter fields files_changed, decisions, open_threads, and tags should be populated from the conversation. Use YAML list syntax.
+2. files_changed entries: {path: "<path>", action: "created|modified|deleted"}
+3. decisions entries: {choice: "<what>", reason: "<why>"}
+4. Extraction candidate types: concept, entity, source-summary, comparison, overview.
+5. Output ONLY the markdown. No commentary, no code fences wrapping the whole output.
+6. If the session is trivial (quick question, no real work), still produce the format but keep Summary to one sentence and Extraction Candidates to 'None.'
+
+SESSION TRANSCRIPT:
+
+## Assistant
+
+## Assistant
+Bug description empty. Need input to debug.
+
+What bug? Paste error, stack trace, test failure, issue ref (`#123`, URL), or describe broken behavior.
+
+Also — track time for this session?
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+On `main`, no auto-detect. Which Plane issue to track, or skip?
+
+Proceeding with investigation.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+## Debug Findings
+
+**Reproduction confirmed:** 33 of 43 files in `~/cairn/sessions/` contain only `Prompt is too long\n`. All dated Apr 15 16:13–19:23.
+
+**Root cause chain:**
+
+1. `hooks/session-summary:73` — transcript truncated to 100K chars (~25K tokens)
+2. `:145` — piped to `claude -p --model haiku` with `2>&1 || true`
+3. When prompt exceeds context (haiku + system prompt overhead, or CLI wrapper limit), `claude` exits nonzero with stderr `Prompt is too long`
+4. `|| true` swallows exit code, `2>&1` routes stderr → `SUMMARY="Prompt is too long"`
+5. **Pre-harden script** wrote `SUMMARY` directly to file → bad files
+6. Commit `8991932` added guard `grep -qi "error\|too long\|failed"` at `:148` → catches it
+
+**Why bad files exist despite guard:** guard committed Apr 15 16:48, but plugin cache refreshed only on `0.4.0` version bump (Apr 15 23:10). Bad files all from the gap window. Post-`0.4.0`: no bad files (confirmed Apr 17–19 files well-formed).
+
+**Residual risks (not the reported bug, but related):**
+
+- `:148` guard false-positives: any legitimate summary mentioning `error`/`failed` gets silently dropped. 9/10 recent good files don't mention either — small sample, but dev sessions often do. Unknowns unknown.
+- Prediction test: if I grep all good files for "fix"/"bug", should see many. Let me verify — that test would confirm the guard isn't over-suppressing.
+- `claude -p` exit status discarded (`|| true`) → can't distinguish "too long" from other failures
+- 100K char truncation + Entire checkpoint context (`:136`) can push prompt back over limit
+- 33 stale bad files still in vault, will get processed by `extract` skill
+
+**Recommended tests:** `tests/session-summary.test.ts` should cover: (a) claude exits nonzero → no file written, (b) claude outputs "Prompt is too long" → no file written, (c) legitimate summary mentioning "error" → file IS written, (d) Entire context + transcript under total limit.
+
+**Fix direction (pick path):**
+
+1. **Narrow fix** — check exit code directly, drop keyword guard. Still drops on too-long, but no false positives.
+2. **Graceful fix** — on too-long, halve truncation and retry once before bailing.
+3. **Cleanup only** — delete 33 stale bad files, no code change (bug already fixed by harden commit + 0.5.0 cache).
+
+Next step?
+## Assistant
+
+## Assistant
+Feature description empty. Brainstorm context: prior debug found session-summary bug (33 stale files, guard fragile, Entire push-over-limit risk).
+
+What to explore?
+
+1. Fix direction for session-summary hook (guard + truncation + cleanup)
+2. Something else — describe it
+## Assistant
+
+## Assistant
+Lightweight brainstorm. Before offering ideas — what's bothering you most about current state?
+
+Options:
+
+1. **Stale files** — 33 "Prompt is too long" files polluting vault, will feed into `extract` pipeline
+2. **Silent data loss** — hook drops sessions on any failure, no signal, no retry
+3. **Guard false positives** — `grep "error|failed"` can silently drop legitimate dev-session summaries
+4. **Overflow prevention** — 100K truncation + Entire context can push past haiku limit
+5. **All of the above** — comprehensive hardening pass
+
+Pick one primary, or say something I'm missing.
+## Assistant
+
+## Assistant
+Four approaches. Presenting all, then recommending.
+
+---
+
+**A. Tight guard + bounded retry**
+- Check `claude` exit code, not keywords — drop false-positive guard
+- On "Prompt is too long", halve truncation, retry once; second fail → no file
+- Cleanup script deletes existing 33 bad files
+- **Pros:** minimal change, stays within current hook shape
+- **Cons:** still silent on failure, still couples capture to summarization
+- **Best when:** fix quickly, move on
+
+**B. Stub-then-upgrade (signal not silence)**
+- Hook always writes a stub file immediately: frontmatter `status: pending` + raw conversation excerpt
+- Attempts summary; on success, rewrites file with `status: completed`
+- On failure, stub remains with error reason — visible signal
+- `extract` skip `status: pending`
+- **Pros:** no silent data loss, every session accounted for, debuggable
+- **Cons:** two-write pattern, stub files visible in vault
+- **Best when:** you want zero dropped sessions but minimal restructuring
+
+**C. Decouple capture from summarization** *(inversion — what if hook didn't summarize at all?)*
+- Stop hook writes raw transcript JSONL to `sessions/raw/` — fast, deterministic, no LLM
+- Separate `cairn summarize` command processes `raw/` → `sessions/*.md` on demand or cron
+- Summarization failures are retryable; capture never fails
+- **Pros:** architecturally correct (hook = capture, command = process), resilient, enables map-reduce/batch summarization
+- **Cons:** biggest change, two code paths, sessions not summarized by default until user runs command
+- **Best when:** willing to invest for durable fix; aligns with compound-engineering philosophy
+
+**D. Adaptive chunked summarization**
+- Measure prompt size pre-invoke (including Entire context)
+- If over threshold, chunk transcript → map-reduce summary
+- Guarantees fit without truncation data loss
+- **Pros:** preserves full session content; no size guessing
+- **Cons:** complex bash, multiple claude calls (slow/expensive), fragile chunking logic in shell
+- **Best when:** sessions routinely exceed limits and content loss unacceptable
+
+---
+
+**Recommendation: B, with an optional upgrade path to C.**
+
+Rationale: B solves all four pain points with one pattern — stub write makes loss visible, guard becomes simple (exit-code-based), overflow handled via retry-with-halving, cleanup is a side task. C is architecturally better but bigger commit; B gets you there incrementally and C is a natural next step if summarization failures stay frequent.
+
+D is over-engineered for a bash hook. A is a band-aid.
+
+Go with B? Or push back?
+## Assistant
+
+## Assistant
+Good. C needs a few decisions. Start with load-bearing one.
+
+**When does summarization run?**
+
+1. **Manual only** — user runs `cairn summarize` (or `/cairn:summarize`) when ready. Raw sessions accumulate until explicit invocation.
+2. **Auto via separate hook** — a different hook (e.g., SessionStart or background daemon) processes pending raw files. Still decoupled from Stop.
+3. **Lazy on read** — `extract`/`query`/`refine` skills check for unsummarized raw files and summarize just-in-time before processing.
+4. **Hybrid** — Stop hook writes raw + attempts summary (non-blocking, best-effort). On failure, raw persists and `cairn summarize` retries later.
+
+Which fits how you actually use the vault?
+## Assistant
+
+## Assistant
+Lazy on read. Makes summaries pure derived cache.
+
+**Raw file format?**
+
+1. **Full JSONL copy** — verbatim copy of `transcript_path`. Largest, lossless, enables re-summarization with different prompts/models later.
+2. **Pre-extracted markdown** — hook runs the `jq` user/assistant extraction (current lines 40–65), writes clean `.md`. Smaller, human-readable, but locks out content you didn't extract (tool calls, thinking).
+3. **Both** — JSONL canonical, pre-extracted markdown as convenience view.
+
+Which?
+## Assistant
+
+## Assistant
+Good push. Step back and reframe.
+
+**Observation:** Entire already stores checkpoint state. Claude Code already stores transcripts at `transcript_path`. If we copy either into the vault, we're duplicating durable external storage.
+
+**Reframing: vault is an index, not a content store.**
+
+Raw "session" = small manifest, not a content copy:
+
+```yaml
+---
+session_id: "2026-04-19T22:57:31Z"
+transcript_path: "~/.claude/projects/<hash>/<uuid>.jsonl"
+entire_checkpoint: "bd7b85159016"
+git_head: "243644f"
+files_changed: [...]      # from entire diff, not jq parsing
+branch: main
+---
+```
+
+Content resolved lazily when a downstream skill needs it:
+- Conversation → read transcript JSONL from path
+- Code diff / state → `entire explain --checkpoint X`
+- Summary → derived on-read, cached as view in `sessions/summaries/`
+
+**What this unlocks (the interesting part):**
+
+1. **Sessions become code-linkable.** `files_changed` in manifest (from Entire diff) = cheap index. Query "sessions that touched `worker.ts`" becomes a grep over manifests, not a search over summary text.
+
+2. **Verifiable extraction.** `extract` can cross-reference claims against the checkpoint diff. "I introduced pattern X" → check if checkpoint actually shows X. Hallucinated summaries become detectable.
+
+3. **Free re-summarization.** Change the prompt, swap haiku for sonnet, add new extraction heuristic — re-run over manifests, source is intact. Summaries stop being golden snapshots.
+
+4. **Vault is KB, not MB.** Manifests are ~500 bytes. 1000 sessions = 500KB. Ships with the repo if you want.
+
+5. **`query` skill can JOIN across transcripts + code.** "When did I last discuss auth middleware?" → find sessions whose checkpoint touched `auth/*` AND whose transcript mentions the term.
+
+**Risks:**
+- Transcript file deleted → manifest orphaned. Mitigate: keep a short conversation excerpt (first+last 2K chars) in manifest as fallback.
+- Entire checkpoint lost → same. Mitigate: same excerpt covers the "what happened" half; code half degrades gracefully.
+
+**Tradeoff:** mild fragility vs. durable architectural win + compounding queries.
+
+Want this direction? If yes, next decision is migration: drop the 33 bad files + 10 existing summaries, or convert existing summaries into manifests post-hoc?
+## Assistant
+
+## Assistant
+**Call: Option B — convert, don't drop.**
+
+Concrete migration:
+
+1. **Drop the 33 bad files.** Zero information value. `rm ~/cairn/sessions/$(grep -l "^Prompt is too long$" ...)`.
+
+2. **Convert 10 good summaries → manifest + summary view:**
+   - Parse existing frontmatter (it already has `entire_checkpoint` on newer ones, `files_changed`, `decisions`, etc.)
+   - Write manifest at `sessions/<timestamp>.md` with transcript/checkpoint/git pointers (transcript_path null if unrecoverable — they were summarized, not preserved)
+   - Move existing summary content to `sessions/summaries/<timestamp>.md` as the cached view
+   - `extracted`, `decisions`, `open_threads`, `tags` stay in manifest (they're indexable metadata, not derived content)
+
+3. **Pre-Entire summaries** (those lacking `entire_checkpoint`): manifest just has timestamp + metadata. Graceful degradation. No backfill attempt — not worth it.
+
+**Why B beats dropping everything:** the extraction candidates and decisions in those 10 files are real curated output. Re-summarizing gets you similar text but different wording — and `extract` may have already ingested them, so dropping creates dangling references.
+
+**Why B beats hybrid (leaving old as-is):** dual-model vault means every downstream skill carries both code paths forever. Migrate once, then lint can assume one shape.
+
+---
+
+Ready to write requirements doc? I'll capture:
+
+- Problem + goals
+- Manifest schema
+- Hook behavior (Stop writes manifest, never calls claude)
+- Lazy summarize contract (who calls it, what it returns, failure mode)
+- Migration steps
+- Non-goals (map-reduce chunking, auto-retry — all deferrable)
+
+Proceed?
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Doc written at `docs/brainstorms/2026-04-19-session-capture-manifest-requirements.md`. Running document-review.
+## Assistant
+
+## Assistant
+
+## Assistant
+Classified: requirements doc. Activating personas.
+
+Reviewing with:
+- coherence-reviewer (always-on)
+- feasibility-reviewer (always-on)
+- product-lens-reviewer — doc makes challengeable premise (vault-as-index reframing) with strategic architectural weight
+- scope-guardian-reviewer — 16 requirements across 4 groups, explicit non-goals
+- adversarial-document-reviewer — >5 requirements, new abstraction (manifest pattern), migration step
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Synthesized 40 findings → 25 after dedupe. Applying 2 auto-fixes to R2.
+## Assistant
+
+## Assistant
+## Document Review Results
+
+**Applied 2 auto-fixes:**
+- R2: added `excerpt` field reference (coherence) + nullability note for `transcript_path` (coherence)
+
+**Coverage:** 5 personas — coherence, feasibility, product-lens, scope-guardian, adversarial. All returned.
+
+**25 present findings after dedupe. Showing top by severity.**
+
+---
+
+### P0 — Errors
+
+**1. Lazy summarization relocates "Prompt is too long" to read time** *(adversarial + product-lens, conf 0.90)*
+R1 trivially removes the error files, but the root cause — haiku can't summarize oversized transcripts — is unchanged. Under lazy-on-read, `extract`/`query`/`refine` hit the same wall, now foreground. Scope explicitly defers chunked summarization, so this failure mode is designed-in. Success criterion #1 is met vacuously.
+*Fix: either remove "Not doing: chunked summarization" from scope, or name the inherited failure and quantify what fraction of sessions fit haiku's window today.*
+
+---
+
+### P1 — Errors
+
+**2. R11 destructive delete without consent gate** *(adversarial + product-lens, conf 0.83)*
+"Cairn is the user's vault" — silently hard-deleting 33 files during migration violates the promise. Also, the original grep guard false-positive'd on `error|failed|too long`, so some deletions may be legitimate summaries.
+*Fix: dry-run by default, move to `sessions/.trash/` not hard-delete, exact-content match not substring.*
+
+### P1 — Omissions
+
+**3. R4 2KB excerpt: unvalidated or unnecessary** *(scope-guardian + adversarial, conf 0.78)*
+Two angles. (a) If kept, 2KB head+tail systematically misses middle-of-session content where decisions live — no evidence provided. (b) Excerpt only helps when transcript_path is dead, which is a case Scope explicitly says Cairn doesn't manage. Either delete R4 entirely or validate the 2KB choice against the 10 good sessions.
+
+**4. Transcript durability assumption is fragile** *(4 reviewers, conf 0.85)*
+Plan hinges on `transcript_path` persistence. But: (a) Claude Code auto-compacts/rotates — not just user purge; (b) `~/.claude/projects/` is machine-local — synced vault breaks immediately on 2nd machine; (c) no hash/mtime on manifest to detect staleness vs. missing. Compounding goes in wrong direction — vault gets *emptier* over time.
+
+**5. R6 idempotency mechanism unspecified** *(scope-guardian + feasibility + adversarial, conf 0.80)*
+Key is `(timestamp, session_id)` but filename is `<timestamp>.md` alone. Two Stops same second collide. Session resume (same session_id, new timestamp) produces duplicate manifest. Skip-vs-overwrite-vs-merge semantic undefined.
+*Fix: filename = `<session_id>.md` or `<timestamp>-<session_id_prefix>.md`; define resume semantics.*
+
+**6. Entire files_changed command unresolved — core capability blocked** *(feasibility + coherence, conf 0.85)*
+R3 + R16 depend on it, but `entire explain` has no JSON/files-only mode. Fallback using `git diff --name-status` against the checkpoint commit (extracted from `Entire-Checkpoint:` trailer) works without Entire at all and decouples files_changed from Entire output format drift.
+*Fix: pre-commit to git-diff-based files_changed; Entire integration optional for verification/context only.*
+
+**7. All 10 existing good files will have `transcript_path: null` post-migration** *(scope-guardian, conf 0.88)*
+Current hook never wrote transcript_path. Migration's "may be null where unrecoverable" makes it sound exceptional — it's universal for the existing vault. All migrated summaries become permanently un-regenerable.
+*Fix: accept explicitly, or add timestamp→transcript recovery via `~/.claude/projects/*.jsonl`.*
+
+**8. Identity bet: vault quietly stops being "markdown you can read"** *(product-lens, conf 0.82)*
+CAIRN.md says sessions are self-contained markdown. Post-change, recent sessions are YAML + excerpt until a skill happens to summarize them. Obsidian/grep UX degrades. Worth being explicit: is "index not content store" sessions-only, or a vault-wide direction?
+
+**9. Manifest-only sessions degrade the new-user UX** *(product-lens, conf 0.78)*
+User opens `sessions/` expecting narrative — sees manifests. Either (a) eager background summarization (reopens the deferred non-goal), (b) `cairn summarize --all` catch-up command, or (c) make manifests readable without a summary (commit subjects + duration + files list).
+
+---
+
+### P2 — Selected (8 more exist; summarizing)
+
+**10. R15 "handle degraded/missing gracefully" is not a contract** *(3 reviewers, conf 0.76)* — pushes UX choice into 4 skills, guaranteed divergence, conflicts with "no silent data loss" criterion.
+
+**11. R14 includes `lint` without evidence lint uses sessions** *(scope-guardian, conf 0.82)* — lint operates on wiki pages only. Remove from R14.
+
+**12. Lazy-summarize helper placement blocks R7** *(feasibility + product-lens, conf 0.78)* — skills are markdown prompts; can't import TS. Forces `cairn summarize <session>` subcommand. Should be resolved before planning, not deferred.
+
+**13. Capture-logic placement (bash vs `cairn capture-session` TS)** *(feasibility, conf 0.72)* — R4 excerpt + frontmatter assembly + git/Entire lookup in pure bash is ~150 lines of untestable shell. TS subcommand gets tested with Bun.
+
+**14. Excerpt shadow paths** *(feasibility, conf 0.75)* — empty transcripts, <4KB total, UTF-8 boundary truncation, tool-only sessions. R4 spec doesn't cover.
+
+**15. Migration uses hardcoded count, not classifier** *(feasibility, conf 0.70)* — "33 + 10 = 43" works only for this vault. Other users' vaults will have different counts.
+
+**16. Foreground latency on first `extract` run** *(product-lens + adversarial, conf 0.72)* — N backed-up sessions = N foreground LLM calls.
+
+**17. Race: Stop hook may read transcript before Claude finishes flushing** *(adversarial, conf 0.62)* — no stability check specified.
+
+**18. Summary cache invalidation unspecified** *(adversarial, conf 0.72)* — manifest updated → old summary still served.
+
+---
+
+### P3 (6 more, deferring-worthy; available on request)
+
+R16 perf strategy, R16 query path, sessions/summaries/ in vault spec, chunked-at-Stop alternative unconsidered, Entire optional primacy, R6/R13 idempotency scope clarity.
+
+---
+
+### Deferred Questions (cross-persona)
+
+- Is transcript_path stable across Claude Code upgrades / auto-compaction? **Verify before planning, not defer.**
+- Empirical size distribution of transcripts that hit "Prompt is too long"? Would inform whether lazy + haiku helps at all.
+- Is the vault expected to sync across machines (iCloud/git)? Answer drives transcript_path durability strategy.
+- Should `log.md` entries for deleted sessions also be cleaned up?
+
+---
+
+**Next:**
+
+1. **Refine again** — I'll work these into the doc (recommend: resolve P0 + top P1s before planning; the P0 is load-bearing)
+2. **Complete review** — proceed to `/ce:plan` as-is (not recommended; P0 is unresolved)
+
+Which?
+## Assistant
+
+## Assistant
+Before rewriting — two load-bearing framing questions. The rest cascade from these.
+
+**Q1: Does this plan actually solve "Prompt is too long," or just stop writing error files for it?**
+
+The P0 finding is correct. Lazy summarization with same haiku call + no chunking means `extract`/`query`/`refine` will hit the exact same wall at skill time.
+
+1. **Keep scope as-is** — accept that oversized sessions produce degraded-excerpt summaries at read time. Document that honestly. `chunked summarization` stays deferred. Simpler plan.
+2. **Expand scope to actually fix summarization** — chunked/map-reduce summarize becomes in-scope. Manifest still wins architecturally, but the success criterion becomes "summaries succeed regardless of transcript size," not just "no error files."
+3. **Third option** — add a pre-flight size check: if transcript > threshold, skip LLM entirely and mark manifest `summary: skipped, reason: oversize`. User runs chunked summarize manually later. Keeps hot path simple, makes failure visible.
+
+---
+
+**Q2: Is the vault single-machine or syncable across machines?**
+
+Transcript_path is machine-local. Answer determines whether manifests need hostname qualification / hash + excerpt fallback strategy, or if we accept "vault lives where it was born."
+
+1. **Single-machine** — vault belongs to one host. Simpler. Transcript_path always resolves.
+2. **Syncable** — iCloud/Dropbox/git-tracked. Need durability strategy: manifest records hostname + transcript hash; resolver falls back to excerpt on foreign host.
+3. **Hybrid** — single-machine is v1, sync is future work. Scope it out but don't design against it.
+
+Answer both, then I'll rewrite.
+## Assistant
+
+## Assistant
+Rewriting with Q1=2 (chunked in scope), Q2=1 (single-machine), plus clear-fix findings applied.
+## Assistant
+
+## Assistant
+
+## Assistant
+Doc rewritten. Changes summary:
+
+**Expanded scope (Q1=2):**
+- R10: chunked/map-reduce summarization now in-scope; failure mode eliminated by construction
+- Success criterion updated: summaries succeed on oversized transcripts (not just "no error files")
+
+**Single-machine assumption (Q2=1):**
+- Explicit in Dependencies; no hostname qualification
+- `transcript_hash` added for rotation/compaction detection (not sync)
+
+**Architectural commits (resolved deferred questions):**
+- Capture moves to `cairn capture-session` (TS, testable); hook is thin wrapper
+- Summarization is `cairn summarize <session>` CLI subcommand
+- `files_changed` from git, Entire optional enrichment only
+- Filename: `<timestamp>-<session_id_short>.md`
+
+**Safety fixes:**
+- R16–R17: dry-run default, `.trash/` not hard-delete, log.md cleanup
+- R22: skills must surface degraded state visibly
+- R6: idempotency by session_id, not filename
+- R7: transcript mtime stability check
+- R12: summary cache invalidation via hash match
+
+**Cuts:**
+- R14 lint removed from skill contract
+- `transcript_path` acknowledged universally null post-migration for 10 legacy files
+- Excerpt scoped down (1 KB head + 1 KB tail, rotation fallback only)
+
+**Remaining deferred** (technical, appropriate for planning): chunking threshold, migrate-sessions command shape, map-reduce prompt design, empty-files_changed edge case.
+
+Requirements grew from 16 to 24. Budget criterion raised 200→500 KB.
+
+---
+
+**Next:**
+
+1. **Refine again** — re-run document review
+2. **Complete** — proceed to `/ce:plan`
+
+Which?
+## Assistant
+
+## Assistant
+Brainstorm complete. Requirements at `docs/brainstorms/2026-04-19-session-capture-manifest-requirements.md`.
+
+Invoking `/ce:plan` on it.
+## Assistant
+
+## Assistant
+
+## Assistant
+Planning from `docs/brainstorms/2026-04-19-session-capture-manifest-requirements.md`. Depth: **Standard** (24 reqs, multiple components, bounded scope).
+
+Dispatching research agents in parallel.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Plan written to `docs/plans/2026-04-19-001-refactor-session-capture-manifest-plan.md`.
+## Assistant
+
+## Assistant
+Confidence check: plan appears well-grounded (strong local patterns, explicit risks, journal + trash migration safety, concurrency addressed via flock + atomic rename, test scenarios specific). Skipping deepening pass.
+
+Running mandatory document-review on the plan.
+## Assistant
+
+## Assistant
+
+## Assistant
+Classified: plan document. Activating 5 personas.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Applying auto-fixes, then surfacing non-auto findings.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+4 auto-fixes applied. Remaining findings need judgment. Presenting by severity.
+
+## Document Review Results
+
+**Applied 4 auto-fixes:**
+- Hook body: `$PLUGIN_ROOT` → `${CLAUDE_PLUGIN_ROOT}` + Bun-path fallback + bash-level error log + always-exit-0 (feasibility)
+- System-Wide Impact: `hooks/inject` must be modified, not unchanged (coherence)
+- Unit 1 `manifest.ts`: added `shortSessionId` helper + `excerpt_incomplete` + summary-side optional fields (coherence × 3)
+- Unit 1 tests: round-trip coverage for new frontmatter fields + `shortSessionId` (coherence)
+
+**Coverage:** 5 personas, all returned. **40 raw findings → 18 present after dedupe.**
+
+---
+
+### P0 — Must decide before implementation
+
+**1. `fs.flockSync` does not exist.** *(feasibility, conf 0.95)*
+Plan specifies `flock via fs.openSync("r+") + fs.flockSync (Bun supports the stdlib)` — verified against Bun 1.2.8: `fs.flockSync` is `undefined`. Node stdlib lacks it too. Entire log.md concurrency story depends on this phantom API.
+*Options:* (a) add `proper-lockfile` dep (widely used, cross-platform); (b) hand-rolled O_EXCL lockfile with stale-lock timeout; (c) `mkdirSync` atomicity as a lock. Pick one.
+
+**2. `cairn summarize --force` silently destroys user-edited summaries.** *(adversarial, conf 0.88)*
+Plan documents `--force` as bypassing `user_edited: true` protection. Unit 3 test scenario on line 326 explicitly asserts this. Combined with ambiguous `user_edited` detection (no spec for who/when sets it — Obsidian saves don't set it), any user running `cairn summarize --force --all` silently destroys every hand-edited summary. Migration got `.trash/` + dry-run + journal for exactly this reason; summarize got none.
+*Options:* (a) `--force` moves existing to `sessions/.trash/summaries/<name>.md` before overwrite; (b) require additional `--destructive`; (c) never overwrite — write alongside with `.regenerated` suffix and let user promote.
+
+**3. Plan solves a bigger problem than stated.** *(product-lens + adversarial, conf 0.88)*
+Multiple reviewers converge. Stated problems: error-as-content (fixable with 5-line guard fix) + oversized transcripts (fixable with chunked summarization in a single TS helper). Plan ships: 7 units, 5 new lib modules, new vault layout, migration command, `.trash/` convention, hash-based cache with 4 flags, YAML dep, skill updates — against a ~812 LOC codebase. A narrow alternative (strip broken guard, extract LLM call to TS helper with size-aware chunking, no layout change, no migration) satisfies R1–R14 with ~1–2 units.
+*Options:* (a) ship narrow fix now, defer manifest refactor to separate plan with explicit strategic justification; (b) keep plan, add explicit "why this scope now" section naming the identity bet (vault-as-index) as the real driver, not the bugs; (c) keep as-is.
+
+---
+
+### P1 — Address before implementation
+
+**4. Bun PATH not guaranteed in Claude Code's hook env.** *(feasibility + adversarial, merged, conf 0.82)*
+`~/.bun/bin` is typically added via rc files; non-interactive hook shells may skip. Auto-fix added a fallback — but the doctor check for Bun presence isn't specified.
+*Fix: add Unit 5 doctor check "bun resolvable from hook env"; document PATH requirements in install.*
+
+**5. Single turn larger than chunk threshold is unhandled.** *(adversarial, conf 0.85)*
+Plan says "chunk on turn boundaries, each chunk ≤ threshold". Real sessions have single assistant turns >80 KB (file reads, grep dumps, pasted logs). Also: N chunk partials may themselves exceed threshold at the reduce step. The exact failure the plan exists to eliminate ("Prompt is too long") resurfaces.
+*Fix: hierarchical reduction (re-group partials if they exceed threshold); explicit in-turn truncation-with-marker for oversized turns; derive threshold from model limit, not an 80 KB intuition.*
+
+**6. Hash invalidation regenerates on every Claude Code auto-compact.** *(adversarial, conf 0.80)*
+Resumed sessions auto-compact → transcript file content mutates → `transcript_hash` no longer matches → next `cairn summarize` invalidates cache → pay LLM cost again. For a user running extract → summarize → extract with any resumed session touched between, cost fires every time.
+*Fix: content-similarity threshold or manifest-hash-as-key (since manifest is immutable post-capture).*
+
+**7. SessionStart inject quality regresses.** *(product-lens, conf 0.78)*
+`hooks/inject` is the highest-frequency surface (fires every session start). Today it reads full summaries. Post-refactor it reads manifests (1 KB head + 1 KB tail excerpt) until `cairn summarize --all` runs. Users lose narrative context at session start.
+*Fix: either inject cached summary if present, falling back to manifest excerpt; or add opportunistic catch-up summarization into SessionStart hook (reopens the deferred "no background" non-goal).*
+
+**8. Plan not right-sized for 812-LOC plugin.** *(product-lens, conf 0.84)*
+Roughly doubles surface: 5 new lib modules, 3 new commands, 8 new test files, new dep, new conventions. Solo-maintained plugin absorbs permanent tax.
+*Options:* (a) descope — drop `logfile.ts` (see F/9), merge `manifest.ts` into `frontmatter.ts`, defer Unit 5 doctor additions; (b) keep plan, accept cost.
+
+**9. `logfile.ts` may be premature — no proven concurrent writers.** *(scope-guardian, conf 0.82)*
+Stop hook fires once per session end. Migration is interactive. Skills don't write log.md today. If no proven race exists, `withLogLock` is a zero-consumer abstraction.
+*Opposing view:* adversarial finding A1 says races DO exist (migration + concurrent capture, parallel Claude Code windows). **Contradiction — user decides.**
+
+**10. Capture idempotency has TOCTOU.** *(adversarial + scope-guardian, conf 0.80)*
+Plan: glob for `*-<short>.md` → write tmp → rename. POSIX `rename(2)` does not fail with EEXIST on regular files — it silently replaces. Two races pass the glob check at T=0, both rename, the later replaces the earlier.
+*Fix: `open(O_CREAT | O_EXCL)` on `.cairn/sessions/<session_id>.lock` before any work, or `link(2)` atomicity against a deterministic path.*
+
+**11. Migration journal itself can corrupt.** *(adversarial, conf 0.78)*
+Plan uses the journal as crash-recovery but doesn't specify atomic writes to it, or schema validation on load, or mutual exclusion between concurrent `migrate-sessions --apply` invocations.
+*Fix: write-temp-then-rename for journal too; `.cairn/migration.lock` flock (same primitive as P0 #1); schema validation on load.*
+
+**12. `status` / `extracted` fields ambiguous in manifest schema.** *(coherence, conf 0.88)*
+Plan preserves `extracted: false` through migration (Unit 4) but R2 doesn't list it. Implementer can't tell whether it's part of the manifest schema or external metadata.
+*Fix: decide — include in schema as optional, or document as "preserved but not part of R2".*
+
+**13. Unit 6 scope ambiguous.** *(coherence, conf 0.80)*
+Reads like specification instructions, not code changes. "Step 1 iterates manifests..." — is Unit 6 rewriting the skill prompt files, or documenting the new contract?
+*Fix: rewrite Unit 6 as explicit markdown edits to `skills/*/SKILL.md` with before/after snippets.*
+
+---
+
+### P2 — Worth addressing, not blocking
+
+**14. Migration "unknown" classifier bucket & symlink/FS edge cases.** *(adversarial, conf 0.70)* — EXDEV fallback, NFC normalization, writability pre-flight missing.
+
+**15. Cache protocol compounding cost.** *(product-lens, conf 0.72)* — multi-flag invariant set is permanent once shipped.
+
+**16. Unit 5 doctor additions may exceed scope.** *(scope-guardian, conf 0.80)* — R8 and R20 are served elsewhere; doctor checks are operational polish.
+
+**17. `--legacy-errors` flag YAGNI.** *(scope-guardian, conf 0.73)* — no stated current consumer.
+
+**18. `yaml` dependency avoidable.** *(product-lens, conf 0.62)* — Cairn controls both ends of the frontmatter.
+
+---
+
+### Strategic contradictions to resolve
+
+- **#9 (logfile premature) vs #1 (flock is needed).** If no real concurrent writers → drop `logfile.ts` + use simple append. If there are → pick a real locking primitive (P0 #1).
+- **#3 (plan too big) vs #11+#10+#5 (plan has unfinished details).** If the plan is fundamentally over-scoped, adding more detail for the bigger scope is sunk cost. The resolution is strategic first.
+
+---
+
+### Deferred questions (for planning)
+
+- Does `extract` need `cairn summarize --batch` / streaming protocol? Subprocess-per-session is ~8s cold-start overhead on a 100-session vault.
+- Chunking threshold in bytes should be derived from haiku's token budget + measurement, not guessed at 80 KB.
+- Is the manifest hash a better cache key than transcript hash? (Manifest is intentionally immutable post-capture.)
+
+---
+
+## Recommendation
+
+The P0 is a fork in the road. My read:
+
+**#3 is the question that matters.** The plan does a strategic refactor in the shape of a bug fix. Reviewers converge — this is 7 units of infrastructure for two bugs each fixable in a single unit. If the manifest/index architecture IS the goal, it deserves its own plan with that justification, not to ride the coattails of a `Prompt is too long` fix.
+
+**Suggested path:** Split into two plans:
+1. **Hotfix plan** (1–2 units): strip broken guard; move `claude -p` into `cairn summarize-session` TS command with chunked summarization. No layout change, no migration. Satisfies R1 ("no error-as-content") and R10 ("summaries succeed on oversized"). Ships in a day.
+2. **Manifest refactor plan** (later, if still wanted): explicit strategic justification for vault-as-index, written after beta feedback on the hotfix.
+
+If you want to keep the current plan, answer P0 #1 (locking primitive), P0 #2 (summarize-destructive gate), and #3 (why this scope now).
+
+**Next:**
+
+1. **Split into hotfix + later refactor** — I'll write a new 1-unit hotfix plan; keep this one for later.
+2. **Tighten current plan** — address P0s + critical P1s and re-review.
+3. **Proceed as-is** — accept the findings as follow-ups, start implementing (not recommended given unresolved P0s).
+
+Which?
+## Assistant
+Option 2: tighten current plan. Addressing P0s and critical P1s.
+## Assistant
+
+## Assistant
+
+## Assistant
+Now patching Unit 1 (replace `logfile.ts` with `lockfile.ts`; drop `manifest.ts` consolidation risk), Unit 2 (O_EXCL idempotency), Unit 3 (hierarchical reduce + non-destructive --force), adding a strategic justification section, and fixing Unit 6 scope.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+That edit broke the section — I duplicated a verification. Let me check.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Now fix Unit 2 idempotency and stability race.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Now Unit 4 migration — add journal-atomic-write + session-listing hash + migration lock.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Now fix Unit 6 — rewrite as explicit markdown edits with concrete before/after anchors.
+## Assistant
+
+## Assistant
+
+## Assistant
+Now patch Unit 5 doctor additions to include Bun-resolvability check and stale-lock GC.
+## Assistant
+
+## Assistant
+Finally, update the Risks table and add a note in Dependencies.
+## Assistant
+
+## Assistant
+
+## Assistant
+Sanity-check the plan is still coherent.
+## Assistant
+
+## Assistant
+One stale reference in the capture-flow ASCII diagram (line 140 still says `flock log.md`). Fix.
+## Assistant
+
+## Assistant
+Also need to update the capture flow diagram idempotency step and remove the glob-based idempotency reference.
+## Assistant
+
+## Assistant
+Summarize flow diagram — switch to manifest_hash key, add hierarchical reduce + turn truncation.
+## Assistant
+
+## Assistant
+
+ENTIRE CHECKPOINT CONTEXT (codebase state at this session's checkpoint):
+
+Checkpoint: 87f1ba8e6463
+Session: 8891262b-9aab-44b1-832d-71727adfe4d3
+Created: 2026-04-16 17:47:44
+Author: JustinBeaudry <me@justinbeaudry.dev>
+Tokens: 21911749
+
+Commits: (1)
+  4d8cdfc 2026-04-16 feat: add command wrappers, doctor CLI, explicit qmd detection
+
+Intent: file
+Outcome: (not generated)
