@@ -40,8 +40,9 @@ When the user runs `/cairn:refine`:
 4. **Under-connected pages** (< 3 inbound links):
    - Check `## Backlinks` sections to count inbound links.
    - Check your tool list for `mcp__qmd__qmd_search` (or `qmd_search`). If
-     present, use it to find related pages by keyword overlap. Otherwise, read
-     `index.md` and scan category neighbors.
+     present, use it to find related pages by keyword overlap. Otherwise, use
+     `cairn recall <keyword>` to find related pages in `wiki/`, or `cairn list-topics`
+     to scan category neighbors.
    - Suggest new connections: "[[Page A]] has 1 inbound link. Related to [[Page B]] and [[Page C]]?"
    - If approved, add wikilinks and update backlinks on both sides.
 
@@ -86,3 +87,4 @@ Baseline: N pages, N.N avg links. Updated [[Page A]], merged [[Page B]] + [[Page
 4. Update `index.md` after every structural change.
 5. Update `context.md` if refinement affects current focus areas.
 6. Never delete pages — archive instead (move to `wiki/archive/`).
+7. Refine only operates on `wiki/**`, `index.md`, `context.md`, `log.md`. Do not read `sessions/` or `raw/` during refinement; if a stale wiki page cites an untrusted source, pull excerpts via `cairn read-raw` / `cairn read-session` with user approval.
