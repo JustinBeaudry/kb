@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from "bun:test";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdirSync, writeFileSync, rmSync, symlinkSync } from "node:fs";
 import { parseEnvelope } from "../src/lib/envelope";
 
 const vaults: string[] = [];
@@ -100,5 +100,54 @@ describe("recall command", () => {
     const { exitCode, stderr } = await run(vault, "anything");
     expect(exitCode).not.toBe(0);
     expect(stderr).toMatch(/wiki/i);
+  });
+
+  it("does not follow symlinks inside wiki/ that point at sessions/ or raw/", async () => {
+    const vault = makeVault();
+    // A symlink inside wiki/ pointing at a sessions file with matching content.
+    symlinkSync(
+      join(vault, "sessions", "2026-04-01.md"),
+      join(vault, "wiki", "leaked.md")
+    );
+    const { stdout, exitCode } = await run(vault, "OAuth2");
+    expect(exitCode).toBe(0);
+    const env = parseEnvelope(stdout);
+    for (const chunk of env.chunks) {
+      expect(chunk.source).not.toContain("leaked.md");
+      expect(chunk.text).not.toContain("SESSION_MARKER_X");
+    }
+  });
+
+  it("does not follow symlinks inside wiki/ that point outside the vault", async () => {
+    const vault = makeVault();
+    const outside = join(tmpdir(), `cairn-recall-outside-${Date.now()}.md`);
+    writeFileSync(outside, "OUTSIDE_VAULT_OAuth2_CONTENT\n");
+    try {
+      symlinkSync(outside, join(vault, "wiki", "escape.md"));
+      const { stdout } = await run(vault, "OAuth2");
+      const env = parseEnvelope(stdout);
+      for (const chunk of env.chunks) {
+        expect(chunk.text).not.toContain("OUTSIDE_VAULT_OAuth2_CONTENT");
+        expect(chunk.source).not.toContain("escape.md");
+      }
+    } finally {
+      rmSync(outside, { force: true });
+    }
+  });
+
+  it("rejects when wiki/ is itself a symlink", async () => {
+    const vault = makeVault();
+    rmSync(join(vault, "wiki"), { recursive: true });
+    const outside = join(tmpdir(), `cairn-recall-fake-wiki-${Date.now()}`);
+    mkdirSync(outside, { recursive: true });
+    writeFileSync(join(outside, "poisoned.md"), "OAuth2 from outside\n");
+    try {
+      symlinkSync(outside, join(vault, "wiki"));
+      const { exitCode, stderr } = await run(vault, "OAuth2");
+      expect(exitCode).not.toBe(0);
+      expect(stderr).toMatch(/symlink|invalid|scope/i);
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
   });
 });

@@ -1,28 +1,44 @@
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { defineCommand } from "citty";
 import { resolveVaultPath } from "../lib/vault";
 import { buildEnvelope, writeEnvelope, type EnvelopeChunk } from "../lib/envelope";
 import { appendAccessLog } from "../lib/access-log";
+import { assertGenuineScopeDir, isWithin, PathUnsafeError } from "../lib/path-safety";
 
 const MAX_MATCHES = 20;
 const CONTEXT_LINES = 3;
 const MAX_FILE_BYTES = 256 * 1024;
 
-function walkWiki(wikiDir: string, onFile: (path: string) => void): void {
+function walkWiki(
+  wikiDir: string,
+  wikiReal: string,
+  onFile: (path: string) => void
+): void {
   for (const entry of readdirSync(wikiDir)) {
     if (entry.startsWith(".")) continue;
     const full = join(wikiDir, entry);
-    const stat = statSync(full);
-    if (stat.isDirectory()) {
-      walkWiki(full, onFile);
-    } else if (entry.endsWith(".md")) {
+    const lst = lstatSync(full);
+    if (lst.isSymbolicLink()) continue;
+    if (lst.isDirectory()) {
+      walkWiki(full, wikiReal, onFile);
+    } else if (lst.isFile() && entry.endsWith(".md")) {
+      let real: string;
+      try {
+        real = realpathSync(full);
+      } catch {
+        continue;
+      }
+      if (!isWithin(real, wikiReal)) continue;
       onFile(full);
     }
   }
 }
 
-function grepFile(path: string, needle: string): Array<{ lineStart: number; lineEnd: number; snippet: string }> {
+function grepFile(
+  path: string,
+  needle: string
+): Array<{ lineStart: number; lineEnd: number; snippet: string }> {
   const stat = statSync(path);
   if (stat.size > MAX_FILE_BYTES) return [];
   const lines = readFileSync(path, "utf-8").split("\n");
@@ -62,10 +78,21 @@ export default defineCommand({
       process.exit(1);
     }
 
+    try {
+      assertGenuineScopeDir(wikiDir, vaultPath);
+    } catch (err) {
+      if (err instanceof PathUnsafeError) {
+        process.stderr.write(`error: ${err.message}\n`);
+        process.exit(1);
+      }
+      throw err;
+    }
+
+    const wikiReal = realpathSync(wikiDir);
     const chunks: EnvelopeChunk[] = [];
     const query = args.query;
 
-    walkWiki(wikiDir, (path) => {
+    walkWiki(wikiDir, wikiReal, (path) => {
       if (chunks.length >= MAX_MATCHES) return;
       const hits = grepFile(path, query);
       const rel = relative(vaultPath, path);

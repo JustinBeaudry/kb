@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from "bun:test";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { mkdirSync, writeFileSync, rmSync, symlinkSync } from "node:fs";
+import { mkdirSync, writeFileSync, rmSync, symlinkSync, existsSync, readFileSync } from "node:fs";
 import { parseEnvelope } from "../src/lib/envelope";
 
 const vaults: string[] = [];
@@ -134,5 +134,98 @@ describe("read-raw — path safety", () => {
     expect(exitCode).not.toBe(0);
     expect(stdout).toBe("");
     expect(stderr).toMatch(/not found/i);
+  });
+
+  it("rejects when raw/ scope dir is itself a symlink", async () => {
+    const vault = makeVault();
+    rmSync(join(vault, "raw"), { recursive: true });
+    const outside = join(tmpdir(), `cairn-raw-fake-${Date.now()}`);
+    mkdirSync(outside, { recursive: true });
+    writeFileSync(join(outside, "notes.md"), "poisoned\n");
+    try {
+      symlinkSync(outside, join(vault, "raw"));
+      const { exitCode, stderr, stdout } = await run(vault, ["notes.md", "--approve"]);
+      expect(exitCode).not.toBe(0);
+      expect(stdout).toBe("");
+      expect(stderr).toMatch(/symlink|scope/i);
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("read-raw — strict numeric bounds", () => {
+  it("rejects --lines=-1", async () => {
+    const vault = makeVault();
+    const { exitCode, stderr, stdout } = await run(vault, [
+      "notes.md",
+      "--approve",
+      "--lines=-1",
+    ]);
+    expect(exitCode).not.toBe(0);
+    expect(stdout).toBe("");
+    expect(stderr).toMatch(/invalid --lines|positive integer/i);
+  });
+
+  it("rejects --lines=0", async () => {
+    const vault = makeVault();
+    const { exitCode, stderr } = await run(vault, ["notes.md", "--approve", "--lines", "0"]);
+    expect(exitCode).not.toBe(0);
+    expect(stderr).toMatch(/invalid --lines|positive integer/i);
+  });
+
+  it("rejects --lines=abc", async () => {
+    const vault = makeVault();
+    const { exitCode, stderr } = await run(vault, ["notes.md", "--approve", "--lines", "abc"]);
+    expect(exitCode).not.toBe(0);
+    expect(stderr).toMatch(/invalid --lines|positive integer/i);
+  });
+
+  it("rejects --lines=1.5", async () => {
+    const vault = makeVault();
+    const { exitCode, stderr } = await run(vault, ["notes.md", "--approve", "--lines", "1.5"]);
+    expect(exitCode).not.toBe(0);
+    expect(stderr).toMatch(/invalid --lines|positive integer/i);
+  });
+
+  it("rejects --bytes=-1", async () => {
+    const vault = makeVault();
+    const { exitCode, stderr } = await run(vault, ["notes.md", "--approve", "--bytes=-1"]);
+    expect(exitCode).not.toBe(0);
+    expect(stderr).toMatch(/invalid --bytes|positive integer/i);
+  });
+
+  it("--bytes clamp truncates mid-file and sets policy.clamped", async () => {
+    const vault = makeVault();
+    const { stdout } = await run(vault, [
+      "notes.md",
+      "--approve",
+      "--lines",
+      "500",
+      "--bytes",
+      "50",
+    ]);
+    const env = parseEnvelope(stdout);
+    expect(env.policy.clamped).toBe(true);
+    expect(new TextEncoder().encode(env.chunks[0]!.text).length).toBeLessThanOrEqual(50);
+  });
+});
+
+describe("read-raw — access log", () => {
+  it("appends a read-raw entry with filename hashed, never plaintext", async () => {
+    const vault = makeVault();
+    const secretName = "SECRET_FILENAME_MARKER.md";
+    writeFileSync(join(vault, "raw", secretName), "body\n");
+    await run(vault, [secretName, "--approve"]);
+    const logPath = join(vault, ".cairn", "access-log.jsonl");
+    expect(existsSync(logPath)).toBe(true);
+    const raw = readFileSync(logPath, "utf-8");
+    expect(raw).not.toContain("SECRET_FILENAME_MARKER");
+    const lines = raw.trim().split("\n").filter(Boolean);
+    expect(lines.length).toBeGreaterThan(0);
+    const last = JSON.parse(lines[lines.length - 1]!);
+    expect(last.command).toBe("read-raw");
+    expect(last.query_hash).toMatch(/^[0-9a-f]{16,64}$/);
+    expect(last.query_len).toBe(secretName.length);
   });
 });

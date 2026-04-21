@@ -2,9 +2,16 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { appendMinimalJsonl } from "./log-writer";
 
+export type AccessLogCommand =
+  | "recall"
+  | "get"
+  | "list-topics"
+  | "read-raw"
+  | "read-session";
+
 export interface AccessLogEntry {
   timestamp: string;
-  command: "recall" | "get" | "list-topics";
+  command: AccessLogCommand;
   query_hash: string;
   query_len: number;
   pages_returned: number;
@@ -14,7 +21,7 @@ export interface AccessLogEntry {
 
 export interface AccessLogInput {
   vaultPath: string;
-  command: AccessLogEntry["command"];
+  command: AccessLogCommand;
   query: string;
   pages_returned: number;
   bytes_returned: number;
