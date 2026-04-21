@@ -11,6 +11,9 @@ const main = defineCommand({
     init: () => import("./commands/init").then((m) => m.default),
     doctor: () => import("./commands/doctor").then((m) => m.default),
     uninstall: () => import("./commands/uninstall").then((m) => m.default),
+    recall: () => import("./commands/recall").then((m) => m.default),
+    get: () => import("./commands/get").then((m) => m.default),
+    "list-topics": () => import("./commands/list-topics").then((m) => m.default),
   },
 });
 
