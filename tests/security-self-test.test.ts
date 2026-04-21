@@ -96,4 +96,27 @@ describe("plugin .claude/settings.json", () => {
     expect(joined).toMatch(/Grep\(/);
     expect(joined).toMatch(/Glob\(/);
   });
+
+  it("covers more than one Bash reader (cat, head, tail, less, grep, awk, sed, python at minimum)", () => {
+    const settingsPath = join(process.cwd(), ".claude", "settings.json");
+    const parsed = JSON.parse(readFileSync(settingsPath, "utf-8"));
+    const denies: string[] = parsed?.permissions?.deny ?? [];
+    const bashEntries = denies.filter((d) => d.startsWith("Bash("));
+    const readers = ["cat", "head", "tail", "less", "grep", "awk", "sed", "python"];
+    for (const reader of readers) {
+      expect(
+        bashEntries.some((entry) => entry.includes(`(${reader} `)),
+        `expected at least one Bash(${reader} ...) pattern`
+      ).toBe(true);
+    }
+  });
+
+  it("bash denies cover both raw/ and sessions/ at minimum", () => {
+    const settingsPath = join(process.cwd(), ".claude", "settings.json");
+    const parsed = JSON.parse(readFileSync(settingsPath, "utf-8"));
+    const denies: string[] = parsed?.permissions?.deny ?? [];
+    const bashEntries = denies.filter((d) => d.startsWith("Bash("));
+    expect(bashEntries.some((e) => e.includes("raw/"))).toBe(true);
+    expect(bashEntries.some((e) => e.includes("sessions/"))).toBe(true);
+  });
 });

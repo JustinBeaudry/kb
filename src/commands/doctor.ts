@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { defineCommand } from "citty";
 import { resolveVaultPath, checkVaultState } from "../lib/vault";
@@ -116,6 +117,17 @@ export default defineCommand({
       )
     );
 
+    if (!vaultMatchesDefaultDenyGlobs(vaultPath)) {
+      warnings++;
+      lines.push(
+        line(
+          "warn",
+          "vault path outside default deny globs",
+          `${vaultPath} does not match **/cairn/** or ~/cairn/** — shipped .claude/settings.json deny rules will not fire. Add project-scoped deny entries or move the vault under ~/cairn.`
+        )
+      );
+    }
+
     lines.push("");
     if (errors > 0) {
       lines.push(`${errors} error(s), ${warnings} warning(s). Fix errors first.`);
@@ -148,6 +160,17 @@ function findNewestMarkdown(vaultPath: string): { path: string; mtimeMs: number 
     });
   }
   return newest;
+}
+
+function vaultMatchesDefaultDenyGlobs(vaultPath: string): boolean {
+  // Deny rules are shipped for any path containing /cairn/ as a segment
+  // and for ~/cairn/**. If the resolved vault path satisfies neither,
+  // the host-level enforcement is silently inactive.
+  const home = homedir();
+  if (vaultPath === join(home, "cairn")) return true;
+  if (vaultPath.startsWith(join(home, "cairn") + "/")) return true;
+  const segments = vaultPath.split("/");
+  return segments.includes("cairn");
 }
 
 function walkForMarkdown(dir: string, onFile: (file: string) => void): void {
