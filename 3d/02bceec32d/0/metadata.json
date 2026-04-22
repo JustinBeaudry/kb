@@ -1,0 +1,39 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "3d02bceec32d",
+  "session_id": "71c96d27-5ef1-4fc8-827d-d2d04182a34b",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-22T14:27:28.260852Z",
+  "branch": "feat/refine-research-gap-surfacing",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "skills/cairn/SKILL.md",
+    "skills/refine/SKILL.md",
+    "templates/CAIRN.md"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-7[1m]",
+  "turn_id": "ab6a8604f9e5",
+  "token_usage": {
+    "input_tokens": 27,
+    "cache_creation_tokens": 69177,
+    "cache_read_tokens": 1013365,
+    "output_tokens": 6228,
+    "api_call_count": 17
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-22T14:27:28.255222Z",
+    "agent_lines": 28,
+    "agent_removed": 13,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 28,
+    "total_lines_changed": 41,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}

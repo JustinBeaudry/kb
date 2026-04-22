@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "3d02bceec32d",
+  "strategy": "manual-commit",
+  "branch": "feat/refine-research-gap-surfacing",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "skills/cairn/SKILL.md",
+    "skills/refine/SKILL.md",
+    "templates/CAIRN.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/3d/02bceec32d/0/metadata.json",
+      "transcript": "/3d/02bceec32d/0/full.jsonl",
+      "content_hash": "/3d/02bceec32d/0/content_hash.txt",
+      "prompt": "/3d/02bceec32d/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 27,
+    "cache_creation_tokens": 69177,
+    "cache_read_tokens": 1013365,
+    "output_tokens": 6228,
+    "api_call_count": 17
+  }
+}
