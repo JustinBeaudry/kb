@@ -1,162 +1,20 @@
 #!/usr/bin/env bash
-# Cairn session summary hook — Stop event
-# Reads hook input JSON from stdin, extracts transcript,
-# pipes through claude -p for summarization, writes to sessions/.
-
-# NOTE: no pipefail — head/grep pipes legitimately close early (SIGPIPE),
-# and pipefail turns that into a fatal exit under set -e.
+# Cairn session capture hook — Stop event
 set -e
 
-# Read hook input from stdin
-INPUT=$(cat)
-TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)
-SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
-
-# Bail if no transcript
-if [ -z "${TRANSCRIPT_PATH:-}" ] || [ ! -f "${TRANSCRIPT_PATH:-}" ]; then
-  exit 0
-fi
-
-# Resolve vault path: env > default
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 VAULT_PATH="${CAIRN_VAULT:-${HOME}/cairn}"
-if [ ! -d "$VAULT_PATH" ]; then
+
+if command -v bun >/dev/null 2>&1; then
+  BUN_BIN="bun"
+elif [ -x "${HOME}/.bun/bin/bun" ]; then
+  BUN_BIN="${HOME}/.bun/bin/bun"
+else
+  mkdir -p "${VAULT_PATH}/.cairn"
+  printf '{"ts":"%s","stage":"bash","reason":"bun-not-found"}\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "${VAULT_PATH}/.cairn/capture-errors.log"
   exit 0
 fi
 
-SESSIONS_DIR="${VAULT_PATH}/sessions"
-mkdir -p "$SESSIONS_DIR"
-
-# Build filename from timestamp
-TIMESTAMP=$(date -u +"%Y-%m-%dT%H-%M-%S")
-SESSION_FILE="${SESSIONS_DIR}/${TIMESTAMP}.md"
-
-# Skip if file already exists (idempotency)
-if [ -f "$SESSION_FILE" ]; then
-  exit 0
-fi
-
-# Extract human-readable conversation from JSONL transcript.
-# Keep user and assistant messages; skip tool calls and system messages.
-CONVERSATION=$(jq -r '
-  select(.type == "human" or .type == "assistant") |
-  if .type == "human" then
-    "## User\n" + (
-      if (.message.content | type) == "array" then
-        [.message.content[] | select(.type == "text") | .text] | join("\n")
-      elif (.message.content | type) == "string" then
-        .message.content
-      else
-        ""
-      end
-    )
-  elif .type == "assistant" then
-    "## Assistant\n" + (
-      if (.message.content | type) == "array" then
-        [.message.content[] | select(.type == "text") | .text] | join("\n")
-      elif (.message.content | type) == "string" then
-        .message.content
-      else
-        ""
-      end
-    )
-  else
-    empty
-  end
-' "$TRANSCRIPT_PATH" 2>/dev/null || true)
-
-# Bail if transcript extraction produced nothing
-if [ -z "${CONVERSATION:-}" ]; then
-  exit 0
-fi
-
-# Truncate conversation to ~100K chars to stay within model context
-CONVERSATION=$(printf '%s' "$CONVERSATION" | head -c 100000)
-
-# Entire integration — detect checkpoint context for enriched summaries
-ENTIRE_CHECKPOINT=""
-ENTIRE_CONTEXT=""
-if command -v entire >/dev/null 2>&1 && entire status 2>/dev/null | grep -q "Enabled"; then
-  # Extract checkpoint ID from HEAD commit message
-  ENTIRE_CHECKPOINT=$(git log -1 --format=%B HEAD 2>/dev/null | grep -Ei -o 'Entire-Checkpoint:[[:space:]]*[a-f0-9]+' | head -1 | sed 's/^.*:[[:space:]]*//' || true)
-  if [ -n "$ENTIRE_CHECKPOINT" ]; then
-    ENTIRE_CONTEXT=$(entire explain --checkpoint "$ENTIRE_CHECKPOINT" --short --no-pager 2>/dev/null || true)
-  fi
-fi
-
-ISO_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-TODAY=$(date -u +"%Y-%m-%d")
-
-# Build optional checkpoint frontmatter field
-CHECKPOINT_FIELD=""
-if [ -n "$ENTIRE_CHECKPOINT" ]; then
-  CHECKPOINT_FIELD="entire_checkpoint: \"${ENTIRE_CHECKPOINT}\""
-fi
-
-# Write prompt to temp file to avoid argument-too-long and special char issues
-PROMPT_FILE=$(mktemp)
-trap 'rm -f "$PROMPT_FILE"' EXIT
-
-cat > "$PROMPT_FILE" <<PROMPT_EOF
-You are the Cairn session summarizer. Write a structured session summary in markdown.
-
-OUTPUT FORMAT — produce EXACTLY this, nothing else:
-
----
-session_id: "${ISO_TIMESTAMP}"
-status: completed
-extracted: false
-files_changed: []
-decisions: []
-open_threads: []
-tags: []
-${CHECKPOINT_FIELD:+${CHECKPOINT_FIELD}
-}---
-
-## Summary
-2-4 sentences summarizing what happened in this session.
-
-## Extraction Candidates
-- **<name>** (<type>) — <why it's worth keeping>
-
-RULES:
-1. Frontmatter fields files_changed, decisions, open_threads, and tags should be populated from the conversation. Use YAML list syntax.
-2. files_changed entries: {path: "<path>", action: "created|modified|deleted"}
-3. decisions entries: {choice: "<what>", reason: "<why>"}
-4. Extraction candidate types: concept, entity, source-summary, comparison, overview.
-5. Output ONLY the markdown. No commentary, no code fences wrapping the whole output.
-6. If the session is trivial (quick question, no real work), still produce the format but keep Summary to one sentence and Extraction Candidates to 'None.'
-
-SESSION TRANSCRIPT:
-
-${CONVERSATION}
-PROMPT_EOF
-
-# Append Entire checkpoint context if available
-if [ -n "$ENTIRE_CONTEXT" ]; then
-  cat >> "$PROMPT_FILE" <<ENTIRE_EOF
-
-ENTIRE CHECKPOINT CONTEXT (codebase state at this session's checkpoint):
-
-${ENTIRE_CONTEXT}
-ENTIRE_EOF
-fi
-
-# Run through claude -p (haiku for speed/cost)
-SUMMARY=$(claude -p --model haiku < "$PROMPT_FILE" 2>&1 || true)
-
-# Bail if claude produced nothing or returned an error
-if [ -z "${SUMMARY:-}" ] || echo "$SUMMARY" | grep -qi "error\|too long\|failed"; then
-  exit 0
-fi
-
-# Write session file
-printf '%s\n' "$SUMMARY" > "$SESSION_FILE"
-
-# Append to log.md
-LOG_FILE="${VAULT_PATH}/log.md"
-if [ -f "$LOG_FILE" ]; then
-  DESCRIPTION=$(printf '%s' "$SUMMARY" | grep -A1 "## Summary" | tail -1 | head -c 120 || true)
-  printf '\n## [%s] session | %s\n' "$TODAY" "$DESCRIPTION" >> "$LOG_FILE"
-fi
-
+"${BUN_BIN}" "${PLUGIN_ROOT}/src/cli.ts" capture-session || true
 exit 0

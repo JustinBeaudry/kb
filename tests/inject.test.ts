@@ -100,4 +100,26 @@ describe("inject hook", () => {
 
     rmSync(vault, { recursive: true });
   });
+
+  it("should prefer cached session summaries over manifest bodies", async () => {
+    const vault = makeTestVault();
+    mkdirSync(join(vault, "sessions", "summaries"), { recursive: true });
+    writeFileSync(
+      join(vault, "sessions", "summaries", "2026-04-14T10-00-00.md"),
+      "---\nmanifest_hash: abc\ntranscript_hash: null\ngenerated_at: '2026-04-14T10:00:00Z'\n---\nCached summary body.\n"
+    );
+
+    const proc = Bun.spawn(["bash", "hooks/inject", vault], {
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const output = await new Response(proc.stdout).text();
+    const json = JSON.parse(output);
+    const context = json.hookSpecificOutput.additionalContext;
+
+    expect(context).toContain("Cached summary body");
+    expect(context).not.toContain("Started DB migration");
+
+    rmSync(vault, { recursive: true });
+  });
 });

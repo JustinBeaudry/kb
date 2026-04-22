@@ -67,7 +67,13 @@ if [ -d "$SESSIONS_DIR" ]; then
   if [ -n "$session_files" ]; then
     sessions_header_added=false
     for f in $session_files; do
-      session_content=$(cat "$f")
+      base_name=$(basename "$f")
+      summary_file="${SESSIONS_DIR}/summaries/${base_name}"
+      if [ -f "$summary_file" ]; then
+        session_content=$(cat "$summary_file")
+      else
+        session_content=$(cat "$f")
+      fi
       if [ "$sessions_header_added" = false ]; then
         section="\n### Recent Sessions\n---\n${session_content}"
         sessions_header_added=true
@@ -81,7 +87,7 @@ fi
 
 # 4. Entire status indicator (one line if enabled)
 if command -v entire >/dev/null 2>&1 && entire status 2>/dev/null | grep -q "Enabled"; then
-  append_if_fits "\n### Entire\nEntire is enabled in this project. Session summaries may have \`entire_checkpoint\` fields for richer extraction via \`entire explain\`." || true
+  append_if_fits "\n### Entire\nEntire is enabled in this project. Session manifests may have \`entire_checkpoint\` fields for richer extraction via \`entire explain\`." || true
 fi
 
 # Escape for JSON

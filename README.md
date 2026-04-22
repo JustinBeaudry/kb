@@ -5,8 +5,8 @@ your agent across sessions. Based on [Karpathy's LLM Wiki pattern](https://gist.
 
 ## What it does
 
-- **SessionStart hook** injects working set, index, and recent sessions (priority order)
-- **Stop hook** writes structured session summary when you finish working
+- **SessionStart hook** injects working set, index, and recent session summaries or manifests (priority order)
+- **Stop hook** writes a small session manifest when you finish working
 - **PostCompact hook** re-injects vault context after compaction (solves compaction amnesia)
 - **CAIRN.md template** teaches Claude to ingest sources, answer queries, and lint your vault
 
@@ -70,13 +70,14 @@ backlink gaps. Presents findings for approval, then applies changes.
 Shows vault health before and after.
 
 ### Extract
-Extract knowledge from session summaries into wiki pages:
+Extract knowledge from session manifests into wiki pages:
 
 > "Extract from sessions"
 
-Sessions are sources. Claude reads unprocessed session summaries, presents
-extraction candidates (entities, concepts, decisions, patterns), and runs
-the standard ingest workflow on confirmed items.
+Sessions are sources. Claude asks `cairn summarize` to lazily create cached
+summaries for unprocessed manifests, presents extraction candidates (entities,
+concepts, decisions, patterns), and runs the standard ingest workflow on
+confirmed items.
 
 Toggle session-start nudge: `/cairn:extract on` or `/cairn:extract off`.
 
@@ -104,7 +105,9 @@ Each type has a structural template defined in CAIRN.md with recommended section
   log.md          # Chronological operation log (heading-level entries)
   wiki/           # Knowledge pages (agent-maintained, typed)
   raw/            # Source documents (immutable, provenance)
-  sessions/       # Session summaries (auto-generated)
+  sessions/       # Session manifests (auto-generated)
+    summaries/    # Cached summaries from manifests
+    .trash/       # Migration quarantine and non-destructive replacements
 ```
 
 ## Context injection
@@ -114,7 +117,20 @@ via `CAIRN_BUDGET` env var):
 
 1. **`context.md`** — working set, always first
 2. **`index.md`** — categorized page index
-3. **Recent sessions** — newest first, fills remaining budget
+3. **Recent sessions** — cached summaries first, then manifests as fallback
+
+## Session migration
+
+Cairn v0.6.0 stores session manifests separately from cached summaries. Existing
+vaults can preview and apply the one-time migration:
+
+```bash
+bunx cairn migrate-sessions
+bunx cairn migrate-sessions --apply --yes
+```
+
+`cairn doctor` warns when legacy session files remain and reports manifest,
+summary, and trash counts.
 
 ## Search (optional)
 
@@ -139,9 +155,9 @@ When qmd MCP tools are available, Query and Refine workflows use
 
 ## Model choice
 
-Hooks use `claude -p` and inherit your model configuration. Haiku is the
-sensible default for session summarization. Cairn is unopinionated — use
-whatever model you prefer.
+Stop hooks do not call an LLM. Summaries are generated on demand by
+`cairn summarize`, which calls `claude -p --model haiku` by default. For tests
+or custom integrations, set `CAIRN_SUMMARIZE_COMMAND` to a compatible command.
 
 ## Uninstall
 

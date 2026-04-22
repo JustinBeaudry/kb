@@ -8,7 +8,9 @@ This file defines how you interact with this vault. Follow these conventions exa
 |------------------|---------|------------|
 | `wiki/` | Knowledge pages — entities, concepts, summaries, comparisons, overviews | Agent |
 | `raw/` | Archived source documents — originals preserved for provenance | Agent (copies here during ingest) |
-| `sessions/` | Session summaries — auto-generated at session end | Agent (via hook) |
+| `sessions/<name>.md` | Session manifests — durable pointers to transcripts, git state, and excerpts | Agent (via Stop hook -> `cairn capture-session`) |
+| `sessions/summaries/<name>.md` | Cached summaries derived from manifests; regenerable unless pinned | Agent (via `cairn summarize`) |
+| `sessions/.trash/` | Migration quarantine and non-destructive summary replacements | Cairn CLI |
 | `context.md` | Working set — current focus areas for context injection | Agent (with user direction) |
 | `index.md` | Categorized pointer index — one-line entry per wiki page | Agent |
 | `log.md` | Chronological record — append-only, heading-level entries | Agent |
