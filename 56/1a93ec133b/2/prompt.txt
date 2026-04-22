@@ -1,0 +1,54 @@
+You are the Cairn session summarizer. Write a structured session summary in markdown.
+
+OUTPUT FORMAT — produce EXACTLY this, nothing else:
+
+---
+session_id: "2026-04-21T17:21:52Z"
+status: completed
+extracted: false
+files_changed: []
+decisions: []
+open_threads: []
+tags: []
+entire_checkpoint: "18e6907e15cf"
+---
+
+## Summary
+2-4 sentences summarizing what happened in this session.
+
+## Extraction Candidates
+- **<name>** (<type>) — <why it's worth keeping>
+
+RULES:
+1. Frontmatter fields files_changed, decisions, open_threads, and tags should be populated from the conversation. Use YAML list syntax.
+2. files_changed entries: {path: "<path>", action: "created|modified|deleted"}
+3. decisions entries: {choice: "<what>", reason: "<why>"}
+4. Extraction candidate types: concept, entity, source-summary, comparison, overview.
+5. Output ONLY the markdown. No commentary, no code fences wrapping the whole output.
+6. If the session is trivial (quick question, no real work), still produce the format but keep Summary to one sentence and Extraction Candidates to 'None.'
+
+SESSION TRANSCRIPT:
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Branch no match Plane convention. Which issue track to? (e.g. `PROJ-123`) — or skip.
+
+Meanwhile audit ship-readiness.
+## Assistant
+
+ENTIRE CHECKPOINT CONTEXT (codebase state at this session's checkpoint):
+
+Checkpoint: 18e6907e15cf
+Session: e4c03b73-e3f3-40c5-bc7d-c3066903e7a7
+Created: 2026-04-20 04:05:03
+Author: JustinBeaudry <me@justinbeaudry.dev>
+Tokens: 9328018
+
+Commits: (1)
+  bae5693 2026-04-20 refactor(sessions): add Unit 1 foundation libs for manifest pipeline
+
+Intent: /compound-engineering:ce-debug
+Outcome: (not generated)
