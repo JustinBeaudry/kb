@@ -1,0 +1,600 @@
+You are the Cairn session summarizer. Write a structured session summary in markdown.
+
+OUTPUT FORMAT — produce EXACTLY this, nothing else:
+
+---
+session_id: "2026-04-21T16:59:31Z"
+status: completed
+extracted: false
+files_changed: []
+decisions: []
+open_threads: []
+tags: []
+entire_checkpoint: "18e6907e15cf"
+---
+
+## Summary
+2-4 sentences summarizing what happened in this session.
+
+## Extraction Candidates
+- **<name>** (<type>) — <why it's worth keeping>
+
+RULES:
+1. Frontmatter fields files_changed, decisions, open_threads, and tags should be populated from the conversation. Use YAML list syntax.
+2. files_changed entries: {path: "<path>", action: "created|modified|deleted"}
+3. decisions entries: {choice: "<what>", reason: "<why>"}
+4. Extraction candidate types: concept, entity, source-summary, comparison, overview.
+5. Output ONLY the markdown. No commentary, no code fences wrapping the whole output.
+6. If the session is trivial (quick question, no real work), still produce the format but keep Summary to one sentence and Extraction Candidates to 'None.'
+
+SESSION TRANSCRIPT:
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Branch no match Plane convention. Need issue ID to track time. Which Plane issue? (e.g., `PROJ-123`) Or skip tracking?
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Plan read. Big: 6 units, trust boundary + CLI + hooks + settings + docs. Need codebase recon before clarify.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Plan big. Many cross-cuts. Before dispatch, need clarity on 4 things:
+
+**1. Branch state.** Current branch `feat/session-capture-manifest` has WIP from *different* plan (session-capture-manifest, in-flight). Plan says "must compose with" that work but trust-boundary is separate PR. Options:
+- (a) Commit/land session-manifest WIP first, then new branch off main for this plan
+- (b) New branch off current branch (builds on its libs, but PR review muddled)
+- (c) Worktree off main (clean isolation)
+
+Which?
+
+**2. Default inject mode.** Plan Unit 1: "eager for existing installs, lazy for fresh". But fresh-detection logic deferred to Unit 5. Two reads:
+- (a) Default `eager`, require explicit `CAIRN_INJECT_MODE=lazy` or `config.json` opt-in until Unit 5 `cairn init` writes `lazy` for new installs
+- (b) Add detection heuristic now (e.g., absence of `.cairn/` control dir = fresh)
+
+Prefer (a) — simpler, preserves current behavior, Unit 5 flips new installs.
+
+**3. Hook language.** Current `hooks/inject` is Bash. Plan allows either Bash or TS. TS wins for: R8 envelope write consistency (shared schema helper w/ CLI), `withLogLock` reuse, structured JSON escape w/o hand-rolled escaping. Bash wins for: zero runtime overhead, no bun cold start on every SessionStart.
+
+Rewrite to TS, or extend Bash?
+
+**4. `.claude/settings.json` location.** Unit 5 creates it. Two scopes:
+- (a) Plugin root `.claude/settings.json` — ships with plugin, applies wherever user installs
+- (b) User project `.claude/settings.json` — written by `cairn init` into consuming repo
+
+Plan unclear. Plugin.json exists so this *is* a Claude Code plugin. Guess: plugin ships rules; `cairn init` may also write project-scoped overrides. Confirm?
+
+**Execution plan.** Serial subagents. Parallel unsafe — Units 2/3/4 all modify `src/cli.ts`. Dep chain: 1 → 2 → 3 → 4 → 5 → 6.
+
+Answer 1–4 so I can proceed.
+## Assistant
+
+## Assistant
+My answers:
+
+1. **Branch**: New branch off current `feat/session-capture-manifest`. Trust-boundary plan depends on `src/lib/excerpt.ts` and `src/lib/manifest.ts` which live there. Implicit PR stack: session-manifest lands first, then this. Name: `feat/vault-trust-boundary`.
+
+2. **Inject mode default**: `eager` (preserve current). Opt-in via `CAIRN_INJECT_MODE=lazy` or `<vault>/.cairn/config.json`. Unit 5 `cairn init` writes `lazy` for fresh installs.
+
+3. **Hook language**: Rewrite to TS. Shared envelope schema + `withLogLock` + structured JSON escape all live in TS lib. Bun cold start acceptable (already required for CLI). Keep `run-hook.cmd` wrapper if present for cross-platform.
+
+4. **`.claude/settings.json`**: Plugin root ships default deny rules. Project-scoped overrides deferred (not critical path).
+
+Loading TaskCreate + continuing.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Branch has session-manifest WIP I accidentally carried. Needs to stay on its own branch. Fixing.
+## Assistant
+
+## Assistant
+
+## Assistant
+Problem: both branches share working tree, so session-manifest WIP now shows on trust-boundary too. Clean split needs either:
+- (a) Commit session-manifest WIP on its branch (makes trust-boundary definitionally clean going forward). Needs your OK — it's your in-flight work, not mine.
+- (b) Worktree off clean HEAD. Moving there isolates working trees.
+
+Which? Or I can just proceed on trust-boundary and be careful to stage only my files when committing.
+## Assistant
+
+## Assistant
+Going with worktree. Isolates trust-boundary working tree from session-manifest WIP.
+## Assistant
+
+## Assistant
+
+## Assistant
+Worktree ready. Plan + brainstorm docs are untracked on session-manifest — copying to worktree and committing them as trust-boundary's first commit.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+API Error: {"type":"error","error":{"details":null,"type":"overloaded_error","message":"Overloaded"},"request_id":"REDACTED"}
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Have context. Now TDD for Unit 1 — writing tests for new inject modes first.
+## Assistant
+
+## Assistant
+
+## Assistant
+Verify tests fail (Red).
+## Assistant
+
+## Assistant
+
+## Assistant
+10 fail, 6 pass. Red confirmed. Building TS implementation.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Unit 1 tests green. Verify existing inject.test.ts still passes + full suite.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Pre-existing `entire` detection failures unrelated to my work. Unit 1 complete. Committing.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Unit 2 now. Reading existing patterns.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Writing Unit 2 tests first.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Unit 2 green. Full suite sanity check.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Lint clean. Committing Unit 2.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Unit 3 now. Writing tests first.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Unit 3 green. Full suite + lint.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Unit 4 tests first.
+## Assistant
+
+## Assistant
+Now shared log writer + wire into commands.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Unit 5 now. Writing tests first.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Still just pre-existing `entire` failures. Commit Unit 5.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Updating docs now.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Now docs-contract tests.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Checking remote + PR base state.
+## Assistant
+
+## Assistant
+
+## Assistant
+All 6 units shipped. Pre-PR summary:
+
+**Branch:** `feat/vault-trust-boundary` (local, worktree at `/Users/justinbeaudry/Projects/cairn-trust-boundary`). 7 commits on top of `feat/session-capture-manifest` HEAD `bae5693`.
+
+**Commits:**
+- `a8d72e4` docs: planning artifacts
+- `1b15231` Unit 1: inject modes + pointer payload
+- `32dc137` Unit 2: recall/get/list-topics CLI + envelope
+- `5d20d7d` Unit 3: ask-gated read-raw/read-session
+- `2d28e37` Unit 4: minimized, rotated access log
+- `6828620` Unit 5: `.claude/settings.json` + R2a self-test
+- `a64ee78` Unit 6: docs + skills alignment
+
+**Tests:** 142 pass / 2 fail (pre-existing `entire` detection, unrelated). 58 new tests added across 7 new test files.
+
+**Lint:** clean (`bunx tsc --noEmit`).
+
+**PR stacking blocker:** `feat/session-capture-manifest` is local-only — has unpushed foundation commit `bae5693` plus uncommitted WIP in the main worktree. My branch depends on `bae5693`. Options:
+
+- (a) Push nothing yet. Hold until session-manifest PR lands, then rebase + push.
+- (b) Push `feat/vault-trust-boundary` to remote for backup/review but don't open PR.
+- (c) Push session-manifest's committed tip (`bae5693`, no WIP), then push + PR trust-boundary as stacked on it.
+
+(a) cleanest. (c) enables earlier review but requires pushing someone else's branch. Both need your call — push/PR affects shared state.
+
+Also want me to run `/ce:review` on the diff before PR? Worth catching issues before shared review.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Running ce:review in interactive mode. Base = `bae5693`, plan = vault-trust-boundary plan doc. Gathering scope.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Scope: 3238-line diff across 37 files. No repo CLAUDE.md/AGENTS.md. Generating run ID + dispatching reviewers in parallel.
+## Assistant
+
+## Assistant
+
+## Assistant
+Dispatching 12 reviewers in parallel. Team: 6 always-on + security + api-contract + reliability + adversarial + cli-readiness + kieran-typescript. Intent captured.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+All 12 reviewers returned. Synthesizing.
+## Assistant
+
+ENTIRE CHECKPOINT CONTEXT (codebase state at this session's checkpoint):
+
+Checkpoint: 18e6907e15cf
+Session: e4c03b73-e3f3-40c5-bc7d-c3066903e7a7
+Created: 2026-04-20 04:05:03
+Author: JustinBeaudry <me@justinbeaudry.dev>
+Tokens: 9328018
+
+Commits: (1)
+  bae5693 2026-04-20 refactor(sessions): add Unit 1 foundation libs for manifest pipeline
+
+Intent: /compound-engineering:ce-debug
+Outcome: (not generated)
