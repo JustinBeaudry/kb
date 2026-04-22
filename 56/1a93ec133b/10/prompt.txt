@@ -1,0 +1,25 @@
+/compound-engineering:ce-work-beta docs/plans/2026-04-21-001-feat-vault-trust-boundary-lazy-retrieval-plan.md
+
+---
+
+skip
+
+---
+
+You can answer these
+
+---
+
+answer them yourself
+
+---
+
+run review before PR
+
+---
+
+1
+
+---
+
+1

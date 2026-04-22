@@ -1,0 +1,113 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "561a93ec133b",
+  "session_id": "a6536576-e803-4cb4-b556-fc3c31783d6a",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-22T00:48:16.06244Z",
+  "branch": "feat/session-capture-manifest",
+  "checkpoints_count": 7,
+  "files_touched": [
+    "skills/cairn/SKILL.md",
+    "skills/extract/SKILL.md",
+    "skills/refine/SKILL.md",
+    "src/lib/lockfile.ts",
+    "templates/CAIRN.md",
+    "tests/lockfile.test.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-7[1m]",
+  "turn_id": "42177fc577fc",
+  "token_usage": {
+    "input_tokens": 144,
+    "cache_creation_tokens": 1032069,
+    "cache_read_tokens": 19583859,
+    "output_tokens": 162328,
+    "api_call_count": 97
+  },
+  "session_metrics": {
+    "turn_count": 7
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-22T00:48:16.032629Z",
+    "agent_lines": 34,
+    "agent_removed": 10,
+    "human_added": 2047,
+    "human_modified": 43,
+    "human_removed": 0,
+    "total_committed": 2097,
+    "total_lines_changed": 2528,
+    "agent_percentage": 1.740506329113924,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 1048,
+      "user_lines_removed": 15,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "docs/brainstorms/2026-04-21-context-hygiene-and-vault-trust-boundary-requirements.md": 197,
+        "docs/plans/2026-04-21-001-feat-vault-trust-boundary-lazy-retrieval-plan.md": 363,
+        "skills/cairn/SKILL.md": 3,
+        "skills/extract/SKILL.md": 1,
+        "skills/refine/SKILL.md": 8,
+        "src/lib/excerpt.ts": 125,
+        "src/lib/lockfile.ts": 17,
+        "templates/CAIRN.md": 16,
+        "tests/capture-session.test.ts": 283,
+        "tests/lockfile.test.ts": 35
+      },
+      "user_removed_per_file": {
+        "skills/cairn/SKILL.md": 2,
+        "skills/extract/SKILL.md": 1,
+        "skills/refine/SKILL.md": 2,
+        "src/lib/lockfile.ts": 1,
+        "templates/CAIRN.md": 8,
+        "tests/lockfile.test.ts": 1
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1048,
+      "agent_lines_removed": 15
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1048,
+      "agent_lines_removed": 15
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1048,
+      "agent_lines_removed": 15
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1048,
+      "agent_lines_removed": 15
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1048,
+      "agent_lines_removed": 15
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1048,
+      "agent_lines_removed": 15
+    }
+  ]
+}
