@@ -1,0 +1,123 @@
+You are the Cairn session summarizer. Write a structured session summary in markdown.
+
+OUTPUT FORMAT — produce EXACTLY this, nothing else:
+
+---
+session_id: "2026-04-21T15:19:41Z"
+status: completed
+extracted: false
+files_changed: []
+decisions: []
+open_threads: []
+tags: []
+entire_checkpoint: "18e6907e15cf"
+---
+
+## Summary
+2-4 sentences summarizing what happened in this session.
+
+## Extraction Candidates
+- **<name>** (<type>) — <why it's worth keeping>
+
+RULES:
+1. Frontmatter fields files_changed, decisions, open_threads, and tags should be populated from the conversation. Use YAML list syntax.
+2. files_changed entries: {path: "<path>", action: "created|modified|deleted"}
+3. decisions entries: {choice: "<what>", reason: "<why>"}
+4. Extraction candidate types: concept, entity, source-summary, comparison, overview.
+5. Output ONLY the markdown. No commentary, no code fences wrapping the whole output.
+6. If the session is trivial (quick question, no real work), still produce the format but keep Summary to one sentence and Extraction Candidates to 'None.'
+
+SESSION TRANSCRIPT:
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Branch no match Plane convention. Need issue ID to track time. Which Plane issue? (e.g., `PROJ-123`) Or skip tracking?
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Plan read. Big: 6 units, trust boundary + CLI + hooks + settings + docs. Need codebase recon before clarify.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Plan big. Many cross-cuts. Before dispatch, need clarity on 4 things:
+
+**1. Branch state.** Current branch `feat/session-capture-manifest` has WIP from *different* plan (session-capture-manifest, in-flight). Plan says "must compose with" that work but trust-boundary is separate PR. Options:
+- (a) Commit/land session-manifest WIP first, then new branch off main for this plan
+- (b) New branch off current branch (builds on its libs, but PR review muddled)
+- (c) Worktree off main (clean isolation)
+
+Which?
+
+**2. Default inject mode.** Plan Unit 1: "eager for existing installs, lazy for fresh". But fresh-detection logic deferred to Unit 5. Two reads:
+- (a) Default `eager`, require explicit `CAIRN_INJECT_MODE=lazy` or `config.json` opt-in until Unit 5 `cairn init` writes `lazy` for new installs
+- (b) Add detection heuristic now (e.g., absence of `.cairn/` control dir = fresh)
+
+Prefer (a) — simpler, preserves current behavior, Unit 5 flips new installs.
+
+**3. Hook language.** Current `hooks/inject` is Bash. Plan allows either Bash or TS. TS wins for: R8 envelope write consistency (shared schema helper w/ CLI), `withLogLock` reuse, structured JSON escape w/o hand-rolled escaping. Bash wins for: zero runtime overhead, no bun cold start on every SessionStart.
+
+Rewrite to TS, or extend Bash?
+
+**4. `.claude/settings.json` location.** Unit 5 creates it. Two scopes:
+- (a) Plugin root `.claude/settings.json` — ships with plugin, applies wherever user installs
+- (b) User project `.claude/settings.json` — written by `cairn init` into consuming repo
+
+Plan unclear. Plugin.json exists so this *is* a Claude Code plugin. Guess: plugin ships rules; `cairn init` may also write project-scoped overrides. Confirm?
+
+**Execution plan.** Serial subagents. Parallel unsafe — Units 2/3/4 all modify `src/cli.ts`. Dep chain: 1 → 2 → 3 → 4 → 5 → 6.
+
+Answer 1–4 so I can proceed.
+## Assistant
+
+## Assistant
+My answers:
+
+1. **Branch**: New branch off current `feat/session-capture-manifest`. Trust-boundary plan depends on `src/lib/excerpt.ts` and `src/lib/manifest.ts` which live there. Implicit PR stack: session-manifest lands first, then this. Name: `feat/vault-trust-boundary`.
+
+2. **Inject mode default**: `eager` (preserve current). Opt-in via `CAIRN_INJECT_MODE=lazy` or `<vault>/.cairn/config.json`. Unit 5 `cairn init` writes `lazy` for fresh installs.
+
+3. **Hook language**: Rewrite to TS. Shared envelope schema + `withLogLock` + structured JSON escape all live in TS lib. Bun cold start acceptable (already required for CLI). Keep `run-hook.cmd` wrapper if present for cross-platform.
+
+4. **`.claude/settings.json`**: Plugin root ships default deny rules. Project-scoped overrides deferred (not critical path).
+
+Loading TaskCreate + continuing.
+## Assistant
+
+## Assistant
+
+## Assistant
+
+## Assistant
+Branch has session-manifest WIP I accidentally carried. Needs to stay on its own branch. Fixing.
+## Assistant
+
+ENTIRE CHECKPOINT CONTEXT (codebase state at this session's checkpoint):
+
+Checkpoint: 18e6907e15cf
+Session: e4c03b73-e3f3-40c5-bc7d-c3066903e7a7
+Created: 2026-04-20 04:05:03
+Author: JustinBeaudry <me@justinbeaudry.dev>
+Tokens: 9328018
+
+Commits: (1)
+  bae5693 2026-04-20 refactor(sessions): add Unit 1 foundation libs for manifest pipeline
+
+Intent: /compound-engineering:ce-debug
+Outcome: (not generated)
