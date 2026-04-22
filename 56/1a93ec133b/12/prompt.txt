@@ -1,0 +1,72 @@
+/compound-engineering:ce-debug
+
+---
+
+Session logging writes files with only: Prompt is too long
+
+---
+
+/compound-engineering:ce-brainstorm
+
+---
+
+1
+
+---
+
+5
+
+---
+
+C
+
+---
+
+3
+
+---
+
+Which is worth doing? Keep in mind, we're also hooking into entire for this. Any way we can look at this from a different perspective and unlock something interesting?
+
+---
+
+yes, you tell me
+
+---
+
+yes
+
+---
+
+1
+
+---
+
+Q1: 2
+Q2: 1
+
+---
+
+2
+
+---
+
+2
+
+---
+
+/compound-engineering:ce-work-beta
+
+---
+
+Q1: 3
+Q2: 1
+Q3: 1
+
+---
+
+2
+
+---
+
+whats next with this?

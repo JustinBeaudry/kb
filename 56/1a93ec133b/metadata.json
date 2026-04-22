@@ -3,7 +3,7 @@
   "checkpoint_id": "561a93ec133b",
   "strategy": "manual-commit",
   "branch": "feat/session-capture-manifest",
-  "checkpoints_count": 23,
+  "checkpoints_count": 26,
   "files_touched": [
     "README.md",
     "commands/extract.md",
@@ -107,13 +107,19 @@
       "transcript": "/56/1a93ec133b/11/full.jsonl",
       "content_hash": "/56/1a93ec133b/11/content_hash.txt",
       "prompt": "/56/1a93ec133b/11/prompt.txt"
+    },
+    {
+      "metadata": "/56/1a93ec133b/12/metadata.json",
+      "transcript": "/56/1a93ec133b/12/full.jsonl",
+      "content_hash": "/56/1a93ec133b/12/content_hash.txt",
+      "prompt": "/56/1a93ec133b/12/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 14870998,
-    "cache_creation_tokens": 1511331,
-    "cache_read_tokens": 36704558,
-    "output_tokens": 266766,
-    "api_call_count": 239
+    "input_tokens": 14871247,
+    "cache_creation_tokens": 2683063,
+    "cache_read_tokens": 65283416,
+    "output_tokens": 419723,
+    "api_call_count": 367
   }
 }
