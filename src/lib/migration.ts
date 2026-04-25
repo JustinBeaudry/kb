@@ -21,6 +21,7 @@ export type SessionClass =
   | "legacy-error"
   | "legacy-well-formed"
   | "already-migrated"
+  | "malformed-yaml"
   | "unknown";
 
 export interface MigrationEntry {
@@ -86,7 +87,14 @@ export async function applyMigration(
 
 export function classifySessionFile(path: string): SessionClass {
   const raw = readFileSync(path, "utf-8");
-  const { data, body } = parseFrontmatter<Record<string, unknown>>(raw);
+
+  let parsed: { data: Record<string, unknown>; body: string };
+  try {
+    parsed = parseFrontmatter<Record<string, unknown>>(raw);
+  } catch {
+    return "malformed-yaml";
+  }
+  const { data, body } = parsed;
   const trimmedBody = body.trim().normalize("NFC");
 
   if (LEGACY_ERROR_STRINGS.includes(trimmedBody)) return "legacy-error";
@@ -105,6 +113,8 @@ function actionForClass(klass: SessionClass): string {
       return "convert to manifest + cached summary";
     case "already-migrated":
       return "skip";
+    case "malformed-yaml":
+      return "move to sessions/.trash";
     case "unknown":
       return "skip with warning";
   }
@@ -112,7 +122,7 @@ function actionForClass(klass: SessionClass): string {
 
 async function applyEntry(vaultPath: string, entry: MigrationEntry): Promise<void> {
   const path = join(vaultPath, "sessions", entry.file);
-  if (entry.class === "legacy-error") {
+  if (entry.class === "legacy-error" || entry.class === "malformed-yaml") {
     moveFile(path, join(vaultPath, "sessions", ".trash", entry.file));
     await stripLogEntry(vaultPath, entry.file);
     return;
