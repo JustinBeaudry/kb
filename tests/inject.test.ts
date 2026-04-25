@@ -58,7 +58,7 @@ describe("inject hook", () => {
     expect(json.hookSpecificOutput.additionalContext).toBe("");
   });
 
-  it("should respect 2KB budget", async () => {
+  it("should respect configured budget", async () => {
     const vault = makeTestVault();
     // Add many session files to exceed budget
     for (let i = 0; i < 50; i++) {
@@ -72,12 +72,12 @@ describe("inject hook", () => {
     const proc = Bun.spawn(["bash", "hooks/inject", vault], {
       stdout: "pipe",
       stderr: "pipe",
+      env: { ...process.env, CAIRN_BUDGET: "2048" },
     });
     const output = await new Response(proc.stdout).text();
     const json = JSON.parse(output);
     const context = json.hookSpecificOutput.additionalContext;
 
-    // 2KB = 2048 bytes
     expect(new TextEncoder().encode(context).length).toBeLessThanOrEqual(2048);
 
     rmSync(vault, { recursive: true });

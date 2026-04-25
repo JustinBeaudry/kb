@@ -7,7 +7,7 @@ export const CAIRN_DIR = ".cairn";
 export const STATE_FILE = ".cairn/state.json";
 export const MIGRATION_JOURNAL = ".cairn/migration-journal.json";
 export const CAPTURE_ERRORS_LOG = ".cairn/capture-errors.log";
-export const DEFAULT_BUDGET = 2048; // 2KB in bytes
+export const DEFAULT_BUDGET = 8192; // 8KB in bytes
 export const VAULT_DIRS = [
   "wiki",
   "raw",

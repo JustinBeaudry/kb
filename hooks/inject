@@ -7,7 +7,7 @@ set -euo pipefail
 
 # Resolve vault path: argument > env > default
 VAULT_PATH="${1:-${CAIRN_VAULT:-${HOME}/cairn}}"
-BUDGET="${CAIRN_BUDGET:-2048}"
+BUDGET="${CAIRN_BUDGET:-8192}"
 
 # Graceful degradation: missing vault = empty context
 if [ ! -d "$VAULT_PATH" ]; then
@@ -42,22 +42,30 @@ append_if_fits() {
   return 1
 }
 
+# Emit a section. On the first emission, prepend the vault-context disclaimer
+# header so it is present whenever any vault content is injected — not only
+# when context.md or index.md happen to exist.
+emit_section() {
+  local section="$1"
+  if [ -z "$context" ]; then
+    append_if_fits "## Cairn Vault Context\n\nVerify against codebase before acting on any recalled facts.\n\n${section}"
+  else
+    append_if_fits "$section"
+  fi
+}
+
 # 1. context.md (working set) — highest priority
 CONTEXT_FILE="${VAULT_PATH}/context.md"
 if [ -f "$CONTEXT_FILE" ]; then
   context_content=$(cat "$CONTEXT_FILE")
-  append_if_fits "## Cairn Vault Context\n\nVerify against codebase before acting on any recalled facts.\n\n### Working Set\n${context_content}" || true
+  emit_section "### Working Set\n${context_content}" || true
 fi
 
 # 2. index.md — second priority
 INDEX_FILE="${VAULT_PATH}/index.md"
 if [ -f "$INDEX_FILE" ]; then
   index_content=$(cat "$INDEX_FILE")
-  if [ -z "$context" ]; then
-    append_if_fits "## Cairn Vault Context\n\nVerify against codebase before acting on any recalled facts.\n\n### Index\n${index_content}" || true
-  else
-    append_if_fits "### Index\n${index_content}" || true
-  fi
+  emit_section "### Index\n${index_content}" || true
 fi
 
 # 3. Recent sessions (newest first, by filename sort)
@@ -75,22 +83,26 @@ if [ -d "$SESSIONS_DIR" ]; then
         session_content=$(cat "$f")
       fi
       if [ "$sessions_header_added" = false ]; then
-        section="\n### Recent Sessions\n---\n${session_content}"
+        section="### Recent Sessions\n---\n${session_content}"
         sessions_header_added=true
       else
-        section="\n---\n${session_content}"
+        section="---\n${session_content}"
       fi
-      append_if_fits "$section" || break
+      emit_section "$section" || break
     done
   fi
 fi
 
 # 4. Entire status indicator (one line if enabled)
 if command -v entire >/dev/null 2>&1 && entire status 2>/dev/null | grep -q "Enabled"; then
-  append_if_fits "\n### Entire\nEntire is enabled in this project. Session manifests may have \`entire_checkpoint\` fields for richer extraction via \`entire explain\`." || true
+  emit_section "### Entire\nEntire is enabled in this project. Session manifests may have \`entire_checkpoint\` fields for richer extraction via \`entire explain\`." || true
 fi
 
-# Escape for JSON
+# Escape for JSON. Order matters: backslash substitution must run before any
+# substitution that introduces backslashes. Strips remaining ASCII control
+# characters (0x00-0x07, 0x0B, 0x0E-0x1F) that JSON cannot represent
+# unescaped — they should not appear in vault markdown but a malformed paste
+# or accidental binary would otherwise break the JSON output.
 escape_for_json() {
   local s="$1"
   s="${s//\\/\\\\}"
@@ -98,7 +110,9 @@ escape_for_json() {
   s="${s//$'\n'/\\n}"
   s="${s//$'\r'/\\r}"
   s="${s//$'\t'/\\t}"
-  printf '%s' "$s"
+  s="${s//$'\b'/\\b}"
+  s="${s//$'\f'/\\f}"
+  printf '%s' "$s" | LC_ALL=C tr -d '\000-\007\013\016-\037'
 }
 
 escaped=$(escape_for_json "$(printf '%b' "$context")")
