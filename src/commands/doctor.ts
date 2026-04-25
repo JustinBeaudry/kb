@@ -4,7 +4,12 @@ import { defineCommand } from "citty";
 import { resolveVaultPath, checkVaultState } from "../lib/vault";
 import { isQmdOnPath, isVaultRegistered, QMD_INSTALL_HINT } from "../lib/qmd";
 import { isEntireOnPath } from "../lib/entire";
-import { CAPTURE_ERRORS_LOG, MIGRATION_JOURNAL, VERSION } from "../lib/constants";
+import {
+  CAPTURE_ERRORS_LOG,
+  DEFAULT_BUDGET,
+  MIGRATION_JOURNAL,
+  VERSION,
+} from "../lib/constants";
 import { parseFrontmatter } from "../lib/frontmatter";
 import { validateManifest } from "../lib/manifest";
 
@@ -69,6 +74,11 @@ export default defineCommand({
       warnings += sessionHealth.warnings;
       errors += sessionHealth.errors;
       lines.push(...sessionHealth.lines);
+
+      const budgetHealth = collectInjectBudgetHealth(vaultPath);
+      warnings += budgetHealth.warnings;
+      errors += budgetHealth.errors;
+      lines.push(...budgetHealth.lines);
     } else {
       errors++;
       lines.push(line("error", `vault state: ${state}`, `run 'cairn init' at ${vaultPath}`));
@@ -300,6 +310,69 @@ function lockCreatedAtMs(path: string): number {
     // Fall back to mtime for malformed lockfiles.
   }
   return statSync(path).mtimeMs;
+}
+
+function collectInjectBudgetHealth(vaultPath: string): {
+  lines: string[];
+  warnings: number;
+  errors: number;
+} {
+  const budget = parsePositiveInt(process.env.CAIRN_BUDGET) ?? DEFAULT_BUDGET;
+  const contextSize = fileSize(join(vaultPath, "context.md"));
+  const indexSize = fileSize(join(vaultPath, "index.md"));
+  const coreSize = contextSize + indexSize;
+  const remaining = Math.max(0, budget - coreSize);
+  const pct = budget > 0 ? Math.round((coreSize / budget) * 100) : 0;
+  const usage = `${coreSize}/${budget} bytes (${pct}%)`;
+
+  if (coreSize >= budget) {
+    return {
+      warnings: 1,
+      errors: 0,
+      lines: [
+        line(
+          "warn",
+          "inject budget exhausted by core vault",
+          `${usage}; raise CAIRN_BUDGET or trim context.md/index.md so sessions can fit`
+        ),
+      ],
+    };
+  }
+
+  if (pct >= 80) {
+    return {
+      warnings: 1,
+      errors: 0,
+      lines: [
+        line(
+          "warn",
+          "inject budget under pressure",
+          `${usage}; only ${remaining} bytes left for session context`
+        ),
+      ],
+    };
+  }
+
+  return {
+    warnings: 0,
+    errors: 0,
+    lines: [line("ok", "inject budget headroom", `${usage}; ${remaining} bytes left for sessions`)],
+  };
+}
+
+function fileSize(path: string): number {
+  if (!existsSync(path)) return 0;
+  try {
+    return statSync(path).size;
+  } catch {
+    return 0;
+  }
+}
+
+function parsePositiveInt(value: string | undefined): number | null {
+  if (!value) return null;
+  const n = Number.parseInt(value, 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 function countMarkdownFiles(dir: string): number {

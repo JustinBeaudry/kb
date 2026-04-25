@@ -49,12 +49,15 @@ function writeGoodManifest(vault: string): void {
   );
 }
 
-async function runDoctor(env: Env): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+async function runDoctor(
+  env: Env,
+  extraEnv: Record<string, string> = {}
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   const proc = Bun.spawn(["bun", CLI, "doctor"], {
     cwd: env.root,
     stdout: "pipe",
     stderr: "pipe",
-    env: { ...process.env, CAIRN_VAULT: env.vault },
+    env: { ...process.env, CAIRN_VAULT: env.vault, ...extraEnv },
   });
   const [stdout, stderr] = await Promise.all([
     new Response(proc.stdout).text(),
@@ -118,6 +121,32 @@ describe("cairn doctor session health", () => {
 
     expect(result.stdout).toContain("1 legacy session files detected");
     expect(result.stdout).toContain("manifest missing required fields");
+  });
+
+  it("warns when context.md + index.md exceed the inject budget", async () => {
+    writeFileSync(join(env.vault, "context.md"), "x".repeat(512));
+    writeFileSync(join(env.vault, "index.md"), "y".repeat(10_000));
+
+    const result = await runDoctor(env, { CAIRN_BUDGET: "2048" });
+
+    expect(result.stdout).toContain("inject budget exhausted by core vault");
+    expect(result.stdout).toContain("10512/2048");
+  });
+
+  it("warns when core vault content fills 80%+ of the inject budget", async () => {
+    writeFileSync(join(env.vault, "index.md"), "z".repeat(1800));
+
+    const result = await runDoctor(env, { CAIRN_BUDGET: "2048" });
+
+    expect(result.stdout).toContain("inject budget under pressure");
+    expect(result.stdout).toMatch(/1800\/2048/);
+  });
+
+  it("reports inject budget headroom on a small vault", async () => {
+    const result = await runDoctor(env, { CAIRN_BUDGET: "8192" });
+
+    expect(result.stdout).toContain("inject budget headroom");
+    expect(result.stdout).toContain("0/8192");
   });
 
   it("deletes stale session lockfiles", async () => {
