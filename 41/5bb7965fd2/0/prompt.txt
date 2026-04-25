@@ -1,0 +1,49 @@
+/compound-engineering:ce-brainstorm I want to do a systematic review of this implementation, how it works, its obsidian frontmatter formaatting, how it injects context, how much context, etc
+
+---
+
+continue
+
+---
+
+continue
+
+---
+
+continue
+
+---
+
+continue
+
+---
+
+continue
+
+---
+
+continue
+
+---
+
+1continue
+
+---
+
+Why do we need 7-way Agent-tool dispatch?
+
+---
+
+This feels like insane overkill, lets completely rethink this. I'm losing faith in this design when I see things like this.
+
+---
+
+1
+
+---
+
+Do all that for me
+
+---
+
+yes
