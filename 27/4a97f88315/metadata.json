@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "274a97f88315",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/lib/migration.ts",
+    "tests/migrate-sessions.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/27/4a97f88315/0/metadata.json",
+      "transcript": "/27/4a97f88315/0/full.jsonl",
+      "content_hash": "/27/4a97f88315/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 19,
+    "cache_creation_tokens": 15915,
+    "cache_read_tokens": 2295115,
+    "output_tokens": 7052,
+    "api_call_count": 19
+  }
+}
