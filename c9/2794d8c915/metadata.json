@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "c92794d8c915",
+  "strategy": "manual-commit",
+  "branch": "feat/refine-research-gap-surfacing",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "templates/CAIRN.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/c9/2794d8c915/0/metadata.json",
+      "transcript": "/c9/2794d8c915/0/full.jsonl",
+      "content_hash": "/c9/2794d8c915/0/content_hash.txt",
+      "prompt": "/c9/2794d8c915/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 58,
+    "cache_creation_tokens": 190614,
+    "cache_read_tokens": 3733531,
+    "output_tokens": 42028,
+    "api_call_count": 39
+  }
+}

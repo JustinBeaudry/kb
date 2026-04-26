@@ -1,0 +1,1 @@
+/compound-engineering:ce-brainstorm /Users/justinbeaudry/Desktop/Screenshot\ 2026-04-26\ at\ 2.32.25 PM.png I'm noticing that our naming convention for Cairn documents, doesnt read well in Obsidian (spinal casing). How can we improve this? I'd rather it be in Title case format (obsidian document name on graph so the graph is readable)
