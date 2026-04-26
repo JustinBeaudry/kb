@@ -72,14 +72,14 @@ What this is, in 2-3 sentences.
 Concrete instances or usage.
 
 #### Related Concepts
-- [[Concept A]] — how it relates
-- [[Concept B]] — how it differs
+- [[concept-a|Concept A]] — how it relates
+- [[concept-b|Concept B]] — how it differs
 
 #### When to Use
 Situations where this applies.
 
 #### Backlinks
-- [[Page]] — context of reference
+- [[page-filename|Page Title]] — context of reference
 
 ### Entity
 
@@ -100,14 +100,14 @@ What this is and why it matters.
 What function it serves.
 
 #### Relationships
-- [[Entity A]] — relationship description
-- [[Entity B]] — relationship description
+- [[entity-a|Entity A]] — relationship description
+- [[entity-b|Entity B]] — relationship description
 
 #### Links
 External URLs, docs, repos.
 
 #### Backlinks
-- [[Page]] — context of reference
+- [[page-filename|Page Title]] — context of reference
 
 ### Source Summary
 
@@ -135,7 +135,7 @@ Direct quotes with context.
 What this changes, confirms, or contradicts in the vault.
 
 #### Backlinks
-- [[Page]] — context of reference
+- [[page-filename|Page Title]] — context of reference
 
 ### Comparison
 
@@ -164,7 +164,7 @@ Which to pick and why.
 Situations favoring X. Situations favoring Y.
 
 #### Backlinks
-- [[Page]] — context of reference
+- [[page-filename|Page Title]] — context of reference
 
 ### Overview
 
@@ -182,8 +182,8 @@ tags: [topic/subtopic]
 What this topic area covers and why it matters.
 
 #### Key Pages
-- [[Page A]] — what it covers
-- [[Page B]] — what it covers
+- [[page-a|Page A]] — what it covers
+- [[page-b|Page B]] — what it covers
 
 #### Gaps
 Topics not yet covered that should be.
@@ -192,21 +192,37 @@ Topics not yet covered that should be.
 Suggested sequence for someone new to this area.
 
 #### Backlinks
-- [[Page]] — context of reference
+- [[page-filename|Page Title]] — context of reference
 
 ## Markdown Conventions
 
 ### Wikilinks
-Use `[[wikilinks]]` for all internal references:
-- `[[Page Name]]` — link to page
-- `[[Page Name|Display Text]]` — aliased link
-- `[[Page Name#Heading]]` — link to heading
-- `[[Page Name#^block-id]]` — link to block
+
+**Canonical form: `[[kebab-filename|Display Title]]`.** The target is always
+the filename (without `.md`); the display is the human-readable title from
+that page's frontmatter. Obsidian resolves wikilinks by filename match — using
+the title in the target slot creates phantom pages even when the file exists.
+
+| Form | Use |
+|------|-----|
+| `[[kebab-filename\|Display Title]]` | Standard link |
+| `[[kebab-filename#Heading\|Display Title]]` | Link to a heading |
+| `[[kebab-filename#^block-id\|Display Title]]` | Link to a block |
+| `[[raw/filename.md]]` | Path-style link to a `raw/` source (no display) |
+
+Display text is required on every wikilink to a wiki page. Omitting the
+display text shows the raw filename in the rendered page, which reads poorly.
 
 ### Embeds and Callouts
-- Embed a page: `![[Page Name]]`
-- Embed a heading: `![[Page Name#Heading]]`
+- Embed a page: `![[kebab-filename]]`
+- Embed a heading: `![[kebab-filename#Heading]]`
 - Callouts: `> [!info]`, `> [!warning]`, `> [!tip]`
+
+### Filenames
+
+Wiki pages use lowercase kebab-case filenames: letters, digits, and hyphens.
+No spaces, no parentheses, no slashes. The `title` field in frontmatter
+carries the human-readable name; the filename stays stable and link-safe.
 
 ## Workflows
 
@@ -219,7 +235,7 @@ When the user asks you to ingest something (file path, URL, pasted text, or conv
 3. **Present key takeaways to the user**: entities found, concepts identified, relationships discovered, and any contradictions with existing wiki content. Confirm which are worth filing before proceeding.
 4. For each confirmed entity/concept, create or update a wiki page in `wiki/`.
 5. **Review all existing wiki pages that relate to this source.** Update them with new cross-references, corrections, or additional context from this source. A single ingest typically touches 5-15 existing pages.
-6. Link related pages with `[[wikilinks]]` — every page links to at least 2 others.
+6. Link related pages with `[[kebab-filename|Display Title]]` wikilinks — every page links to at least 2 others.
 7. Update `## Backlinks` sections on all pages you linked to — add an entry with context for each new inbound link.
 8. Update `context.md` if the ingested material relates to current focus areas.
 9. Add entries to `index.md` under the appropriate category.
@@ -228,7 +244,7 @@ When the user asks you to ingest something (file path, URL, pasted text, or conv
 ```markdown
 ## [YYYY-MM-DD] ingest | <source title>
 
-Created [[Page A]], [[Page B]]. Updated [[Page C]], [[Page D]], [[Page E]].
+Created [[page-a|Page A]], [[page-b|Page B]]. Updated [[page-c|Page C]], [[page-d|Page D]], [[page-e|Page E]].
 ```
 
 ### Query
@@ -236,15 +252,15 @@ Created [[Page A]], [[Page B]]. Updated [[Page C]], [[Page D]], [[Page E]].
 When the user asks a question the vault might answer:
 
 1. Search for relevant pages: use `qmd_deep_search` if available, otherwise read `index.md`.
-2. Follow `[[wikilinks]]` to read related pages.
-3. Synthesize your answer, citing sources as `[[Page Name]]`.
+2. Follow wikilinks to read related pages.
+3. Synthesize your answer, citing sources as `[[kebab-filename|Display Title]]`.
 4. If your answer contains novel knowledge worth keeping, write a new wiki page and add it to `index.md`.
 5. Append to `log.md`:
 
 ```markdown
 ## [YYYY-MM-DD] query | <brief question summary>
 
-Synthesized from [[Page A]], [[Page B]]. Created [[Page C]] (if applicable).
+Synthesized from [[page-a|Page A]], [[page-b|Page B]]. Created [[page-c|Page C]] (if applicable).
 ```
 
 ### Lint
@@ -260,7 +276,7 @@ When the user asks you to lint the vault:
    - Backlinks coverage: N/N pages (N%)
    ```
 2. **Orphan pages**: wiki pages with no inbound links from other wiki pages or index.md.
-3. **Dead links**: `[[wikilinks]]` pointing to non-existent pages.
+3. **Dead links**: wikilinks pointing to non-existent pages, **and** wikilinks not in canonical `[[kebab-filename|Display Title]]` form (target must be a filename, not a title).
 4. **Missing frontmatter**: wiki pages without required YAML frontmatter fields (`title`, `type`, `created`, `updated`, `tags`).
 5. **Stale content**: pages with `updated` date older than 30 days.
 6. **Missing types**: wiki pages without a valid `type` field.
@@ -285,7 +301,7 @@ When the user asks you to refine the vault (or runs `/cairn:refine`):
 ```markdown
 ## [YYYY-MM-DD] refine | vault refinement pass
 
-Baseline: N pages, N.N avg links. Updated [[Page A]], merged [[Page B]] + [[Page C]], split [[Page D]]. Result: N pages, N.N avg links.
+Baseline: N pages, N.N avg links. Updated [[page-a|Page A]], merged [[page-b|Page B]] + [[page-c|Page C]], split [[page-d|Page D]]. Result: N pages, N.N avg links.
 ```
 
 ## Index Format
@@ -296,15 +312,15 @@ Baseline: N pages, N.N avg links. Updated [[Page A]], merged [[Page B]] + [[Page
 # Vault Index
 
 ## Architecture
-- [[Layered Architecture]] — Handler → Service → Repo/Gateway boundaries
-- [[Dependency Injection]] — Constructor-based DI pattern for Go services
+- [[layered-architecture|Layered Architecture]] — Handler → Service → Repo/Gateway boundaries
+- [[dependency-injection|Dependency Injection]] — Constructor-based DI pattern for Go services
 
 ## Tools
-- [[React 19]] — New features: use hook, actions, compiler
-- [[Stripe]] — Payment gateway integration patterns
+- [[react-19|React 19]] — New features: use hook, actions, compiler
+- [[stripe|Stripe]] — Payment gateway integration patterns
 ```
 
-Categories emerge organically during ingest. Create new categories as needed. Each entry: `- [[Page Name]] — one-line description` (~150 chars max).
+Categories emerge organically during ingest. Create new categories as needed. Each entry: `- [[kebab-filename|Display Title]] — one-line description` (~150 chars max).
 
 ## Log Format
 
@@ -326,10 +342,10 @@ Types: `ingest`, `query`, `lint`, `refine`, `session` (lowercase).
 # Working Set
 
 ## Active
-- [[Page Name]] — why it matters right now
+- [[kebab-filename|Page Title]] — why it matters right now
 
 ## Background
-- [[Page Name]] — reference material for active work
+- [[kebab-filename|Page Title]] — reference material for active work
 ```
 
 Update `context.md` when:
@@ -384,3 +400,4 @@ the vault works without it.
 10. **Skeptical memory.** Before acting on any recalled fact, verify it against the current codebase or source. Memory is a hint, not truth.
 11. **Atomic pages.** One concept per wiki page. If a page covers multiple topics, split it.
 12. **Maintain backlinks.** Every wiki page has a `## Backlinks` section at the bottom listing pages that link to it, with context. Update backlinks on the target page whenever you create or update a wikilink.
+13. **Canonical wikilinks only.** All wiki cross-references use `[[kebab-filename|Display Title]]` form. Filenames are lowercase kebab-case; the display text comes from the target page's frontmatter `title`. Path-style `[[raw/foo.md]]` is allowed for `raw/` and `sessions/` references.
