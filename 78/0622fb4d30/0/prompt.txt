@@ -1,0 +1,21 @@
+Can we review the Obsidian compatible frontmatter to make sure its correct, and we can load a wiki into Obsidian and work properly
+
+---
+
+Some of the links are broken in the current wiki I have at ~/cairn. I click on them and it creates a new page, and says "20 links to this page" despite the page being empty...maybe we've fixed this, but have left some of my docs broken. Do we have an internal way to fix this within cairn? Does cairn itself produce correct obsidian links/frontmatter now?
+
+---
+
+I feel like [[kebab-filename|Display Title]] would be better for the long run (and make them better to look at it in Obsidian), but lets combine this with the rest of the fixes
+
+---
+
+This tool isn't used by anyone but myself, so we really don't need migration commands. Let's not go down that route. Even migrate sessions, we probably need to get rid of. So let's just fix this and do it properly and not make more CLI commands for this.
+
+---
+
+Is this pushed?
+
+---
+
+yes, conventional commits
