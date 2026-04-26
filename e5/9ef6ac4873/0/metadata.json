@@ -1,0 +1,51 @@
+{
+  "cli_version": "0.5.5",
+  "checkpoint_id": "e59ef6ac4873",
+  "session_id": "94ccac43-757b-4d9c-81ae-98f208446d54",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-26T16:34:47.992487Z",
+  "branch": "main",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "docs/solutions/workflow-issues/match-review-ceremony-to-codebase-scale-2026-04-25.md"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "f0da42ca3a45",
+  "checkpoint_transcript_start": 240,
+  "transcript_lines_at_start": 240,
+  "token_usage": {
+    "input_tokens": 44,
+    "cache_creation_tokens": 282958,
+    "cache_read_tokens": 3029365,
+    "output_tokens": 8960,
+    "api_call_count": 24
+  },
+  "session_metrics": {
+    "turn_count": 9
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-26T16:34:47.978618Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 0,
+    "total_lines_changed": 0,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 127,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "docs/solutions/workflow-issues/match-review-ceremony-to-codebase-scale-2026-04-25.md": 127
+      }
+    }
+  ]
+}
