@@ -95,5 +95,19 @@ export function scaffoldVault(vaultPath: string): ScaffoldResult {
     created.push(".cairn/state.json");
   }
 
+  // Fresh installs default to lazy inject mode so SessionStart stays
+  // under the pointer-payload budget. Existing vaults (with a state
+  // file already present above) are left alone to preserve behavior.
+  const configPath = join(vaultPath, ".cairn", "config.json");
+  if (existsSync(configPath)) {
+    skipped.push(".cairn/config.json");
+  } else {
+    writeFileSync(
+      configPath,
+      JSON.stringify({ inject_mode: "lazy" }, null, 2) + "\n"
+    );
+    created.push(".cairn/config.json");
+  }
+
   return { created, skipped };
 }

@@ -1,123 +1,25 @@
 #!/usr/bin/env bash
 # Cairn injection hook — SessionStart and PostCompact
-# Reads vault in priority order: context.md → index.md → recent sessions.
-# Outputs JSON for Claude Code context injection.
+# Delegates to the TypeScript implementation for mode-aware injection
+# (eager | lazy | off), pointer payloads, and inject logging.
+#
+# Fail-soft: if bun is missing or the TS hook errors, emit an empty
+# context envelope so SessionStart does not break.
 
-set -euo pipefail
+set -uo pipefail
 
-# Resolve vault path: argument > env > default
-VAULT_PATH="${1:-${CAIRN_VAULT:-${HOME}/cairn}}"
-BUDGET="${CAIRN_BUDGET:-32768}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Graceful degradation: missing vault = empty context
-if [ ! -d "$VAULT_PATH" ]; then
-  printf '{\n  "hookSpecificOutput": {\n    "hookEventName": "SessionStart",\n    "additionalContext": ""\n  }\n}\n'
+emit_empty() {
+  printf '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":""}}\n'
+}
+
+if ! command -v bun >/dev/null 2>&1; then
+  emit_empty
   exit 0
 fi
 
-context=""
-current_bytes=0
-
-# Utility: get byte count of a string
-byte_count() {
-  printf '%b' "$1" | wc -c | tr -d ' '
-}
-
-# Utility: append to context if within budget
-append_if_fits() {
-  local section="$1"
-  local candidate
-  if [ -z "$context" ]; then
-    candidate="$section"
-  else
-    candidate="${context}\n\n${section}"
-  fi
-  local candidate_bytes
-  candidate_bytes=$(byte_count "$candidate")
-  if [ "$candidate_bytes" -le "$BUDGET" ]; then
-    context="$candidate"
-    current_bytes=$candidate_bytes
-    return 0
-  fi
-  return 1
-}
-
-# Emit a section. On the first emission, prepend the vault-context disclaimer
-# header so it is present whenever any vault content is injected — not only
-# when context.md or index.md happen to exist.
-emit_section() {
-  local section="$1"
-  if [ -z "$context" ]; then
-    append_if_fits "## Cairn Vault Context\n\nVerify against codebase before acting on any recalled facts.\n\n${section}"
-  else
-    append_if_fits "$section"
-  fi
-}
-
-# 1. context.md (working set) — highest priority
-CONTEXT_FILE="${VAULT_PATH}/context.md"
-if [ -f "$CONTEXT_FILE" ]; then
-  context_content=$(cat "$CONTEXT_FILE")
-  emit_section "### Working Set\n${context_content}" || true
+if ! bun "${SCRIPT_DIR}/../src/hooks/inject.ts" "$@"; then
+  emit_empty
+  exit 0
 fi
-
-# 2. index.md — second priority
-INDEX_FILE="${VAULT_PATH}/index.md"
-if [ -f "$INDEX_FILE" ]; then
-  index_content=$(cat "$INDEX_FILE")
-  emit_section "### Index\n${index_content}" || true
-fi
-
-# 3. Recent sessions (newest first, by filename sort)
-SESSIONS_DIR="${VAULT_PATH}/sessions"
-if [ -d "$SESSIONS_DIR" ]; then
-  session_files=$(ls -r "$SESSIONS_DIR"/*.md 2>/dev/null || true)
-  if [ -n "$session_files" ]; then
-    sessions_header_added=false
-    for f in $session_files; do
-      base_name=$(basename "$f")
-      summary_file="${SESSIONS_DIR}/summaries/${base_name}"
-      if [ -f "$summary_file" ]; then
-        session_content=$(cat "$summary_file")
-      else
-        session_content=$(cat "$f")
-      fi
-      if [ "$sessions_header_added" = false ]; then
-        section="### Recent Sessions\n---\n${session_content}"
-        sessions_header_added=true
-      else
-        section="---\n${session_content}"
-      fi
-      emit_section "$section" || break
-    done
-  fi
-fi
-
-# 4. Entire status indicator (one line if enabled)
-if command -v entire >/dev/null 2>&1 && entire status 2>/dev/null | grep -q "Enabled"; then
-  emit_section "### Entire\nEntire is enabled in this project. Session manifests may have \`entire_checkpoint\` fields for richer extraction via \`entire explain\`." || true
-fi
-
-# Escape for JSON. Order matters: backslash substitution must run before any
-# substitution that introduces backslashes. Strips remaining ASCII control
-# characters (0x00-0x07, 0x0B, 0x0E-0x1F) that JSON cannot represent
-# unescaped — they should not appear in vault markdown but a malformed paste
-# or accidental binary would otherwise break the JSON output.
-escape_for_json() {
-  local s="$1"
-  s="${s//\\/\\\\}"
-  s="${s//\"/\\\"}"
-  s="${s//$'\n'/\\n}"
-  s="${s//$'\r'/\\r}"
-  s="${s//$'\t'/\\t}"
-  s="${s//$'\b'/\\b}"
-  s="${s//$'\f'/\\f}"
-  printf '%s' "$s" | LC_ALL=C tr -d '\000-\007\013\016-\037'
-}
-
-escaped=$(escape_for_json "$(printf '%b' "$context")")
-
-# Output JSON — Claude Code format
-printf '{\n  "hookSpecificOutput": {\n    "hookEventName": "SessionStart",\n    "additionalContext": "%s"\n  }\n}\n' "$escaped"
-
-exit 0

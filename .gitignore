@@ -4,8 +4,9 @@ dist/
 .DS_Store
 PRD.md
 
-# Agent config dirs (local)
-.claude/
+# Agent config dirs (local) — except the plugin's shipped settings.
+.claude/*
+!.claude/settings.json
 .codex/
 .entire/
 .gemini/

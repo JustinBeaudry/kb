@@ -6,12 +6,11 @@ function read(path: string): string {
 }
 
 describe("session manifest skill contract", () => {
-  it("extract shells out to cairn summarize and reads cached summaries", () => {
+  it("extract uses ask-gated cairn read-session for unprocessed sessions", () => {
     const text = read("skills/extract/SKILL.md");
-    expect(text).toContain("cairn summarize --json");
-    expect(text).toContain("sessions/summaries/");
-    expect(text).toContain("Summary generation failed");
-    expect(text).toContain("Degraded (excerpt-only)");
+    expect(text).toContain("cairn read-session");
+    expect(text).toContain("--approve");
+    expect(text).toContain("untrusted data");
   });
 
   it("refine documents session manifest summarization when session context is needed", () => {

@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, readdirSync, statSync, unlinkSync } from "node:fs";
-import { join } from "node:path";
+import { homedir } from "node:os";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { defineCommand } from "citty";
 import { resolveVaultPath, checkVaultState } from "../lib/vault";
 import { isQmdOnPath, isVaultRegistered, QMD_INSTALL_HINT } from "../lib/qmd";
@@ -112,6 +113,34 @@ export default defineCommand({
     }
 
     lines.push("");
+    lines.push("Trust boundary (best-effort + detection)");
+    lines.push(
+      line(
+        "warn",
+        "run the security self-test manually",
+        "bash <plugin>/hooks/security-self-test — host-level deny rules are not simulatable from a CLI"
+      )
+    );
+    lines.push(
+      line(
+        "ok",
+        "sanctioned retrieval paths",
+        "cairn recall / cairn get / cairn list-topics (curated), cairn read-raw / cairn read-session (ask-gated)"
+      )
+    );
+
+    if (!vaultMatchesDefaultDenyGlobs(vaultPath)) {
+      warnings++;
+      lines.push(
+        line(
+          "warn",
+          "vault path outside default deny globs",
+          `${vaultPath} does not match **/cairn/** or ~/cairn/** — shipped .claude/settings.json deny rules will not fire. Add project-scoped deny entries or move the vault under ~/cairn.`
+        )
+      );
+    }
+
+    lines.push("");
     if (errors > 0) {
       lines.push(`${errors} error(s), ${warnings} warning(s). Fix errors first.`);
     } else if (warnings > 0) {
@@ -148,6 +177,25 @@ function findNewestMarkdown(vaultPath: string): { path: string; mtimeMs: number 
     }, skipDirs);
   }
   return newest;
+}
+
+function vaultMatchesDefaultDenyGlobs(vaultPath: string): boolean {
+  // Deny rules are shipped for any path containing /cairn/ as a segment
+  // and for ~/cairn/**. If the resolved vault path satisfies neither,
+  // the host-level enforcement is silently inactive.
+  //
+  // Uses path.relative to compare against the default ~/cairn root in a
+  // separator-aware way (works on POSIX and Windows). For the segment
+  // check, splits on both "/" and the platform separator to catch both
+  // normalized and non-normalized inputs.
+  const resolvedVault = resolve(vaultPath);
+  const defaultRoot = resolve(join(homedir(), "cairn"));
+  const rel = relative(defaultRoot, resolvedVault);
+  if (rel === "" || (!rel.startsWith("..") && !isAbsolute(rel))) {
+    return true;
+  }
+  const segments = resolvedVault.split(/[\\/]/).filter(Boolean);
+  return segments.includes("cairn");
 }
 
 function walkForMarkdown(
