@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { defineCommand } from "citty";
 import { resolveVaultPath, checkVaultState } from "../lib/vault";
 import { isQmdOnPath, isVaultRegistered, QMD_INSTALL_HINT } from "../lib/qmd";
@@ -166,10 +166,18 @@ function vaultMatchesDefaultDenyGlobs(vaultPath: string): boolean {
   // Deny rules are shipped for any path containing /cairn/ as a segment
   // and for ~/cairn/**. If the resolved vault path satisfies neither,
   // the host-level enforcement is silently inactive.
-  const home = homedir();
-  if (vaultPath === join(home, "cairn")) return true;
-  if (vaultPath.startsWith(join(home, "cairn") + "/")) return true;
-  const segments = vaultPath.split("/");
+  //
+  // Uses path.relative to compare against the default ~/cairn root in a
+  // separator-aware way (works on POSIX and Windows). For the segment
+  // check, splits on both "/" and the platform separator to catch both
+  // normalized and non-normalized inputs.
+  const resolvedVault = resolve(vaultPath);
+  const defaultRoot = resolve(join(homedir(), "cairn"));
+  const rel = relative(defaultRoot, resolvedVault);
+  if (rel === "" || (!rel.startsWith("..") && !isAbsolute(rel))) {
+    return true;
+  }
+  const segments = resolvedVault.split(/[\\/]/).filter(Boolean);
   return segments.includes("cairn");
 }
 

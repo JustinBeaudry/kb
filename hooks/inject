@@ -19,7 +19,7 @@ if ! command -v bun >/dev/null 2>&1; then
   exit 0
 fi
 
-if ! exec bun "${SCRIPT_DIR}/../src/hooks/inject.ts" "$@"; then
+if ! bun "${SCRIPT_DIR}/../src/hooks/inject.ts" "$@"; then
   emit_empty
   exit 0
 fi

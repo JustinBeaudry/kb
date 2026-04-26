@@ -1,4 +1,14 @@
-import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
+import {
+  closeSync,
+  constants as fsConstants,
+  existsSync,
+  fstatSync,
+  lstatSync,
+  openSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+} from "node:fs";
 import { join, relative } from "node:path";
 import { defineCommand } from "citty";
 import { resolveVaultPath } from "../lib/vault";
@@ -35,13 +45,37 @@ function walkWiki(
   }
 }
 
+// Read a wiki file via an fd opened with O_NOFOLLOW, gating on the fd's own
+// stat. This closes the TOCTOU window between the traversal-time lstat in
+// walkWiki and the read here: if the path was swapped to a symlink after
+// traversal, openSync rejects with ELOOP; if it was swapped to a non-regular
+// file, fstatSync on the open fd surfaces it before we read any bytes.
+function readWikiFileNoFollow(path: string): string | null {
+  let fd: number;
+  try {
+    fd = openSync(path, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+  } catch {
+    return null;
+  }
+  try {
+    const st = fstatSync(fd);
+    if (!st.isFile()) return null;
+    if (st.size > MAX_FILE_BYTES) return null;
+    return readFileSync(fd, "utf-8");
+  } catch {
+    return null;
+  } finally {
+    closeSync(fd);
+  }
+}
+
 function grepFile(
   path: string,
   needle: string
 ): Array<{ lineStart: number; lineEnd: number; snippet: string }> {
-  const stat = statSync(path);
-  if (stat.size > MAX_FILE_BYTES) return [];
-  const lines = readFileSync(path, "utf-8").split("\n");
+  const contents = readWikiFileNoFollow(path);
+  if (contents === null) return [];
+  const lines = contents.split("\n");
   const needleLc = needle.toLowerCase();
   const hits: Array<{ lineStart: number; lineEnd: number; snippet: string }> = [];
   for (let i = 0; i < lines.length; i++) {

@@ -3,6 +3,7 @@ import {
   existsSync,
   mkdirSync,
   renameSync,
+  rmSync,
   statSync,
 } from "node:fs";
 import { dirname } from "node:path";
@@ -15,6 +16,11 @@ function rotateIfNeeded(logPath: string, maxBytes: number): void {
   const size = statSync(logPath).size;
   if (size < maxBytes) return;
   const archive = `${logPath}.1`;
+  // Remove any prior archive so renameSync succeeds on platforms where rename
+  // does not overwrite (notably Windows). force: true makes this a no-op when
+  // the archive does not exist, preserving POSIX behavior. The whole rotation
+  // runs inside withExclusiveLock, so this is race-free against other writers.
+  rmSync(archive, { force: true });
   renameSync(logPath, archive);
 }
 

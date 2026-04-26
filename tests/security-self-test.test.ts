@@ -104,9 +104,12 @@ describe("plugin .claude/settings.json", () => {
     const bashEntries = denies.filter((d) => d.startsWith("Bash("));
     const readers = ["cat", "head", "tail", "less", "grep", "awk", "sed", "python"];
     for (const reader of readers) {
+      // Patterns may use `Bash(reader ...)` or the more permissive
+      // `Bash(reader* ...)` form (which also matches options like `cat -n …`).
+      const re = new RegExp(`\\(${reader}\\*? `);
       expect(
-        bashEntries.some((entry) => entry.includes(`(${reader} `)),
-        `expected at least one Bash(${reader} ...) pattern`
+        bashEntries.some((entry) => re.test(entry)),
+        `expected at least one Bash(${reader} ...) or Bash(${reader}* ...) pattern`
       ).toBe(true);
     }
   });

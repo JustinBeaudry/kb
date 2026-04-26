@@ -1,19 +1,18 @@
 #!/usr/bin/env bun
 import { existsSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
 import { DEFAULT_BUDGET } from "../lib/constants";
 import { buildEagerContext } from "../lib/inject/eager";
 import { appendInjectLog } from "../lib/inject/log";
 import { resolveInjectMode } from "../lib/inject/modes";
 import { buildPointerPayload, byteLength } from "../lib/inject/pointer";
+import { resolveVaultPath as resolveProjectVaultPath } from "../lib/vault";
 
 function resolveVaultPath(argv: string[]): string {
   const arg = argv[0];
   if (arg) return arg;
   const env = process.env.CAIRN_VAULT;
   if (env) return env;
-  return join(homedir(), "cairn");
+  return resolveProjectVaultPath(process.cwd());
 }
 
 function emitEmpty(): void {
@@ -65,7 +64,9 @@ function emitEmptyOnce(): void {
 
 async function main(): Promise<void> {
   const vaultPath = resolveVaultPath(process.argv.slice(2));
-  const budget = Number(process.env.CAIRN_BUDGET ?? DEFAULT_BUDGET);
+  const parsedBudget = Number(process.env.CAIRN_BUDGET ?? DEFAULT_BUDGET);
+  const budget =
+    Number.isFinite(parsedBudget) && parsedBudget > 0 ? parsedBudget : DEFAULT_BUDGET;
 
   if (!existsSync(vaultPath)) {
     emitEmptyOnce();

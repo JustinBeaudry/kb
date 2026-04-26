@@ -23,6 +23,7 @@ import { appendAccessLog, type AccessLogCommand } from "./access-log";
 const DEFAULT_LINE_CAP = 100;
 const HARD_LINE_CAP = 500;
 const HARD_BYTE_CAP = 64 * 1024;
+const READ_CHUNK_SIZE = 4 * 1024;
 
 export type SensitiveScope = "raw" | "sessions";
 
@@ -85,7 +86,10 @@ function clampPositiveInt(
   return { value: raw, clamped: false };
 }
 
-function readWithNoFollow(realTarget: string): { body: string; size: number } {
+function readWithNoFollow(
+  realTarget: string,
+  maxBytes: number
+): { body: string; size: number; totalSize: number } {
   const fd = openSync(
     realTarget,
     fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW
@@ -95,14 +99,23 @@ function readWithNoFollow(realTarget: string): { body: string; size: number } {
     if (!st.isFile()) {
       throw new PathUnsafeError(`not a regular file: ${realTarget}`);
     }
-    const buf = Buffer.alloc(st.size);
+    // Hard byte ceiling enforced BEFORE allocation: cap the buffer at
+    // min(st.size, maxBytes) so a large file in raw/ or sessions/ can never
+    // force us to allocate or read past the documented limit.
+    const cap = Math.min(st.size, Math.max(0, maxBytes));
+    const buf = Buffer.alloc(cap);
     let offset = 0;
-    while (offset < st.size) {
-      const read = readSync(fd, buf, offset, st.size - offset, offset);
+    while (offset < cap) {
+      const want = Math.min(READ_CHUNK_SIZE, cap - offset);
+      const read = readSync(fd, buf, offset, want, offset);
       if (read === 0) break;
       offset += read;
     }
-    return { body: buf.toString("utf-8"), size: offset };
+    return {
+      body: offset === cap ? buf.toString("utf-8") : buf.subarray(0, offset).toString("utf-8"),
+      size: offset,
+      totalSize: st.size,
+    };
   } finally {
     closeSync(fd);
   }
@@ -176,8 +189,16 @@ export async function runSensitiveRead(opts: SensitiveReadOptions): Promise<void
   }
 
   let body: string;
+  let bytesRead = 0;
+  let fileSize = 0;
   try {
-    ({ body } = readWithNoFollow(realTarget));
+    // bytesReq.value is already clamped to HARD_BYTE_CAP, so the read is
+    // bounded by min(st.size, requested-bytes, HARD_BYTE_CAP) — the buffer
+    // is never sized to the full file.
+    const result = readWithNoFollow(realTarget, bytesReq.value);
+    body = result.body;
+    bytesRead = result.size;
+    fileSize = result.totalSize;
   } catch (err) {
     if (err instanceof PathUnsafeError) fail(err.message);
     const code = (err as NodeJS.ErrnoException).code;
@@ -192,7 +213,10 @@ export async function runSensitiveRead(opts: SensitiveReadOptions): Promise<void
   let text = excerptLines.join("\n");
 
   const encoded = new TextEncoder().encode(text);
-  let byteClamped = false;
+  // byteClamped is true when output is byte-bounded relative to the source —
+  // either we further trim the joined excerpt down to the byte cap, or the
+  // streaming read itself stopped short of the file's full size.
+  let byteClamped = bytesRead < fileSize;
   if (encoded.length > bytesReq.value) {
     text = new TextDecoder("utf-8").decode(encoded.slice(0, bytesReq.value));
     byteClamped = true;
