@@ -1,7 +1,15 @@
 ---
 title: "feat: Vault trust boundary + lazy retrieval"
 type: feat
-status: active
+status: shipped
+shipped: 2026-04-21 via PR #2 (7f22919)
+shipped_units:
+  - Unit 1: Inject modes + pointer payload
+  - Unit 2: Sanctioned retrieval CLI
+  - Unit 3: Sensitive read subcommands
+  - Unit 4: Observability logs
+  - Unit 5: Enforcement configuration + self-test
+  - Unit 6: Documentation + skills alignment
 date: 2026-04-21
 origin: docs/brainstorms/2026-04-21-context-hygiene-and-vault-trust-boundary-requirements.md
 ---

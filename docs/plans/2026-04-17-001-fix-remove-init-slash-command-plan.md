@@ -1,7 +1,9 @@
 ---
 title: "fix: Remove /init slash command shadowing Claude Code built-in"
 type: fix
-status: active
+status: stale
+stale_date: 2026-04-28
+stale_reason: Abandoned. The init slash command was never removed — src/commands/init.ts still exists. Superseded by other priorities.
 date: 2026-04-17
 ---
 

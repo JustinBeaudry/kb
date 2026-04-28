@@ -1,7 +1,9 @@
 ---
 title: "refactor: Session capture as manifest, chunked summarization on read"
 type: refactor
-status: active
+status: stale
+stale_date: 2026-04-28
+stale_reason: Superseded by vault trust boundary + lazy retrieval (Layer 1+2, PR #2). The session capture work was implemented differently — the migration tool and doctor additions described here were abandoned in favor of the trust boundary approach.
 date: 2026-04-19
 origin: docs/brainstorms/2026-04-19-session-capture-manifest-requirements.md
 ---

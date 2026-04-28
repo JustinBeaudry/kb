@@ -1,7 +1,9 @@
 ---
 title: "feat: Template schema versioning and drift reconciliation"
 type: feat
-status: active
+status: stale
+stale_date: 2026-04-28
+stale_reason: Abandoned. No evidence of implementation — no templates/versions/ directory, no sync-templates command, no schemaVersion in state. Superseded by other priorities.
 date: 2026-04-17
 origin: docs/ideation/2026-04-17-open-ideation.md
 ---

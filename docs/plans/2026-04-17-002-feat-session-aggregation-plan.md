@@ -1,7 +1,9 @@
 ---
 title: Cross-session aggregation & continuous-extraction inbox
 type: feat
-status: active
+status: stale
+stale_date: 2026-04-28
+stale_reason: Abandoned. No evidence of implementation — no aggregate command, pattern detector, or continuous-extraction inbox exists in the codebase. Superseded by other priorities.
 date: 2026-04-17
 origin: docs/ideation/2026-04-17-open-ideation.md
 ---
