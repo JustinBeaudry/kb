@@ -21,6 +21,10 @@ export interface WriteAuditEntry {
   exit_code: number;
 }
 
+// access-log.jsonl carries both shapes; consumers discriminate on `command`
+// (read commands -> AccessLogEntry, write commands -> WriteAuditEntry).
+export type AuditEntry = AccessLogEntry | WriteAuditEntry;
+
 export interface WriteAuditInput {
   vaultPath: string;
   command: WriteAuditCommand;

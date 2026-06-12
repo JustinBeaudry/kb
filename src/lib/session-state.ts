@@ -29,7 +29,8 @@ const SAFE_MANIFEST_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*\.md$/;
 
 function scanManifests(
   vaultPath: string,
-  predicate: (frontmatter: Record<string, unknown>) => boolean
+  predicate: (frontmatter: Record<string, unknown>) => boolean,
+  opts: { includeUnparseable?: boolean } = {}
 ): string[] {
   const dir = join(vaultPath, "sessions");
   if (!existsSync(dir)) return [];
@@ -46,16 +47,23 @@ function scanManifests(
       );
       if (predicate(data)) names.push(entry.name);
     } catch {
-      // Malformed frontmatter or unreadable file: skip, never crash a scan.
+      // Malformed frontmatter or unreadable file: never crash a scan. The
+      // plain listing surfaces these (so broken manifests stay discoverable);
+      // filtered scans skip them.
+      if (opts.includeUnparseable) names.push(entry.name);
       continue;
     }
   }
   return names.sort();
 }
 
-/** Names of all top-level session manifests. */
+/**
+ * Names of all top-level session manifests, including ones whose frontmatter
+ * cannot be parsed — `kb sessions` is the discovery surface for broken
+ * manifests, since the deny rules keep agents from listing the directory.
+ */
 export function listManifests(vaultPath: string): string[] {
-  return scanManifests(vaultPath, () => true);
+  return scanManifests(vaultPath, () => true, { includeUnparseable: true });
 }
 
 /**

@@ -57,13 +57,18 @@ describe("sessions --unprocessed", () => {
     expect(stdout.trim().split("\n").filter(Boolean).sort()).toEqual(["a.md", "b.md"]);
   });
 
-  it("lists all manifests without the flag", async () => {
+  it("lists all manifests without the flag, including unparseable ones", async () => {
     const vault = makeVault();
     writeManifest(vault, "a.md", "extracted: false");
     writeManifest(vault, "c.md", "extracted: true");
+    writeManifest(vault, "broken.md", "oops: [unclosed");
     const { stdout, exitCode } = await run(vault, []);
     expect(exitCode).toBe(0);
-    expect(stdout.trim().split("\n").filter(Boolean).sort()).toEqual(["a.md", "c.md"]);
+    expect(stdout.trim().split("\n").filter(Boolean).sort()).toEqual([
+      "a.md",
+      "broken.md",
+      "c.md",
+    ]);
   });
 
   it("returns nothing and exits 0 for an empty sessions dir", async () => {

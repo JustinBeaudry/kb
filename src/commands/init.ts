@@ -42,8 +42,9 @@ export default defineCommand({
       for (const item of result.skipped) console.log(`  - ${item}`);
     }
     console.log("\nNext steps:");
-    console.log("  1. Install the plugin: claude plugin install kb");
-    console.log("  2. Drop a file in ~/kb/raw/ and ask Claude to ingest it.");
+    console.log("  1. Add the marketplace: claude plugin marketplace add JustinBeaudry/kb");
+    console.log("  2. Install the plugin:  claude plugin install kb@kb");
+    console.log("  3. Drop a file in ~/kb/raw/ and ask Claude to ingest it.");
 
     if (!isQmdOnPath()) {
       console.log("");

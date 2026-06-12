@@ -21,6 +21,10 @@ const DEFAULT_EVENT_NAME = "SessionStart";
 // anything else on stdin is treated as garbage.
 const ALLOWED_EVENT_NAMES = new Set(["SessionStart", "PostCompact"]);
 
+// Remembered for the top-level fail-soft path so a crash after event-name
+// resolution still reports the real firing event.
+let resolvedEventName = DEFAULT_EVENT_NAME;
+
 /**
  * Claude Code hooks receive a JSON payload on stdin whose hook_event_name
  * identifies the firing event (SessionStart or PostCompact here). Tolerant
@@ -99,6 +103,7 @@ function emitEmptyOnce(eventName: string): void {
 
 async function main(): Promise<void> {
   const eventName = await readHookEventName();
+  resolvedEventName = eventName;
   const vaultPath = resolveVaultPath(process.argv.slice(2));
   const parsedBudget = Number(process.env.KB_BUDGET ?? DEFAULT_BUDGET);
   const budget =
@@ -150,6 +155,6 @@ async function main(): Promise<void> {
 }
 
 main().catch(() => {
-  emitEmptyOnce(DEFAULT_EVENT_NAME);
+  emitEmptyOnce(resolvedEventName);
   process.exit(0);
 });

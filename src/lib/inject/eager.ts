@@ -28,10 +28,11 @@ function appendIfFits(current: string, section: string, budget: number): string 
 export function buildEagerContext({ vaultPath, budget, nudge }: EagerInput): string {
   // Reserve the nudge before fitting content, mirroring the lazy pointer:
   // without the reservation the nudge is sacrificed first on full vaults —
-  // exactly when sessions pile up and the nudge matters most.
-  const reserve = nudge ? byteLength(`\n\n${nudge}`) : 0;
-  const effectiveNudge = nudge && reserve <= budget ? nudge : null;
-  if (effectiveNudge) budget -= reserve;
+  // exactly when sessions pile up and the nudge matters most. Eligibility is
+  // judged on the bare nudge (when nothing else fits, it is emitted without
+  // a separator); the separator bytes are reserved only against content.
+  const effectiveNudge = nudge && byteLength(nudge) <= budget ? nudge : null;
+  if (effectiveNudge) budget = Math.max(0, budget - byteLength(`\n\n${effectiveNudge}`));
 
   let ctx = "";
 

@@ -250,9 +250,19 @@ describe("inject hook — event name", () => {
 
   it("bash fallback echoes the stdin event name when bun is unavailable", async () => {
     const vault = track(makeVault());
+    // Build a PATH that has the tools the script needs but is guaranteed to
+    // lack bun — hardcoding /usr/bin:/bin would silently stop covering the
+    // fallback on machines where bun is installed there.
+    const { symlinkSync } = await import("node:fs");
+    const shim = join(vault, ".shim-bin");
+    mkdirSync(shim, { recursive: true });
+    for (const tool of ["bash", "cat", "sed", "dirname"]) {
+      const real = Bun.which(tool);
+      if (real) symlinkSync(real, join(shim, tool));
+    }
     const { exitCode, output } = await runHook(
       vault,
-      { PATH: "/usr/bin:/bin" }, // no bun on PATH
+      { PATH: shim },
       JSON.stringify({ hook_event_name: "PostCompact" })
     );
     expect(exitCode).toBe(0);

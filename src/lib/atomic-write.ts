@@ -10,9 +10,17 @@ export function writeTextAtomic(path: string, content: string): void {
   try {
     renameSync(tmp, path);
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "EXDEV") throw err;
-    copyFileSync(tmp, path);
-    unlinkSync(tmp);
+    // On any failure the tmp file must not be left littering the directory.
+    try {
+      if ((err as NodeJS.ErrnoException).code !== "EXDEV") throw err;
+      copyFileSync(tmp, path);
+    } finally {
+      try {
+        unlinkSync(tmp);
+      } catch {
+        // best-effort cleanup
+      }
+    }
   }
 }
 

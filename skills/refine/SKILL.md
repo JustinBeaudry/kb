@@ -68,7 +68,7 @@ When the user runs `/kb:refine`:
 
 9. **Session-derived context, if needed**:
    - Treat `sessions/*.md` files as manifests, not summaries.
-   - When a refinement question needs session content, run `kb summarize --json <manifest-path>`, then retrieve the cached summary with `kb read-session summaries/<name>.md --approve` (direct Reads under `sessions/` are deny-ruled; rule 7 applies).
+   - When a refinement question needs session content, run `kb summarize --json <manifest-path>`, then retrieve the cached summary with `kb read-session summaries/<name> --approve`, where `<name>` is the manifest filename including its `.md` extension (direct Reads under `sessions/` are deny-ruled; rule 7 applies).
    - If summary generation fails, skip that manifest and list it under `Skipped session summaries`.
    - If the JSON result has `degraded: true`, label any finding from that summary as `Degraded (excerpt-only)`.
 
