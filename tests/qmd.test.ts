@@ -49,6 +49,10 @@ describe("parseQmdOutput", () => {
     expect(parseQmdOutput("foo.md\n./bar.md\n", 5)).toEqual(["wiki/foo.md", "wiki/bar.md"]);
   });
 
+  it("slices wiki-relative IDs out of longer path tokens", () => {
+    expect(parseQmdOutput("0.91 collections/wiki/bar.md snippet\n", 5)).toEqual(["wiki/bar.md"]);
+  });
+
   it("rejects paths that escape wiki/ scope", () => {
     expect(parseQmdOutput("../escape.md\n/abs/path.md\n", 5)).toEqual([]);
   });

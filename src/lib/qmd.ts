@@ -62,7 +62,7 @@ export async function isVaultRegistered(vaultPath: string): Promise<boolean> {
  * node-ID grammar so external output can never smuggle paths outside wiki/.
  */
 export function parseQmdOutput(output: string, topK = 5): string[] {
-  const ids: string[] = [];
+  const seen = new Set<string>();
   for (const line of output.split("\n")) {
     const m = line.match(/(\S+\.md)\b/);
     if (!m) continue;
@@ -70,10 +70,10 @@ export function parseQmdOutput(output: string, topK = 5): string[] {
     const wikiIdx = token.indexOf("wiki/");
     const id = wikiIdx >= 0 ? token.slice(wikiIdx) : `wiki/${token}`;
     if (!isValidNodeId(id)) continue;
-    if (!ids.includes(id)) ids.push(id);
-    if (ids.length >= topK) break;
+    seen.add(id);
+    if (seen.size >= topK) break;
   }
-  return ids;
+  return [...seen];
 }
 
 const QMD_SEARCH_TIMEOUT_MS = 2500;

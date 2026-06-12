@@ -133,6 +133,24 @@ describe("map command", () => {
     expect(env.policy.map_tier === 2 || env.policy.map_tier === 3).toBe(true);
   });
 
+  it("section-only candidates whose parent pages fit return an exact tier-2 envelope", async () => {
+    const vault = makeVault();
+    rmSync(join(vault, "wiki", "auth.md"));
+    rmSync(join(vault, "wiki", "deploy.md"));
+    for (let i = 0; i < 5; i++) {
+      writeFileSync(
+        join(vault, "wiki", `widget-${i}.md`),
+        `# Page ${i}\n\n## Match zzz-heading ${i}\nbody text\n`
+      );
+    }
+    const { stdout, exitCode } = await run(vault, ["zzz-heading", "--budget", "1500"]);
+    expect(exitCode).toBe(0);
+    const env = parseEnvelope(stdout);
+    expect(env.policy.map_tier).toBe(2);
+    expect(env.chunks.length).toBe(5);
+    for (const c of env.chunks) expect(c.node_kind).toBe("page");
+  });
+
   it("when fitting drops every chunk the envelope still signals truncation and suggestions", async () => {
     const vault = makeVault();
     rmSync(join(vault, "wiki", "auth.md"));

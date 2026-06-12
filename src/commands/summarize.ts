@@ -1,5 +1,6 @@
 import { defineCommand } from "citty";
 import { resolveVaultPath } from "../lib/vault";
+import { commandArgs } from "../lib/argv";
 import { summarizeAll, summarizeSession } from "../lib/summarizer";
 
 export default defineCommand({
@@ -8,7 +9,8 @@ export default defineCommand({
     vaultPath: { type: "string", description: "Path to the vault directory", alias: ["p"] },
   },
   async run({ args: cittyArgs }) {
-    const vaultPath = cittyArgs.vaultPath ?? resolveVaultPath(process.cwd());
+    // || (not ??): a valueless trailing flag parses as "", which must fall back.
+    const vaultPath = cittyArgs.vaultPath || resolveVaultPath(process.cwd());
     const args = commandArgs("summarize");
     const flags = parseFlags(args);
 
@@ -68,21 +70,3 @@ function parseFlags(args: string[]): ParsedFlags {
   return parsed;
 }
 
-// Raw-argv view minus the vault-path flag, which citty owns: without the
-// skip, its value token would be mistaken for the session positional.
-function commandArgs(command: string): string[] {
-  const index = process.argv.indexOf(command);
-  if (index === -1) return [];
-  const out: string[] = [];
-  const rest = process.argv.slice(index + 1);
-  for (let i = 0; i < rest.length; i++) {
-    const arg = rest[i]!;
-    if (arg === "--vault-path" || arg === "--vaultPath" || arg === "-p") {
-      i += 1;
-      continue;
-    }
-    if (arg.startsWith("--vault-path=") || arg.startsWith("--vaultPath=")) continue;
-    out.push(arg);
-  }
-  return out;
-}

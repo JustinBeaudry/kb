@@ -7,7 +7,7 @@ import { assertGenuineScopeDir, assertSafeFilename } from "../path-safety";
 import { readWikiFileNoFollow, walkWiki, MAX_FILE_BYTES } from "../wiki-read";
 import { makeSectionIdAssigner } from "./node-id";
 import { walkSections } from "./traverse";
-import type { PageEntry, Section, SectionEntry, TreeCache } from "./types";
+import { CACHE_SCHEMA_VERSION, type PageEntry, type Section, type SectionEntry, type TreeCache } from "./types";
 
 interface PageFrontmatter {
   title?: unknown;
@@ -144,7 +144,7 @@ export function linkTree(pages: PageEntry[]): TreeCache {
   }
 
   return {
-    schema_version: "2",
+    schema_version: CACHE_SCHEMA_VERSION,
     pages,
     by_alias: sortedRecord(byAlias),
     by_tag: sortedRecord(

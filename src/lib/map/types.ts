@@ -47,8 +47,12 @@ export interface PageEntry {
   backlinks: string[];
 }
 
+// v2: PageEntry gained preamble_wikilinks; the bump forces a one-time rebuild
+// so unchanged pages on the stat fast path still gain their preamble links.
+export const CACHE_SCHEMA_VERSION = "2";
+
 export interface TreeCache {
-  schema_version: "2";
+  schema_version: typeof CACHE_SCHEMA_VERSION;
   built_at?: string;
   pages: PageEntry[];
   by_alias: Record<string, string>;

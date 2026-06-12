@@ -279,6 +279,26 @@ describe("kb summarize", () => {
     expect(after.stdout.trim().split("\n").at(-1)!).toContain(env.vault);
   });
 
+  it("inline-equals flag forms are stripped from the positional stream", async () => {
+    const bogus = join(env.root, "bogus-vault");
+    const prefix = env.sessionId.slice(0, 12);
+    const long = await runKb(env, ["summarize", `--vault-path=${env.vault}`, prefix], {
+      KB_VAULT: bogus,
+    });
+    expect(long.exitCode).toBe(0);
+    expect(long.stdout.trim().split("\n").at(-1)!).toContain(env.vault);
+    const short = await runKb(env, ["summarize", prefix, `-p=${env.vault}`], { KB_VAULT: bogus });
+    expect(short.exitCode).toBe(0);
+    expect(short.stdout.trim().split("\n").at(-1)!).toContain(env.vault);
+  });
+
+  it("a valueless trailing -p falls back to KB_VAULT instead of an empty vault path", async () => {
+    const prefix = env.sessionId.slice(0, 12);
+    const result = await runKb(env, ["summarize", prefix, "-p"]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout.trim().split("\n").at(-1)!).toContain(env.vault);
+  });
+
   it("exits non-zero without writing a summary when the summarizer command fails", async () => {
     const result = await runKb(env, ["summarize", env.manifestPath], {
       FAKE_CLAUDE_FAIL: "1",

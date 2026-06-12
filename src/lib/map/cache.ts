@@ -4,11 +4,7 @@ import { writeTextAtomic } from "../atomic-write";
 import { withExclusiveLock } from "../lockfile";
 import { assertGenuineScopeDir } from "../path-safety";
 import { buildPage, linkTree, listWikiFiles, toPageId } from "./builder";
-import type { PageEntry, TreeCache } from "./types";
-
-// v2: PageEntry gained preamble_wikilinks; the bump forces a one-time rebuild
-// so unchanged pages on the stat fast path still gain their preamble links.
-const CACHE_SCHEMA_VERSION = "2";
+import { CACHE_SCHEMA_VERSION, type PageEntry, type TreeCache } from "./types";
 
 function indexDir(vaultPath: string): string {
   return join(vaultPath, ".kb", "index");

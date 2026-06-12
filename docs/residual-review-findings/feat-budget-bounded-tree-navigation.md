@@ -1,5 +1,7 @@
 # Residual Review Findings — feat/budget-bounded-tree-navigation
 
+**Status: resolved.** All six issues (#11–#16) were closed by branch `fix/close-open-issue-backlog` (2026-06-12).
+
 Source: ce-code-review autofix run `20260612-094233-25ab026d` (2026-06-12), reviewing the budget-bounded tree-navigation branch against `840f49a`. Seven safe fixes were applied in-branch (`fix(review): apply autofix feedback`); the findings below were validated but not auto-applied, and each is filed as a tracked issue.
 
 ## Residual Review Findings
