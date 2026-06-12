@@ -26,6 +26,13 @@ function appendIfFits(current: string, section: string, budget: number): string 
 }
 
 export function buildEagerContext({ vaultPath, budget, nudge }: EagerInput): string {
+  // Reserve the nudge before fitting content, mirroring the lazy pointer:
+  // without the reservation the nudge is sacrificed first on full vaults —
+  // exactly when sessions pile up and the nudge matters most.
+  const reserve = nudge ? byteLength(`\n\n${nudge}`) : 0;
+  const effectiveNudge = nudge && reserve <= budget ? nudge : null;
+  if (effectiveNudge) budget -= reserve;
+
   let ctx = "";
 
   const contextBody = readSafely(join(vaultPath, "context.md"));
@@ -72,7 +79,7 @@ export function buildEagerContext({ vaultPath, budget, nudge }: EagerInput): str
     }
   }
 
-  if (nudge) ctx = appendIfFits(ctx, nudge, budget);
+  if (effectiveNudge) ctx = ctx ? `${ctx}\n\n${effectiveNudge}` : effectiveNudge;
 
   return ctx;
 }

@@ -49,8 +49,10 @@ and extraction cannot proceed for that manifest — report it under
 When the user runs `/kb:extract` (no arguments):
 
 1. Run `kb sessions --unprocessed` to enumerate unprocessed manifest names.
-   Do not use `kb list-topics` for this (it only reads `index.md` headings),
-   and do not Glob/Grep `sessions/**` — those paths are deny-ruled.
+   Each result is a bare filename — prefix it with `sessions/` when passing
+   it to `kb summarize`. Do not use `kb list-topics` for this (it only reads
+   `index.md` headings), and do not Glob/Grep `sessions/**` — those paths are
+   deny-ruled.
 2. For each name, run `kb summarize --json sessions/<name>.md` to generate or
    reuse the cached summary.
 3. Retrieve each summary with `kb read-session summaries/<name>.md --approve`.
@@ -70,8 +72,9 @@ When the user runs `/kb:extract` (no arguments):
    - Update `context.md` if relevant to current focus.
    - Add entries to `index.md` under appropriate categories.
 6. Run `kb mark-extracted <name>.md` to set `extracted: true` — direct
-   Edit of `sessions/**` is blocked by the deny rules (Edit requires a prior
-   Read), so the CLI is the sanctioned write path.
+   Edit of `sessions/**` is not possible because `Read(sessions/**)` is
+   deny-ruled and Edit requires a prior Read; `kb mark-extracted` is the
+   sanctioned write path.
 7. Append to `<vault>/log.md`:
 
 ```

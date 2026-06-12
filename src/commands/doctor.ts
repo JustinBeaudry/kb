@@ -50,8 +50,7 @@ export default defineCommand({
         lines.push(line("error", "state.json unreadable", String(err)));
       }
 
-      const sessionsDir = join(vaultPath, "sessions");
-      if (existsSync(sessionsDir)) {
+      {
         const newestMd = findNewestMarkdown(vaultPath);
         if (newestMd) {
           const days = Math.floor((Date.now() - newestMd.mtimeMs) / 86400000);

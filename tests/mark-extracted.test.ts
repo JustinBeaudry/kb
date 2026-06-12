@@ -74,12 +74,52 @@ describe("mark-extracted", () => {
     expect(content).toMatch(/session_id: x1/);
   });
 
-  it("fails with a clear message on a missing manifest", async () => {
+  it("fails with a clear message on a missing manifest and audits the failure", async () => {
     const vault = makeVault();
     const { exitCode, stderr } = await run(vault, ["nope.md"]);
     expect(exitCode).not.toBe(0);
     expect(stderr).toContain("nope.md");
     expect(existsSync(join(vault, "sessions", "nope.md"))).toBe(false);
+    const log = readFileSync(join(vault, ".kb", "access-log.jsonl"), "utf-8").trim();
+    const entry = JSON.parse(log.split("\n").pop()!) as Record<string, unknown>;
+    expect(entry.command).toBe("mark-extracted");
+    expect(entry.exit_code).toBe(1);
+  });
+
+  it("rejects non-markdown filenames", async () => {
+    const vault = makeVault();
+    const { exitCode } = await run(vault, ["manifest.txt"]);
+    expect(exitCode).not.toBe(0);
+  });
+
+  it("refuses a symlinked manifest file", async () => {
+    const vault = makeVault();
+    const outside = join(tmpdir(), `kb-me-out-${Date.now()}.md`);
+    writeFileSync(outside, "---\nextracted: false\n---\n");
+    const { symlinkSync } = await import("node:fs");
+    symlinkSync(outside, join(vault, "sessions", "linked.md"));
+    const { exitCode } = await run(vault, ["linked.md"]);
+    expect(exitCode).not.toBe(0);
+    expect(readFileSync(outside, "utf-8")).toContain("extracted: false");
+    rmSync(outside, { force: true });
+  });
+
+  it("refuses files without parseable frontmatter instead of corrupting them", async () => {
+    const vault = makeVault();
+    const unclosed = join(vault, "sessions", "unclosed.md");
+    writeFileSync(unclosed, "---\nsession_id: abc\nno closing delimiter\n");
+    const none = join(vault, "sessions", "plain.md");
+    writeFileSync(none, "just some text, no frontmatter\n");
+    for (const [name, path] of [
+      ["unclosed.md", unclosed],
+      ["plain.md", none],
+    ] as const) {
+      const before = readFileSync(path, "utf-8");
+      const { exitCode, stderr } = await run(vault, [name]);
+      expect(exitCode).not.toBe(0);
+      expect(stderr).toMatch(/not a manifest/);
+      expect(readFileSync(path, "utf-8")).toBe(before);
+    }
   });
 
   it("rejects traversal and subpath targets", async () => {

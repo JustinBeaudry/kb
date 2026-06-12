@@ -304,6 +304,19 @@ describe("inject hook — autoExtractNudge", () => {
     expect(ctx).toContain("unprocessed session manifest");
   });
 
+  it("eager mode reserves the nudge when the budget is nearly full", async () => {
+    const vault = track(makeVault());
+    enableNudge(vault);
+    writeFileSync(join(vault, "context.md"), `# Working Set\n${"x".repeat(2000)}\n`);
+    const { output } = await runHook(vault, {
+      KB_INJECT_MODE: "eager",
+      KB_BUDGET: "600", // smaller than context.md alone — nudge must still fit
+    });
+    const ctx: string = JSON.parse(output).hookSpecificOutput.additionalContext;
+    expect(ctx).toContain("unprocessed session manifest");
+    expect(new TextEncoder().encode(ctx).length).toBeLessThanOrEqual(600);
+  });
+
   it("no nudge when all manifests are extracted", async () => {
     const vault = track(makeVault());
     enableNudge(vault);

@@ -17,30 +17,40 @@ function resolveVaultPath(argv: string[]): string {
 }
 
 const DEFAULT_EVENT_NAME = "SessionStart";
-let eventName = DEFAULT_EVENT_NAME;
+// Pin the contract to the events this hook is registered for (hooks.json);
+// anything else on stdin is treated as garbage.
+const ALLOWED_EVENT_NAMES = new Set(["SessionStart", "PostCompact"]);
 
 /**
  * Claude Code hooks receive a JSON payload on stdin whose hook_event_name
  * identifies the firing event (SessionStart or PostCompact here). Tolerant
- * and non-blocking: TTY, absent, or garbled stdin falls back to SessionStart.
+ * and non-blocking: TTY, absent, slow, or garbled stdin falls back to
+ * SessionStart. The timer is cleared after the race so it never holds the
+ * event loop open past emit.
  */
 async function readHookEventName(): Promise<string> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     if (process.stdin.isTTY) return DEFAULT_EVENT_NAME;
     const text = await Promise.race([
       Bun.stdin.text(),
-      new Promise<string>((resolve) => setTimeout(() => resolve(""), 250)),
+      new Promise<string>((resolve) => {
+        timer = setTimeout(() => resolve(""), 250);
+      }),
     ]);
     const parsed = JSON.parse(text) as { hook_event_name?: unknown };
-    return typeof parsed.hook_event_name === "string" && parsed.hook_event_name
+    return typeof parsed.hook_event_name === "string" &&
+      ALLOWED_EVENT_NAMES.has(parsed.hook_event_name)
       ? parsed.hook_event_name
       : DEFAULT_EVENT_NAME;
   } catch {
     return DEFAULT_EVENT_NAME;
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
   }
 }
 
-function emitEmpty(): void {
+function emitEmpty(eventName: string): void {
   process.stdout.write(
     JSON.stringify({
       hookSpecificOutput: {
@@ -51,7 +61,7 @@ function emitEmpty(): void {
   );
 }
 
-function emitContext(context: string): void {
+function emitContext(eventName: string, context: string): void {
   process.stdout.write(
     JSON.stringify({
       hookSpecificOutput: {
@@ -75,27 +85,27 @@ function countAdvertised(payload: string): number {
 
 let emitted = false;
 
-function emitOnce(context: string): void {
+function emitOnce(eventName: string, context: string): void {
   if (emitted) return;
   emitted = true;
-  emitContext(context);
+  emitContext(eventName, context);
 }
 
-function emitEmptyOnce(): void {
+function emitEmptyOnce(eventName: string): void {
   if (emitted) return;
   emitted = true;
-  emitEmpty();
+  emitEmpty(eventName);
 }
 
 async function main(): Promise<void> {
-  eventName = await readHookEventName();
+  const eventName = await readHookEventName();
   const vaultPath = resolveVaultPath(process.argv.slice(2));
   const parsedBudget = Number(process.env.KB_BUDGET ?? DEFAULT_BUDGET);
   const budget =
     Number.isFinite(parsedBudget) && parsedBudget > 0 ? parsedBudget : DEFAULT_BUDGET;
 
   if (!existsSync(vaultPath)) {
-    emitEmptyOnce();
+    emitEmptyOnce(eventName);
     return;
   }
 
@@ -124,7 +134,7 @@ async function main(): Promise<void> {
     context = "";
   }
 
-  emitOnce(context);
+  emitOnce(eventName, context);
 
   try {
     await appendInjectLog(vaultPath, {
@@ -140,6 +150,6 @@ async function main(): Promise<void> {
 }
 
 main().catch(() => {
-  emitEmptyOnce();
+  emitEmptyOnce(DEFAULT_EVENT_NAME);
   process.exit(0);
 });

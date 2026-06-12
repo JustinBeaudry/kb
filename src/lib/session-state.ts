@@ -21,18 +21,25 @@ function readNoFollow(path: string): string {
   }
 }
 
+// Manifests are machine-generated with conservative names. Anything outside
+// this shape (whitespace, control bytes, leading dots) is skipped so the
+// names-only listing channel can never carry hostile content into agent
+// context.
+const SAFE_MANIFEST_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*\.md$/;
+
 function scanManifests(
   vaultPath: string,
   predicate: (frontmatter: Record<string, unknown>) => boolean
 ): string[] {
   const dir = join(vaultPath, "sessions");
+  if (!existsSync(dir)) return [];
   assertGenuineScopeDir(dir, vaultPath);
   const names: string[] = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     // Files only at the top level: subdirectories (summaries/, .trash/) and
     // symlinks are never scanned.
     if (!entry.isFile()) continue;
-    if (!entry.name.endsWith(".md")) continue;
+    if (!SAFE_MANIFEST_NAME.test(entry.name)) continue;
     try {
       const { data } = parseFrontmatter<Record<string, unknown>>(
         readNoFollow(join(dir, entry.name))
@@ -51,9 +58,17 @@ export function listManifests(vaultPath: string): string[] {
   return scanManifests(vaultPath, () => true);
 }
 
-/** Names of manifests whose frontmatter does not carry `extracted: true`. */
+/**
+ * Names of manifests whose frontmatter does not carry `extracted: true`.
+ * Only manifest-shaped files (non-empty frontmatter) are listed — files
+ * without parseable frontmatter cannot be summarized or marked, so listing
+ * them would put the extract workflow in a permanent nag loop.
+ */
 export function listUnprocessedManifests(vaultPath: string): string[] {
-  return scanManifests(vaultPath, (data) => data.extracted !== true);
+  return scanManifests(
+    vaultPath,
+    (data) => Object.keys(data).length > 0 && data.extracted !== true
+  );
 }
 
 /**
@@ -95,6 +110,12 @@ export function markExtracted(vaultPath: string, filename: string): void {
     throw new Error(`manifest not found: ${filename}`);
   }
   const { data, body } = parseFrontmatter<Record<string, unknown>>(readNoFollow(path));
+  // parseFrontmatter returns {} (not an error) for files with no frontmatter
+  // or an unclosed delimiter. Rewriting those would demote the original
+  // content into the body and corrupt the manifest — refuse instead.
+  if (Object.keys(data).length === 0) {
+    throw new Error(`not a manifest (no parseable frontmatter): ${filename}`);
+  }
   data.extracted = true;
   writeTextAtomic(path, serializeFrontmatter(data, body));
 }

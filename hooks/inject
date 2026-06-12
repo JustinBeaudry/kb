@@ -19,7 +19,13 @@ if [ ! -t 0 ]; then
 fi
 
 EVENT_NAME="$(printf '%s' "$STDIN_JSON" | sed -n 's/.*"hook_event_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
-[ -n "$EVENT_NAME" ] || EVENT_NAME="SessionStart"
+# Allowlist: only the events this hook registers for; anything else (including
+# backslash-bearing or spoofed matches that would break the printf'd JSON)
+# falls back to SessionStart.
+case "$EVENT_NAME" in
+  SessionStart|PostCompact) ;;
+  *) EVENT_NAME="SessionStart" ;;
+esac
 
 emit_empty() {
   printf '{"hookSpecificOutput":{"hookEventName":"%s","additionalContext":""}}\n' "$EVENT_NAME"

@@ -182,4 +182,13 @@ describe("kb doctor newest wiki page staleness", () => {
     const { stdout } = await runDoctor(env);
     expect(stdout).toMatch(/✓\s+newest wiki page/);
   });
+
+  it("checks wiki staleness even when sessions/ is absent", async () => {
+    const env = makeVault();
+    envs.push(env);
+    rmSync(join(env.vault, "sessions"), { recursive: true, force: true });
+    writeFileSync(join(env.vault, "wiki", "page.md"), "# Page\n");
+    const { stdout } = await runDoctor(env);
+    expect(stdout).toMatch(/newest wiki page/);
+  });
 });

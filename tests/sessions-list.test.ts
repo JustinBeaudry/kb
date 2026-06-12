@@ -73,6 +73,38 @@ describe("sessions --unprocessed", () => {
     expect(stdout.trim()).toBe("");
   });
 
+  it("returns nothing and exits 0 when the vault has no sessions directory", async () => {
+    const dir = join(tmpdir(), `kb-sessions-nodir-${Date.now()}`);
+    mkdirSync(join(dir, ".kb"), { recursive: true });
+    dirs.push(dir);
+    const { stdout, exitCode } = await run(dir, ["--unprocessed"]);
+    expect(exitCode).toBe(0);
+    expect(stdout.trim()).toBe("");
+  });
+
+  it("appends a hashed access-log entry", async () => {
+    const vault = makeVault();
+    writeManifest(vault, "a.md", "extracted: false");
+    const { exitCode } = await run(vault, ["--unprocessed"]);
+    expect(exitCode).toBe(0);
+    const { readFileSync } = await import("node:fs");
+    const log = readFileSync(join(vault, ".kb", "access-log.jsonl"), "utf-8").trim();
+    const entry = JSON.parse(log.split("\n").pop()!) as Record<string, unknown>;
+    expect(entry.command).toBe("sessions");
+    expect(entry.pages_returned).toBe(1);
+    expect(log).not.toContain("a.md");
+  });
+
+  it("excludes files without frontmatter and unsafe filenames from --unprocessed", async () => {
+    const vault = makeVault();
+    writeManifest(vault, "real.md", "session_id: x");
+    writeFileSync(join(vault, "sessions", "plain.md"), "no frontmatter here\n");
+    writeFileSync(join(vault, "sessions", "with space.md"), "---\na: 1\n---\n");
+    const { stdout, exitCode } = await run(vault, ["--unprocessed"]);
+    expect(exitCode).toBe(0);
+    expect(stdout.trim().split("\n").filter(Boolean)).toEqual(["real.md"]);
+  });
+
   it("skips manifests with malformed frontmatter without crashing", async () => {
     const vault = makeVault();
     writeManifest(vault, "good.md", "extracted: false");

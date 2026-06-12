@@ -15,3 +15,14 @@ export function writeTextAtomic(path: string, content: string): void {
     unlinkSync(tmp);
   }
 }
+
+/** Move a file with the same EXDEV copy fallback. */
+export function moveFileAtomic(from: string, to: string): void {
+  try {
+    renameSync(from, to);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "EXDEV") throw err;
+    copyFileSync(from, to);
+    unlinkSync(from);
+  }
+}
