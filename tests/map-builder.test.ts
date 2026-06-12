@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "bun:test";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { mkdirSync, writeFileSync, rmSync, symlinkSync } from "node:fs";
-import { buildTree } from "../src/lib/map/builder";
+import { buildPage, buildTree } from "../src/lib/map/builder";
 import { isValidNodeId, parseNodeId } from "../src/lib/map/node-id";
 
 const vaults: string[] = [];
@@ -176,6 +176,11 @@ describe("buildTree", () => {
     symlinkSync(join(vault, "outside.md"), join(vault, "wiki", "linked.md"));
     const tree = await buildTree(vault);
     expect(tree.pages.map((p) => p.id)).not.toContain("wiki/linked.md");
+  });
+
+  it("buildPage on a file deleted mid-scan returns null instead of throwing", async () => {
+    const vault = makeVault();
+    expect(buildPage(vault, join(vault, "wiki", "ghost.md"))).toBeNull();
   });
 
   it("empty wiki returns empty tree", async () => {

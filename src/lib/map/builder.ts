@@ -36,7 +36,9 @@ export function listWikiFiles(vaultPath: string): string[] {
 }
 
 export async function buildTree(vaultPath: string): Promise<TreeCache> {
-  const pages = listWikiFiles(vaultPath).map((file) => buildPage(vaultPath, file));
+  const pages = listWikiFiles(vaultPath)
+    .map((file) => buildPage(vaultPath, file))
+    .filter((p): p is PageEntry => p !== null);
   return linkTree(pages);
 }
 
@@ -155,9 +157,16 @@ function sortedRecord<T>(record: Record<string, T>): Record<string, T> {
   return Object.fromEntries(Object.entries(record).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
 }
 
-export function buildPage(vaultPath: string, filePath: string): PageEntry {
+export function buildPage(vaultPath: string, filePath: string): PageEntry | null {
   const id = toPageId(vaultPath, filePath);
-  const st = statSync(filePath);
+  let st: ReturnType<typeof statSync>;
+  try {
+    st = statSync(filePath);
+  } catch (err) {
+    // Deleted between directory walk and stat — treat as removed, not fatal.
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw err;
+  }
   const fallbackTitle = basename(filePath, ".md");
   const base: PageEntry = {
     id,
