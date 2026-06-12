@@ -52,7 +52,7 @@ describe("list-topics command", () => {
     const { stdout, exitCode } = await run(vault);
     expect(exitCode).toBe(0);
     const env = parseEnvelope(stdout);
-    expect(env.schema_version).toBe("1");
+    expect(env.schema_version).toBe("2");
     expect(env.policy).toMatchObject({ source_scope: "wiki" });
     const texts = env.chunks.map((c) => c.text);
     expect(texts).toContain("Architecture");
