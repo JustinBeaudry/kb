@@ -10,7 +10,7 @@ This file defines how you interact with this vault. Follow these conventions exa
 | `raw/` | Archived source documents — originals preserved for provenance | Agent (copies here during ingest) |
 | `sessions/<name>.md` | Session manifests — durable pointers to transcripts, git state, and excerpts | Agent (via Stop hook -> `kb capture-session`) |
 | `sessions/summaries/<name>.md` | Cached summaries derived from manifests; regenerable unless pinned | Agent (via `kb summarize`) |
-| `sessions/.trash/` | Migration quarantine and non-destructive summary replacements | KB CLI |
+| `sessions/.trash/` | Non-destructive quarantine for replaced summaries | KB CLI |
 | `context.md` | Working set — current focus areas for context injection | Agent (with user direction) |
 | `index.md` | Categorized pointer index — one-line entry per wiki page | Agent |
 | `log.md` | Chronological record — append-only, heading-level entries | Agent |

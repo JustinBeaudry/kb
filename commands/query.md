@@ -20,10 +20,3 @@ Expected behavior:
 4. If the answer contains novel knowledge, write a new wiki page and update
    `index.md`.
 5. Append to `log.md`: `## [YYYY-MM-DD] query | <summary>`.
-
-## Query sessions by files touched
-
-If the user query names a file path, use Grep to search `files_changed` YAML
-lists inside `sessions/*.md` manifests. Return matching manifests' timestamps
-and branches. Do not invoke `kb summarize` for this path — the manifest
-index answer is sufficient.
