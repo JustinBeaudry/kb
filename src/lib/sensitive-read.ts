@@ -11,7 +11,7 @@ import {
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { buildEnvelope, emitEnvelope, writeEnvelope, type Curation } from "./envelope";
+import { buildEnvelope, writeEnvelope, type Curation } from "./envelope";
 import {
   assertGenuineScopeDir,
   assertSafeFilename,
@@ -260,6 +260,3 @@ export async function runSensitiveRead(opts: SensitiveReadOptions): Promise<void
     // logging must never fail the command
   }
 }
-
-// Re-exported to preserve emitEnvelope's former consumer path; prefer writeEnvelope.
-export { emitEnvelope };

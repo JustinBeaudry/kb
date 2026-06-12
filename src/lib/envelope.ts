@@ -44,10 +44,6 @@ export function writeEnvelope(envelope: Envelope): string {
   return `${bytes}\n${body}`;
 }
 
-export function emitEnvelope(envelope: Envelope): void {
-  process.stdout.write(writeEnvelope(envelope));
-}
-
 export class EnvelopeVersionError extends Error {
   constructor(public readonly version: unknown) {
     super(`envelope: unsupported schema_version: ${String(version)}`);

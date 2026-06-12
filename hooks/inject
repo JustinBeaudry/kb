@@ -10,8 +10,25 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# Capture the hook payload (Claude Code pipes JSON on stdin) so both the
+# fallback and the TS hook can read the firing event's name. Skip on a TTY
+# so manual runs don't block.
+STDIN_JSON=""
+if [ ! -t 0 ]; then
+  STDIN_JSON="$(cat 2>/dev/null || true)"
+fi
+
+EVENT_NAME="$(printf '%s' "$STDIN_JSON" | sed -n 's/.*"hook_event_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+# Allowlist: only the events this hook registers for; anything else (including
+# backslash-bearing or spoofed matches that would break the printf'd JSON)
+# falls back to SessionStart.
+case "$EVENT_NAME" in
+  SessionStart|PostCompact) ;;
+  *) EVENT_NAME="SessionStart" ;;
+esac
+
 emit_empty() {
-  printf '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":""}}\n'
+  printf '{"hookSpecificOutput":{"hookEventName":"%s","additionalContext":""}}\n' "$EVENT_NAME"
 }
 
 if ! command -v bun >/dev/null 2>&1; then
@@ -19,7 +36,7 @@ if ! command -v bun >/dev/null 2>&1; then
   exit 0
 fi
 
-if ! bun "${SCRIPT_DIR}/../src/hooks/inject.ts" "$@"; then
+if ! printf '%s' "$STDIN_JSON" | bun "${SCRIPT_DIR}/../src/hooks/inject.ts" "$@"; then
   emit_empty
   exit 0
 fi

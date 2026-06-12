@@ -4,6 +4,8 @@ import { join } from "node:path";
 export interface EagerInput {
   vaultPath: string;
   budget: number;
+  /** Optional one-line nudge, appended after sessions content within budget. */
+  nudge?: string | null;
 }
 
 function byteLength(s: string): number {
@@ -23,7 +25,15 @@ function appendIfFits(current: string, section: string, budget: number): string 
   return byteLength(candidate) <= budget ? candidate : current;
 }
 
-export function buildEagerContext({ vaultPath, budget }: EagerInput): string {
+export function buildEagerContext({ vaultPath, budget, nudge }: EagerInput): string {
+  // Reserve the nudge before fitting content, mirroring the lazy pointer:
+  // without the reservation the nudge is sacrificed first on full vaults —
+  // exactly when sessions pile up and the nudge matters most. Eligibility is
+  // judged on the bare nudge (when nothing else fits, it is emitted without
+  // a separator); the separator bytes are reserved only against content.
+  const effectiveNudge = nudge && byteLength(nudge) <= budget ? nudge : null;
+  if (effectiveNudge) budget = Math.max(0, budget - byteLength(`\n\n${effectiveNudge}`));
+
   let ctx = "";
 
   const contextBody = readSafely(join(vaultPath, "context.md"));
@@ -69,6 +79,8 @@ export function buildEagerContext({ vaultPath, budget }: EagerInput): string {
       headerAdded = true;
     }
   }
+
+  if (effectiveNudge) ctx = ctx ? `${ctx}\n\n${effectiveNudge}` : effectiveNudge;
 
   return ctx;
 }

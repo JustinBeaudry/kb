@@ -33,7 +33,7 @@ When the user runs `/kb:refine`:
 
 3. **Stale pages** (updated > 30 days ago):
    - Read each stale page. Check if content is still accurate.
-   - Present to user: "[[Page Name]] last updated YYYY-MM-DD. Still accurate? [update/archive/leave]"
+   - Present to user: "[[page-name|Page Name]] last updated YYYY-MM-DD. Still accurate? [update/archive/leave]"
    - For updates: refresh content, set `updated` to today.
    - For archives: move to a `wiki/archive/` subdirectory (don't delete — provenance).
 
@@ -43,7 +43,7 @@ When the user runs `/kb:refine`:
      present, use it to find related pages by keyword overlap. Otherwise, use
      `kb recall <keyword>` to find related pages in `wiki/`, or `kb list-topics`
      to scan category neighbors.
-   - Suggest new connections: "[[Page A]] has 1 inbound link. Related to [[Page B]] and [[Page C]]?"
+   - Suggest new connections: "[[page-a|Page A]] has 1 inbound link. Related to [[page-b|Page B]] and [[page-c|Page C]]?"
    - If approved, add wikilinks and update backlinks on both sides.
 
 5. **Merge candidates** (overlapping topics):
@@ -68,7 +68,7 @@ When the user runs `/kb:refine`:
 
 9. **Session-derived context, if needed**:
    - Treat `sessions/*.md` files as manifests, not summaries.
-   - When a refinement question needs session content, run `kb summarize --json <manifest-path>` and read the returned `path` under `sessions/summaries/`.
+   - When a refinement question needs session content, run `kb summarize --json <manifest-path>`, then retrieve the cached summary with `kb read-session summaries/<name> --approve`, where `<name>` is the manifest filename including its `.md` extension (direct Reads under `sessions/` are deny-ruled; rule 7 applies).
    - If summary generation fails, skip that manifest and list it under `Skipped session summaries`.
    - If the JSON result has `degraded: true`, label any finding from that summary as `Degraded (excerpt-only)`.
 
@@ -87,7 +87,7 @@ When the user runs `/kb:refine`:
 ```
 ## [YYYY-MM-DD] refine | vault refinement pass
 
-Baseline: N pages, N.N avg links. Updated [[Page A]], merged [[Page B]] + [[Page C]]. Result: N pages, N.N avg links.
+Baseline: N pages, N.N avg links. Updated [[page-a|Page A]], merged [[page-b|Page B]] + [[page-c|Page C]]. Result: N pages, N.N avg links.
 ```
 
 ## Key Rules

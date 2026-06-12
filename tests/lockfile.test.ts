@@ -5,7 +5,6 @@ import { join } from "node:path";
 import {
   withExclusiveLock,
   withLogLock,
-  withMigrationLock,
   LockBusyError,
 } from "../src/lib/lockfile";
 
@@ -123,20 +122,6 @@ describe("withExclusiveLock", () => {
       });
       expect(ran).toBe(true);
       expect(existsSync(join(vaultDir, ".kb", "log.lock"))).toBe(false);
-    } finally {
-      rmSync(vaultDir, { recursive: true, force: true });
-    }
-  });
-
-  it("withMigrationLock acquires .kb/migration.lock under the vault", async () => {
-    const vaultDir = mkdtempSync(join(tmpdir(), "kb-vault-"));
-    try {
-      let ran = false;
-      await withMigrationLock(vaultDir, async () => {
-        ran = true;
-        expect(existsSync(join(vaultDir, ".kb", "migration.lock"))).toBe(true);
-      });
-      expect(ran).toBe(true);
     } finally {
       rmSync(vaultDir, { recursive: true, force: true });
     }

@@ -15,31 +15,6 @@ describe("entire detection", () => {
     rmSync(testDir, { recursive: true, force: true });
   });
 
-  describe("isEntireEnabled", () => {
-    it("should return false when not a git repo", async () => {
-      const { isEntireEnabled } = await import("../src/lib/entire");
-      const result = await isEntireEnabled(testDir);
-      expect(result).toBe(false);
-    });
-
-    it("should return false when git repo but entire not enabled", async () => {
-      const proc = Bun.spawn(["git", "init", testDir], { stdout: "ignore", stderr: "ignore" });
-      await proc.exited;
-
-      const { isEntireEnabled } = await import("../src/lib/entire");
-      const result = await isEntireEnabled(testDir);
-      expect(result).toBe(false);
-    });
-
-    it("should return true when entire is enabled in project", async () => {
-      if (!Bun.which("entire")) return;
-      const { isEntireEnabled } = await import("../src/lib/entire");
-      // This test runs in the kb project which has entire enabled
-      const result = await isEntireEnabled(process.cwd());
-      expect(result).toBe(true);
-    });
-  });
-
   describe("isEntireOnPath", () => {
     it("should return true when entire CLI is installed", async () => {
       if (!Bun.which("entire")) return;

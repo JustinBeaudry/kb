@@ -1,6 +1,6 @@
-import { appendFileSync, existsSync, mkdirSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
-import { copyFileSync, unlinkSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { writeTextAtomic } from "../lib/atomic-write";
 import { defineCommand } from "citty";
 import { resolveVaultPath } from "../lib/vault";
 import { CAPTURE_ERRORS_LOG, VAULT_DIRS } from "../lib/constants";
@@ -246,18 +246,6 @@ function appendCaptureError(vaultPath: string, err: unknown): void {
     stack: err instanceof Error ? err.stack : undefined,
   };
   appendFileSync(join(vaultPath, CAPTURE_ERRORS_LOG), `${JSON.stringify(payload)}\n`);
-}
-
-function writeTextAtomic(path: string, content: string): void {
-  const tmp = `${path}.tmp-${process.pid}-${Date.now()}`;
-  writeFileSync(tmp, content);
-  try {
-    renameSync(tmp, path);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "EXDEV") throw err;
-    copyFileSync(tmp, path);
-    unlinkSync(tmp);
-  }
 }
 
 function serializeDateParts(date: string): string {

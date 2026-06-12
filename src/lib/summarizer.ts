@@ -1,14 +1,11 @@
 import {
-  copyFileSync,
   existsSync,
   mkdirSync,
   readdirSync,
   readFileSync,
-  renameSync,
-  unlinkSync,
-  writeFileSync,
 } from "node:fs";
 import { basename, isAbsolute, join, resolve } from "node:path";
+import { moveFileAtomic, writeTextAtomic } from "./atomic-write";
 import { parseFrontmatter, serializeFrontmatter } from "./frontmatter";
 import { sha256File } from "./hash";
 import {
@@ -401,27 +398,6 @@ function trashSummary(vaultPath: string, summaryPath: string): void {
   mkdirSync(trashDir, { recursive: true });
   const stamp = new Date().toISOString().slice(0, 19).replace(/:/g, "-");
   const target = join(trashDir, `${basename(summaryPath, ".md")}-${stamp}.md`);
-  moveFile(summaryPath, target);
+  moveFileAtomic(summaryPath, target);
 }
 
-function moveFile(from: string, to: string): void {
-  try {
-    renameSync(from, to);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "EXDEV") throw err;
-    copyFileSync(from, to);
-    unlinkSync(from);
-  }
-}
-
-function writeTextAtomic(path: string, content: string): void {
-  const tmp = `${path}.tmp-${process.pid}-${Date.now()}`;
-  writeFileSync(tmp, content);
-  try {
-    renameSync(tmp, path);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "EXDEV") throw err;
-    copyFileSync(tmp, path);
-    unlinkSync(tmp);
-  }
-}
