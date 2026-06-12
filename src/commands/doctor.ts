@@ -159,12 +159,10 @@ export default defineCommand({
 });
 
 function findNewestMarkdown(vaultPath: string): { path: string; mtimeMs: number } | null {
-  const roots = ["wiki", "sessions"];
-  const skipDirs = new Set([
-    join(vaultPath, "sessions", "summaries"),
-    join(vaultPath, "sessions", ".trash"),
-    join(vaultPath, ".kb"),
-  ]);
+  // wiki/ only: the check reports "newest wiki page" — a fresh session
+  // manifest must not mask a stale wiki.
+  const roots = ["wiki"];
+  const skipDirs = new Set([join(vaultPath, ".kb")]);
   let newest: { path: string; mtimeMs: number } | null = null;
   for (const root of roots) {
     const dir = join(vaultPath, root);

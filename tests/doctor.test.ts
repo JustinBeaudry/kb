@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { mkdirSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync, existsSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -149,5 +149,37 @@ describe("kb doctor session health", () => {
 
     expect(result.stdout).toContain("removed stale session lockfiles — 1");
     expect(existsSync(lockPath)).toBe(false);
+  });
+});
+
+describe("kb doctor newest wiki page staleness", () => {
+  const envs: Env[] = [];
+  afterEach(() => {
+    for (const e of envs.splice(0)) {
+      try {
+        rmSync(e.root, { recursive: true, force: true });
+      } catch {}
+    }
+  });
+
+  it("warns on a stale wiki even when a fresh session manifest exists", async () => {
+    const env = makeVault();
+    envs.push(env);
+    const oldPage = join(env.vault, "wiki", "old-page.md");
+    writeFileSync(oldPage, "# Old\n");
+    const past = new Date(Date.now() - 60 * 86400000);
+    utimesSync(oldPage, past, past);
+    writeGoodManifest(env.vault); // fresh mtime under sessions/
+    const { stdout } = await runDoctor(env);
+    expect(stdout).toMatch(/!\s+newest wiki page/);
+    expect(stdout).toMatch(/wiki\/old-page\.md/);
+  });
+
+  it("reports ok when the newest wiki page is fresh", async () => {
+    const env = makeVault();
+    envs.push(env);
+    writeFileSync(join(env.vault, "wiki", "fresh.md"), "# Fresh\n");
+    const { stdout } = await runDoctor(env);
+    expect(stdout).toMatch(/✓\s+newest wiki page/);
   });
 });

@@ -57,10 +57,15 @@ afterEach(() => {
   }
 });
 
-async function runHook(vault: string, env: Record<string, string> = {}): Promise<{ output: string; exitCode: number }> {
+async function runHook(
+  vault: string,
+  env: Record<string, string> = {},
+  stdin?: string
+): Promise<{ output: string; exitCode: number }> {
   const proc = Bun.spawn(["bash", "hooks/inject", vault], {
     stdout: "pipe",
     stderr: "pipe",
+    stdin: stdin === undefined ? "ignore" : new TextEncoder().encode(stdin),
     env: { ...process.env, ...env },
   });
   const output = await new Response(proc.stdout).text();
@@ -218,6 +223,41 @@ describe("inject hook — logging", () => {
     expect(lines.length).toBe(3);
     const modes = lines.map((l) => JSON.parse(l).mode);
     expect(modes).toEqual(["lazy", "off", "eager"]);
+  });
+});
+
+describe("inject hook — event name", () => {
+  it("reports the event name supplied on stdin", async () => {
+    const vault = track(makeVault());
+    const { exitCode, output } = await runHook(
+      vault,
+      { KB_INJECT_MODE: "lazy" },
+      JSON.stringify({ hook_event_name: "PostCompact", session_id: "x" })
+    );
+    expect(exitCode).toBe(0);
+    expect(JSON.parse(output).hookSpecificOutput.hookEventName).toBe("PostCompact");
+  });
+
+  it("falls back to SessionStart on garbled or absent stdin", async () => {
+    const vault = track(makeVault());
+    const garbled = await runHook(vault, { KB_INJECT_MODE: "lazy" }, "{ not json");
+    expect(garbled.exitCode).toBe(0);
+    expect(JSON.parse(garbled.output).hookSpecificOutput.hookEventName).toBe("SessionStart");
+    const absent = await runHook(vault, { KB_INJECT_MODE: "lazy" });
+    expect(absent.exitCode).toBe(0);
+    expect(JSON.parse(absent.output).hookSpecificOutput.hookEventName).toBe("SessionStart");
+  });
+
+  it("bash fallback echoes the stdin event name when bun is unavailable", async () => {
+    const vault = track(makeVault());
+    const { exitCode, output } = await runHook(
+      vault,
+      { PATH: "/usr/bin:/bin" }, // no bun on PATH
+      JSON.stringify({ hook_event_name: "PostCompact" })
+    );
+    expect(exitCode).toBe(0);
+    expect(JSON.parse(output).hookSpecificOutput.hookEventName).toBe("PostCompact");
+    expect(JSON.parse(output).hookSpecificOutput.additionalContext).toBe("");
   });
 });
 

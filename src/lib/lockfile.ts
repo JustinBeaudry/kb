@@ -118,11 +118,3 @@ export async function withLogLock<T>(
 ): Promise<T> {
   return withExclusiveLock(join(vaultPath, ".kb", "log.lock"), fn, opts);
 }
-
-export async function withMigrationLock<T>(
-  vaultPath: string,
-  fn: () => Promise<T>,
-  opts: LockOptions = {}
-): Promise<T> {
-  return withExclusiveLock(join(vaultPath, ".kb", "migration.lock"), fn, opts);
-}

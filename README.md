@@ -26,7 +26,7 @@ Scaffolds `~/kb` with the vault structure. `init` does not touch Claude Code
 configuration — hooks ship with the KB plugin:
 
 ```bash
-claude plugin add kb
+claude plugin install kb
 ```
 
 Safe to run `init` again — idempotent.

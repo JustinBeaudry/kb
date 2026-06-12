@@ -16,11 +16,35 @@ function resolveVaultPath(argv: string[]): string {
   return resolveProjectVaultPath(process.cwd());
 }
 
+const DEFAULT_EVENT_NAME = "SessionStart";
+let eventName = DEFAULT_EVENT_NAME;
+
+/**
+ * Claude Code hooks receive a JSON payload on stdin whose hook_event_name
+ * identifies the firing event (SessionStart or PostCompact here). Tolerant
+ * and non-blocking: TTY, absent, or garbled stdin falls back to SessionStart.
+ */
+async function readHookEventName(): Promise<string> {
+  try {
+    if (process.stdin.isTTY) return DEFAULT_EVENT_NAME;
+    const text = await Promise.race([
+      Bun.stdin.text(),
+      new Promise<string>((resolve) => setTimeout(() => resolve(""), 250)),
+    ]);
+    const parsed = JSON.parse(text) as { hook_event_name?: unknown };
+    return typeof parsed.hook_event_name === "string" && parsed.hook_event_name
+      ? parsed.hook_event_name
+      : DEFAULT_EVENT_NAME;
+  } catch {
+    return DEFAULT_EVENT_NAME;
+  }
+}
+
 function emitEmpty(): void {
   process.stdout.write(
     JSON.stringify({
       hookSpecificOutput: {
-        hookEventName: "SessionStart",
+        hookEventName: eventName,
         additionalContext: "",
       },
     }) + "\n"
@@ -31,7 +55,7 @@ function emitContext(context: string): void {
   process.stdout.write(
     JSON.stringify({
       hookSpecificOutput: {
-        hookEventName: "SessionStart",
+        hookEventName: eventName,
         additionalContext: context,
       },
     }) + "\n"
@@ -64,6 +88,7 @@ function emitEmptyOnce(): void {
 }
 
 async function main(): Promise<void> {
+  eventName = await readHookEventName();
   const vaultPath = resolveVaultPath(process.argv.slice(2));
   const parsedBudget = Number(process.env.KB_BUDGET ?? DEFAULT_BUDGET);
   const budget =
