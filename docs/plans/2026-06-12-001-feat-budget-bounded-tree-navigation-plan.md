@@ -1,7 +1,7 @@
 ---
 title: "feat: Budget-bounded LLM tree navigation over the wiki vault"
 type: feat
-status: active
+status: completed
 date: 2026-06-12
 origin: docs/brainstorms/2026-05-08-llm-tree-navigation-and-entire-session-offload-requirements.md
 ---
