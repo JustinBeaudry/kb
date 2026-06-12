@@ -126,6 +126,34 @@ describe("buildTree", () => {
     expect(ids).toEqual(["wiki/dup.md#setup", "wiki/dup.md#setup-2", "wiki/dup.md#setup-3"]);
   });
 
+  it("ordinal suffix never collides with a natural '-2' slug", async () => {
+    const vault = makeVault();
+    writeFileSync(join(vault, "wiki", "col.md"), "## Setup\na\n## Setup\nb\n## Setup 2\nc\n");
+    const tree = await buildTree(vault);
+    const ids = tree.pages[0]!.sections.map((s) => s.id);
+    expect(new Set(ids).size).toBe(3);
+    expect(ids).toEqual(["wiki/col.md#setup", "wiki/col.md#setup-2", "wiki/col.md#setup-2-2"]);
+  });
+
+  it("natural '-2' slug arriving first still yields unique IDs", async () => {
+    const vault = makeVault();
+    writeFileSync(join(vault, "wiki", "col2.md"), "## Setup 2\na\n## Setup\nb\n## Setup\nc\n");
+    const tree = await buildTree(vault);
+    const ids = tree.pages[0]!.sections.map((s) => s.id);
+    expect(new Set(ids).size).toBe(3);
+    expect(ids).toEqual(["wiki/col2.md#setup-2", "wiki/col2.md#setup", "wiki/col2.md#setup-3"]);
+  });
+
+  it("positional fallback never collides with a literal section-N heading", async () => {
+    const vault = makeVault();
+    writeFileSync(join(vault, "wiki", "pos.md"), "## ???\na\n## section-1\nb\n");
+    const tree = await buildTree(vault);
+    const ids = tree.pages[0]!.sections.map((s) => s.id);
+    expect(new Set(ids).size).toBe(2);
+    expect(ids[0]).toBe("wiki/pos.md#section-1");
+    expect(ids[1]).toBe("wiki/pos.md#section-1-2");
+  });
+
   it("heading that slugifies to empty falls back to positional ID", async () => {
     const vault = makeVault();
     writeFileSync(join(vault, "wiki", "odd.md"), "## ???\ntext\n");

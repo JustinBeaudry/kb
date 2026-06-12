@@ -30,13 +30,22 @@ export function parseNodeId(id: string): ParsedNodeId | null {
  * Assign per-page section IDs from slugs: first occurrence is canonical,
  * later collisions get ordinal suffixes (-2, -3, ...). Empty slugs fall back
  * to a positional section-<n> ID so every emitted ID conforms to the grammar.
+ * Every emitted ID is tracked so an ordinal can never collide with a natural
+ * slug like "setup-2" (or a positional ID with a literal "section-1" heading).
  */
 export function makeSectionIdAssigner(pageId: string): (slug: string, position: number) => string {
-  const seen = new Map<string, number>();
+  const counts = new Map<string, number>();
+  const emitted = new Set<string>();
   return (slug: string, position: number): string => {
     const base = slug === "" ? `section-${position}` : slug;
-    const count = (seen.get(base) ?? 0) + 1;
-    seen.set(base, count);
-    return count === 1 ? `${pageId}#${base}` : `${pageId}#${base}-${count}`;
+    let count = (counts.get(base) ?? 0) + 1;
+    let part = count === 1 ? base : `${base}-${count}`;
+    while (emitted.has(part)) {
+      count += 1;
+      part = `${base}-${count}`;
+    }
+    counts.set(base, count);
+    emitted.add(part);
+    return `${pageId}#${part}`;
   };
 }
