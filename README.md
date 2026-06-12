@@ -104,6 +104,8 @@ Toggle session-start nudge: `/kb:extract on` or `/kb:extract off`.
 | `kb init` | Scaffold the vault (does not register hooks) |
 | `kb doctor` | Check vault health, hook wiring, and inject-budget pressure |
 | `kb uninstall` | Print plugin-removal instructions; vault is preserved |
+| `kb map [query]` | Budget-bounded structural map of the wiki — node summaries for navigation |
+| `kb get-node <id>` | Fetch a page or section by node ID (`--neighbors`, `--follow-wikilinks <n>`) |
 | `kb recall <query>` | Search curated pages, return evidence envelope |
 | `kb get <page>` | Fetch a curated page by name |
 | `kb list-topics` | List index topics |
@@ -190,6 +192,7 @@ The inject hook has three modes, resolved in priority order:
 | `KB_VAULT` | Vault location (overrides `~/kb` and per-project `.kb` files) |
 | `KB_INJECT_MODE` | `lazy` \| `eager` \| `off` — overrides `.kb/config.json` |
 | `KB_BUDGET` | Eager-mode injection budget in bytes (default 32768) |
+| `KB_MAP_BUDGET` | `kb map` output budget in bytes (default 16384); `--budget` overrides |
 | `KB_SUMMARIZE_COMMAND` | Summarizer command (default `claude -p --model haiku`) |
 | `KB_APPROVE` | `1` approves ask-gated reads non-interactively |
 

@@ -21,13 +21,13 @@ The vault splits into **trusted** surfaces (curated) and **untrusted** surfaces 
 
 | Surface | Trust | How agents access it |
 |---------|-------|----------------------|
-| `wiki/**` | Trusted (curated) | `kb recall <query>` · `kb get <page>` · `kb list-topics` |
+| `wiki/**` | Trusted (curated) | `kb map [query]` · `kb get-node <id>` · `kb recall <query>` · `kb get <page>` · `kb list-topics` |
 | `index.md`, `context.md` | Trusted (curated) | Injected on SessionStart (lazy mode prints a pointer only) |
 | `raw/**` | Untrusted | `kb read-raw <filename>` (ask-gated, bounded excerpt) |
 | `sessions/**` | Untrusted | `kb read-session <filename>` (ask-gated, bounded excerpt) |
 | `.kb/*.jsonl` | Sensitive (logs) | No agent access — human audit only |
 
-All retrieval commands return a **length-prefixed JSON envelope** with `{schema_version, nonce, policy, chunks: [{source, line_range, curation, text}]}`. Read the decimal byte count on the first line, then exactly that many bytes of JSON body.
+All retrieval commands return a **length-prefixed JSON envelope** (schema v2) with `{schema_version, nonce, policy, chunks: [{source, line_range, curation, text}]}`. Read the decimal byte count on the first line, then exactly that many bytes of JSON body. Tree-navigation results additionally carry a `node_id`, `heading_path`, and `node_kind` per chunk, plus `tree_root` / `nav_trace` policy keys.
 
 This boundary is **best-effort + detection**, not OS-level sandboxing. Shell access remains an escape hatch unless the host enforces deeper isolation. Run `bash <plugin>/hooks/security-self-test` to verify deny rules have not drifted.
 
@@ -269,13 +269,15 @@ Created [[page-a|Page A]], [[page-b|Page B]]. Updated [[page-c|Page C]], [[page-
 
 When the user asks a question the vault might answer:
 
-1. Search for relevant pages via the sanctioned CLI:
-   - `kb list-topics` — see available categories
-   - `kb recall <query>` — keyword search across `wiki/**`
-   - `kb get <page>` — fetch a full wiki page
-   When `qmd_deep_search` is available, prefer it as a first pass; then fetch via `kb get` or `qmd_get`.
+1. Navigate the vault structure (default smart retrieval):
+   - `kb map <query>` — get a compact, budget-bounded map of matching pages and sections. Each chunk carries a `node_id` (e.g. `wiki/foo.md#setup`) and `heading_path`.
+   - Read the node summaries, select the most promising `node_id`s yourself, then fetch exact evidence:
+   - `kb get-node <id>` — fetch that page or section. Add `--neighbors` for adjacent sections or `--follow-wikilinks <n>` to preview cross-referenced pages without restarting the search.
+   - Iterate: if the evidence points to another node (`nav_trace`, wikilinks), fetch it by ID.
+   The map output is bounded by `KB_MAP_BUDGET` (default 16 KiB); over-budget maps degrade to page summaries, then titles, with suggestions to narrow the query.
+   Fallbacks: `kb recall <query>` for plain-text keyword search, `kb list-topics` for categories, `kb get <page>` for a known page name. When `qmd_deep_search` is available, it can serve as an additional first pass.
    Do **not** read `sessions/` or `raw/` directly; use `kb read-session` / `kb read-raw` (ask-gated) only when a summary is insufficient.
-2. Follow `[[kebab-filename|Display Title]]` wikilinks in the returned envelope chunks to pull additional pages via `kb get`.
+2. Follow `[[kebab-filename|Display Title]]` wikilinks in the returned envelope chunks to pull additional pages via `kb get-node` or `kb get`.
 3. Synthesize your answer, citing sources as `[[kebab-filename|Display Title]]`. Pick the output form that fits the question:
    - **Markdown page** (default) — prose answer with wikilink citations.
    - **Comparison table** — when the question pits options against each other; file as a `comparison` page if worth keeping.
