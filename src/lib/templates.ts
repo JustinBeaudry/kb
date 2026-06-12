@@ -13,13 +13,13 @@ export function getKbMdTemplate(): string {
 export const INDEX_MD_STUB = `# Vault Index
 
 <!-- Group pages by topic category. Newest entries first within each category. -->
-<!-- Format: - [[Page Name]] — one-line description (~150 chars max) -->
+<!-- Format: - [[kebab-filename|Display Title]] — one-line description (~150 chars max) -->
 `;
 
 export const LOG_MD_STUB = `# Vault Log
 
 <!-- Heading-level entries: ## [YYYY-MM-DD] type | description -->
-<!-- Types: ingest, query, lint, session -->
+<!-- Types: ingest, query, lint, refine, session -->
 `;
 
 export const CONTEXT_MD_STUB = `# Working Set

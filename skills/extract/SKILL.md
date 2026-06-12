@@ -77,7 +77,7 @@ When the user runs `/kb:extract` (no arguments):
 ```
 ## [YYYY-MM-DD] ingest | session extraction
 
-Extracted from sessions: YYYY-MM-DDTHH-MM-SS. Created [[Page A]], [[Page B]]. Updated [[Page C]].
+Extracted from sessions: YYYY-MM-DDTHH-MM-SS. Created [[page-a|Page A]], [[page-b|Page B]]. Updated [[page-c|Page C]].
 ```
 
 ## Entire Checkpoint Provenance

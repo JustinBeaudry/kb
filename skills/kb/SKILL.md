@@ -101,7 +101,7 @@ Do not guess — decide from the actual tool list, not from memory.
 3. **Present takeaways to the user** — entities, concepts, relationships, contradictions with existing wiki content. Confirm what to file.
 4. Create or update wiki pages for confirmed items.
 5. **Cascade**: review and update all related existing wiki pages with new cross-references, corrections, or context. A single ingest typically touches 5-15 pages.
-6. Every page links to 2+ others via `[[wikilinks]]`.
+6. Every page links to 2+ others via `[[kebab-filename|Display Title]]` wikilinks.
 7. Update `context.md` if relevant to current focus areas.
 8. Add entries to `index.md` under the appropriate topic category.
 9. Append heading-level entry to `log.md`: `## [YYYY-MM-DD] ingest | <title>`.
@@ -111,7 +111,7 @@ Do not guess — decide from the actual tool list, not from memory.
 1. `kb list-topics` — see category headings.
 2. `kb recall <query>` — keyword search across curated wiki pages.
 3. `kb get <page>` — fetch full wiki pages surfaced by recall. Walk wikilinks by calling `kb get` again.
-4. Synthesize answer, citing sources as `[[Page Name]]`.
+4. Synthesize answer, citing sources as `[[kebab-filename|Display Title]]`.
 5. If answer contains novel knowledge, write a new wiki page and update `index.md`.
 6. Append to `log.md`: `## [YYYY-MM-DD] query | <brief summary>`.
 
@@ -132,9 +132,9 @@ Do not guess — decide from the actual tool list, not from memory.
 
 ## Quick Reference
 
-- Wikilinks: `[[Page Name]]`, `[[Page#Heading]]`, `[[Page|Alias]]`
-- Embeds: `![[Page Name]]`
-- Index: `- [[Page Name]] — one-line description` grouped by category
+- Wikilinks: `[[kebab-filename|Display Title]]`, `[[kebab-filename#Heading|Display Title]]` — display text required; the target is always the filename
+- Embeds: `![[kebab-filename]]`
+- Index: `- [[kebab-filename|Display Title]] — one-line description` grouped by category
 - Log: `## [YYYY-MM-DD] type | description` (types: ingest, query, lint, refine, session)
 - Page types: concept, entity, source-summary, comparison, overview
 - Backlinks: `## Backlinks` section at bottom of every wiki page, agent-maintained
