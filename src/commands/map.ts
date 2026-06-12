@@ -173,7 +173,10 @@ export default defineCommand({
       wire = wireFor([], {
         ...basePolicy,
         no_results: true,
-        suggestions: query === "" ? ["The wiki is empty — add pages under wiki/"] : [`Try: kb recall ${query}`],
+        suggestions:
+          query === ""
+            ? ["The wiki is empty — add pages under wiki/"]
+            : ["Try a broader query, or: kb recall <query>"],
       });
     } else {
       wire = fitToBudget(chunks, budget, basePolicy);

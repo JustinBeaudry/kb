@@ -34,6 +34,9 @@ function readCachedTree(vaultPath: string): TreeCache | null {
     return null;
   }
   if (!parsed || typeof parsed !== "object") return null;
+  // SAFETY: schema_version and the pages array are verified below; deeper
+  // entry shape is trusted from our own write path, and entries whose stats
+  // don't match disk fall through to a rebuild in loadOrBuildTree.
   const t = parsed as TreeCache;
   if (t.schema_version !== CACHE_SCHEMA_VERSION) return null;
   if (!Array.isArray(t.pages)) return null;

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { parseEnvelope } from "../src/lib/envelope";
+import { MAX_FILE_BYTES } from "../src/lib/wiki-read";
 
 const vaults: string[] = [];
 afterEach(() => {
@@ -143,6 +144,16 @@ describe("get-node command", () => {
       expect(stdout).toBe("");
       expect(stderr).toContain("invalid node id");
     }
+  });
+
+  it("oversize page in the tree gets a distinct unreadable-content error", async () => {
+    const vault = makeVault();
+    writeFileSync(join(vault, "wiki", "huge.md"), `# Huge\n${"x".repeat(MAX_FILE_BYTES + 1)}\n`);
+    const { exitCode, stdout, stderr } = await run(vault, ["wiki/huge.md"]);
+    expect(exitCode).toBe(1);
+    expect(stdout).toBe("");
+    expect(stderr).toContain("node content unavailable");
+    expect(stderr).not.toContain("unknown node");
   });
 
   it("cached ID whose file was deleted errors after one rebuild attempt", async () => {

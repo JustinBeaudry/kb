@@ -6,7 +6,7 @@ import { buildEnvelope, writeEnvelope, type EnvelopeChunk } from "../lib/envelop
 import { appendAccessLog } from "../lib/access-log";
 import { byteLength } from "../lib/bytes";
 import { PathUnsafeError } from "../lib/path-safety";
-import { readWikiFileNoFollow } from "../lib/wiki-read";
+import { MAX_FILE_BYTES, readWikiFileNoFollow } from "../lib/wiki-read";
 import { loadOrBuildTree, invalidateTree } from "../lib/map/cache";
 import { resolveSectionLinks } from "../lib/map/builder";
 import { isValidNodeId, parseNodeId } from "../lib/map/node-id";
@@ -95,7 +95,9 @@ export default defineCommand({
 
     const content = readWikiFileNoFollow(join(vaultPath, pageId));
     if (content === null) {
-      fail(`unknown node: ${id}`);
+      // The node is in the tree, so this is unreadable content (oversize or
+      // I/O failure), not an unknown ID — give agents a distinct signal.
+      fail(`node content unavailable (exceeds ${MAX_FILE_BYTES} bytes or unreadable): ${id}`);
     }
     const lines = content.split("\n");
 

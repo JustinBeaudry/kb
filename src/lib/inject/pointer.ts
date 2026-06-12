@@ -2,8 +2,6 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { byteLength } from "../bytes";
 
-export { byteLength };
-
 const POINTER_BUDGET = 500;
 const MAX_CATEGORIES = 8;
 const HEADING_RE = /^##\s+(.+?)\s*$/gm;

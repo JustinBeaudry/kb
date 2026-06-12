@@ -274,7 +274,7 @@ When the user asks a question the vault might answer:
    - Read the node summaries, select the most promising `node_id`s yourself, then fetch exact evidence:
    - `kb get-node <id>` — fetch that page or section. Add `--neighbors` for adjacent sections or `--follow-wikilinks <n>` to preview cross-referenced pages without restarting the search.
    - Iterate: if the evidence points to another node (`nav_trace`, wikilinks), fetch it by ID.
-   The map output is bounded by `KB_MAP_BUDGET` (default 16 KiB); over-budget maps degrade to page summaries, then titles, with suggestions to narrow the query.
+   The map output is bounded by `KB_MAP_BUDGET` (default 16 KiB); over-budget maps degrade to page summaries, then titles. Detect this via `policy.map_tier` (1 = full, 2 = pages only, 3 = titles only) and `policy.truncated` (true when the page list was cut), then read `policy.suggestions` and reissue a narrower query.
    Fallbacks: `kb recall <query>` for plain-text keyword search, `kb list-topics` for categories, `kb get <page>` for a known page name. When `qmd_deep_search` is available, it can serve as an additional first pass.
    Do **not** read `sessions/` or `raw/` directly; use `kb read-session` / `kb read-raw` (ask-gated) only when a summary is insufficient.
 2. Follow `[[kebab-filename|Display Title]]` wikilinks in the returned envelope chunks to pull additional pages via `kb get-node` or `kb get`.

@@ -5,6 +5,7 @@
  * installed and the vault is registered as a collection, KB workflows use
  * qmd_deep_search as the primary search step.
  */
+import { isValidNodeId } from "./map/node-id";
 
 export function isQmdOnPath(): boolean {
   return !!Bun.which("qmd");
@@ -72,7 +73,6 @@ export async function qmdSearchHints(query: string, topK = 5): Promise<string[] 
     const exitCode = await proc.exited;
     if (exitCode !== 0) return null;
 
-    const { isValidNodeId } = await import("./map/node-id");
     const ids: string[] = [];
     for (const line of output.split("\n")) {
       const m = line.match(/(\S+\.md)\b/);
