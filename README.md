@@ -5,19 +5,31 @@ your agent across sessions. Based on [Karpathy's LLM Wiki pattern](https://gist.
 
 ## What it does
 
-- **SessionStart hook** injects working set, index, and recent session summaries or manifests (priority order)
+- **SessionStart hook** injects vault context — a compact pointer by default
+  (lazy mode), or the working set, index, and recent session summaries in
+  eager mode
 - **Stop hook** writes a small session manifest when you finish working
 - **PostCompact hook** re-injects vault context after compaction (solves compaction amnesia)
+- **Trust boundary** separates curated knowledge (`wiki/`) from untrusted
+  content (`raw/`, `sessions/`), with sanctioned CLI commands for each tier
 - **KB.md template** teaches Claude to ingest sources, answer queries, and lint your vault
 
 ## Install
+
+Requires [Bun](https://bun.sh) — the CLI and hooks run TypeScript directly.
 
 ```bash
 bunx @beaudry/kb init
 ```
 
-Scaffolds `~/kb` with vault structure and registers hooks in Claude Code.
-Safe to run again — idempotent.
+Scaffolds `~/kb` with the vault structure. `init` does not touch Claude Code
+configuration — hooks ship with the KB plugin:
+
+```bash
+claude plugin add kb
+```
+
+Safe to run `init` again — idempotent.
 
 ### Custom vault path
 
@@ -74,12 +86,50 @@ Extract knowledge from session manifests into wiki pages:
 
 > "Extract from sessions"
 
-Sessions are sources. Claude asks `kb summarize` to lazily create cached
-summaries for unprocessed manifests, presents extraction candidates (entities,
-concepts, decisions, patterns), and runs the standard ingest workflow on
-confirmed items.
+Sessions are sources. Claude enumerates unprocessed manifests with
+`kb sessions --unprocessed`, generates cached summaries with `kb summarize`,
+retrieves them through the ask-gated `kb read-session`, runs the standard
+ingest workflow on confirmed items, and marks finished manifests with
+`kb mark-extracted`. Summaries require the `claude` CLI (or a
+`KB_SUMMARIZE_COMMAND` equivalent) — without one, `kb summarize` exits
+nonzero and extraction cannot proceed.
 
 Toggle session-start nudge: `/kb:extract on` or `/kb:extract off`.
+
+## CLI reference
+
+| Command | What it does |
+|---------|--------------|
+| `kb init` | Scaffold the vault (does not register hooks) |
+| `kb doctor` | Check vault health, hook wiring, and inject-budget pressure |
+| `kb uninstall` | Print plugin-removal instructions; vault is preserved |
+| `kb recall <query>` | Search curated pages, return evidence envelope |
+| `kb get <page>` | Fetch a curated page by name |
+| `kb list-topics` | List index topics |
+| `kb read-raw <file>` | Ask-gated bounded read from `raw/` |
+| `kb read-session <file>` | Ask-gated bounded read from `sessions/` (incl. `summaries/`) |
+| `kb sessions [--unprocessed]` | List session manifest names — never content |
+| `kb mark-extracted <file>` | Mark a manifest as extracted |
+| `kb capture-session` | Write a session manifest (used by the Stop hook) |
+| `kb summarize <manifest>` | Generate or reuse a cached session summary |
+| `kb summaries pin\|unpin` | Pin or unpin a cached summary |
+
+## Trust boundary
+
+Vault content is two-tier:
+
+- **Curated** (`wiki/`, `index.md`, `context.md`) — trusted, retrieved via
+  `kb recall`, `kb get`, `kb list-topics`.
+- **Untrusted** (`raw/`, `sessions/`) — provenance and machine-generated
+  content, readable only through the ask-gated `kb read-raw` /
+  `kb read-session` (bounded excerpts, explicit `--approve` or `KB_APPROVE=1`
+  in non-interactive use).
+
+All retrieval commands emit a length-prefixed JSON envelope with source
+attribution, and access is recorded in `.kb/access-log.jsonl` with hashed
+queries — never plaintext. The plugin ships deny rules that block direct
+Read/Grep of `raw/` and `sessions/`, plus a `security-self-test` hook that
+detects when those rules regress.
 
 ## Page types
 
@@ -99,26 +149,48 @@ Each type has a structural template defined in KB.md with recommended sections.
 
 ```
 ~/kb/
-  KB.md        # Schema — conventions, workflows, rules
-  context.md      # Working set — current focus areas (injected first)
+  KB.md           # Schema — conventions, workflows, rules
+  context.md      # Working set — current focus areas
   index.md        # Categorized pointer index, grouped by topic
   log.md          # Chronological operation log (heading-level entries)
   wiki/           # Knowledge pages (agent-maintained, typed)
   raw/            # Source documents (immutable, provenance)
   sessions/       # Session manifests (auto-generated)
     summaries/    # Cached summaries from manifests
-    .trash/       # Migration quarantine and non-destructive replacements
+    .trash/       # Non-destructive quarantine for replaced summaries
+  .kb/            # Operational state (not knowledge)
+    state.json    #   toggles (e.g. autoExtractNudge)
+    config.json   #   inject_mode and other settings
+    *.jsonl       #   access and inject logs, hashed queries only
 ```
 
 ## Context injection
 
-Inject hook reads vault in priority order under a 32KB budget (configurable
-via `KB_BUDGET` env var; `kb doctor` warns when the budget is under
-pressure):
+The inject hook has three modes, resolved in priority order:
+`KB_INJECT_MODE` env var → `inject_mode` in `.kb/config.json` → `eager`.
 
-1. **`context.md`** — working set, always first
-2. **`index.md`** — categorized page index
-3. **Recent sessions** — cached summaries first, then manifests as fallback
+- **`lazy`** — the default written to `.kb/config.json` on fresh installs. Injects
+  a ~500-byte pointer (vault location, topic headings, retrieval commands);
+  the agent pulls content on demand via `kb recall`/`kb get`.
+- **`eager`** — the fallback for vaults without a config. Injects content
+  directly under a 32KB budget (configurable via `KB_BUDGET`), in priority
+  order:
+  1. **`context.md`** — working set, always first
+  2. **`index.md`** — categorized page index
+  3. **Recent sessions** — cached summaries first, then manifests as fallback
+- **`off`** — no injection.
+
+`kb doctor` warns when the eager budget is under pressure.
+
+## Environment variables
+
+| Variable | Effect |
+|----------|--------|
+| `KB_VAULT` | Vault location (overrides `~/kb` and per-project `.kb` files) |
+| `KB_INJECT_MODE` | `lazy` \| `eager` \| `off` — overrides `.kb/config.json` |
+| `KB_BUDGET` | Eager-mode injection budget in bytes (default 32768) |
+| `KB_SUMMARIZE_COMMAND` | Summarizer command (default `claude -p --model haiku`) |
+| `KB_APPROVE` | `1` approves ask-gated reads non-interactively |
 
 ## Search (optional)
 
@@ -153,7 +225,8 @@ or custom integrations, set `KB_SUMMARIZE_COMMAND` to a compatible command.
 bunx @beaudry/kb uninstall
 ```
 
-Removes hooks from Claude Code. Your vault is preserved.
+Prints the plugin-removal command (`claude plugin remove kb`). Your vault is
+preserved either way.
 
 ## License
 
