@@ -3,9 +3,12 @@ import { defineCommand } from "citty";
 import { resolveVaultPath } from "../lib/vault";
 import { buildEnvelope, writeEnvelope, type EnvelopeChunk, type EnvelopePolicy } from "../lib/envelope";
 import { appendAccessLog } from "../lib/access-log";
+import { byteLength } from "../lib/bytes";
 import { PathUnsafeError } from "../lib/path-safety";
 import { loadOrBuildTree } from "../lib/map/cache";
 import { selectCandidates } from "../lib/map/candidates";
+import { parseNodeId } from "../lib/map/node-id";
+import { findSectionById, pagesById, walkSections } from "../lib/map/traverse";
 import { qmdSearchHints } from "../lib/qmd";
 import type { PageEntry, SectionEntry, TreeCache } from "../lib/map/types";
 
@@ -20,122 +23,101 @@ function resolveBudget(flag: string | undefined): number {
   return DEFAULT_MAP_BUDGET;
 }
 
-interface NodeSummary {
-  chunk: EnvelopeChunk;
-  kind: "page" | "section";
+function fail(message: string): never {
+  process.stderr.write(`error: ${message}\n`);
+  process.exit(1);
 }
 
-function pageSummary(page: PageEntry): NodeSummary {
+function pageSummary(page: PageEntry): EnvelopeChunk {
   const lastEnd = page.sections.length
     ? page.sections[page.sections.length - 1]!.line_range[1]
     : 1;
   const tagText = page.tags.length ? ` [${page.tags.join(", ")}]` : "";
   return {
-    kind: "page",
-    chunk: {
-      source: page.id,
-      line_range: [1, lastEnd],
-      curation: "curated",
-      text: `${page.title}${tagText}`,
-      node_id: page.id,
-      heading_path: [page.title],
-      node_kind: "page",
-    },
+    source: page.id,
+    line_range: [1, lastEnd],
+    curation: "curated",
+    text: `${page.title}${tagText}`,
+    node_id: page.id,
+    heading_path: [page.title],
+    node_kind: "page",
   };
 }
 
-function sectionSummaries(page: PageEntry): NodeSummary[] {
-  const out: NodeSummary[] = [];
-  const visit = (s: SectionEntry, ancestors: string[]): void => {
-    const path = [...ancestors, s.heading];
-    out.push({
-      kind: "section",
-      chunk: {
-        source: page.id,
-        line_range: s.line_range,
-        curation: "heading-section",
-        text: path.join(" > "),
-        node_id: s.id,
-        heading_path: path,
-        node_kind: "section",
-      },
-    });
-    for (const c of s.children) visit(c, path);
+function sectionSummary(page: PageEntry, section: SectionEntry, ancestors: string[]): EnvelopeChunk {
+  const path = [...ancestors, section.heading];
+  return {
+    source: page.id,
+    line_range: section.line_range,
+    curation: "heading-section",
+    text: path.join(" > "),
+    node_id: section.id,
+    heading_path: path,
+    node_kind: "section",
   };
-  for (const s of page.sections) visit(s, [page.title]);
-  return out;
 }
 
-function fullProjection(tree: TreeCache): NodeSummary[] {
-  const out: NodeSummary[] = [];
+function fullProjection(tree: TreeCache): EnvelopeChunk[] {
+  const out: EnvelopeChunk[] = [];
   for (const page of tree.pages) {
     out.push(pageSummary(page));
-    out.push(...sectionSummaries(page));
+    walkSections(page, (s, ancestors) => out.push(sectionSummary(page, s, ancestors)));
   }
   return out;
 }
 
-function candidateProjection(tree: TreeCache, ids: string[]): NodeSummary[] {
-  const byPage = new Map(tree.pages.map((p) => [p.id, p]));
-  const out: NodeSummary[] = [];
+function candidateProjection(tree: TreeCache, ids: string[]): EnvelopeChunk[] {
+  const byPage = pagesById(tree.pages);
+  const out: EnvelopeChunk[] = [];
   for (const id of ids) {
-    const hash = id.indexOf("#");
-    if (hash < 0) {
-      const page = byPage.get(id);
-      if (page) out.push(pageSummary(page));
+    const parsed = parseNodeId(id);
+    if (!parsed) continue;
+    const page = byPage.get(parsed.page);
+    if (!page) continue;
+    if (parsed.section === undefined) {
+      out.push(pageSummary(page));
       continue;
     }
-    const page = byPage.get(id.slice(0, hash));
-    if (!page) continue;
-    const section = sectionSummaries(page).find((s) => s.chunk.node_id === id);
-    if (section) out.push(section);
+    const hit = findSectionById(page, id);
+    if (hit) out.push(sectionSummary(page, hit.section, hit.ancestors));
   }
   return out;
 }
 
-interface Fitted {
-  chunks: EnvelopeChunk[];
-  tier: 1 | 2 | 3;
-  truncated: boolean;
-}
-
-function wireSize(chunks: EnvelopeChunk[], policy: EnvelopePolicy): number {
-  return new TextEncoder().encode(writeEnvelope(buildEnvelope({ policy, chunks }))).length;
+function wireFor(chunks: EnvelopeChunk[], policy: EnvelopePolicy): string {
+  return writeEnvelope(buildEnvelope({ policy, chunks }));
 }
 
 /**
  * Reserve-then-fit with three degradation tiers: (1) full page+section
  * summaries, (2) page summaries only, (3) title-only page summaries with
- * suggestions reserved first and the tail dropped in order until it fits.
+ * suggestions reserved first and the tail dropped (binary search) until fit.
  */
-function fitToBudget(summaries: NodeSummary[], budget: number, basePolicy: EnvelopePolicy): { fitted: Fitted; policy: EnvelopePolicy } {
-  const tier1 = summaries.map((s) => s.chunk);
-  if (wireSize(tier1, { ...basePolicy, map_tier: 1 }) <= budget) {
-    return { fitted: { chunks: tier1, tier: 1, truncated: false }, policy: { ...basePolicy, map_tier: 1 } };
-  }
+function fitToBudget(chunks: EnvelopeChunk[], budget: number, basePolicy: EnvelopePolicy): string {
+  const tier1 = wireFor(chunks, { ...basePolicy, map_tier: 1 });
+  if (byteLength(tier1) <= budget) return tier1;
 
-  const tier2 = summaries.filter((s) => s.kind === "page").map((s) => s.chunk);
-  if (wireSize(tier2, { ...basePolicy, map_tier: 2 }) <= budget) {
-    return { fitted: { chunks: tier2, tier: 2, truncated: false }, policy: { ...basePolicy, map_tier: 2 } };
-  }
+  const pages = chunks.filter((c) => c.node_kind === "page");
+  const tier2 = wireFor(pages, { ...basePolicy, map_tier: 2 });
+  if (byteLength(tier2) <= budget) return tier2;
 
   const tier3Policy: EnvelopePolicy = {
     ...basePolicy,
     map_tier: 3,
     suggestions: ["Try: kb map <query>", "Or raise the budget: kb map --budget <bytes>"],
   };
-  const minimal = summaries
-    .filter((s) => s.kind === "page")
-    .map((s) => ({ ...s.chunk, text: s.chunk.heading_path?.[0] ?? s.chunk.text }));
-  let kept = minimal.length;
-  while (kept > 0 && wireSize(minimal.slice(0, kept), { ...tier3Policy, truncated: kept < minimal.length }) > budget) {
-    kept -= 1;
+  const minimal = pages.map((c) => ({ ...c, text: c.heading_path?.[0] ?? c.text }));
+  const sizeFor = (kept: number): number =>
+    byteLength(wireFor(minimal.slice(0, kept), { ...tier3Policy, truncated: kept < minimal.length }));
+  let lo = 0;
+  let hi = minimal.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (sizeFor(mid) <= budget) lo = mid;
+    else hi = mid - 1;
   }
-  const truncated = kept < minimal.length;
-  return {
-    fitted: { chunks: minimal.slice(0, kept), tier: 3, truncated },
-    policy: truncated ? { ...tier3Policy, truncated: true } : tier3Policy,
-  };
+  const truncated = lo < minimal.length;
+  return wireFor(minimal.slice(0, lo), truncated ? { ...tier3Policy, truncated: true } : tier3Policy);
 }
 
 export default defineCommand({
@@ -149,8 +131,7 @@ export default defineCommand({
     const vaultPath = args.vaultPath ?? resolveVaultPath(process.cwd());
 
     if (!existsSync(vaultPath)) {
-      process.stderr.write(`error: vault not found at ${vaultPath}\n`);
-      process.exit(1);
+      fail(`vault not found at ${vaultPath}`);
     }
 
     const budget = resolveBudget(args.budget);
@@ -160,10 +141,7 @@ export default defineCommand({
     try {
       tree = await loadOrBuildTree(vaultPath);
     } catch (err) {
-      if (err instanceof PathUnsafeError) {
-        process.stderr.write(`error: ${err.message}\n`);
-        process.exit(1);
-      }
+      if (err instanceof PathUnsafeError) fail(err.message);
       throw err;
     }
 
@@ -173,13 +151,13 @@ export default defineCommand({
       tree_root: "wiki/",
     };
 
-    let summaries: NodeSummary[];
+    let chunks: EnvelopeChunk[];
     if (query === "") {
-      summaries = fullProjection(tree);
+      chunks = fullProjection(tree);
     } else {
       const hints = await qmdSearchHints(query);
-      const set = await selectCandidates(tree, query, { vaultPath, qmdHints: hints });
-      const ordered = [
+      const set = selectCandidates(tree, query, { vaultPath, qmdHints: hints });
+      chunks = candidateProjection(tree, [
         ...set.exact,
         ...set.tagged,
         ...set.heading,
@@ -187,21 +165,18 @@ export default defineCommand({
         ...set.backlink,
         ...set.lexical,
         ...(set.qmd ?? []),
-      ];
-      summaries = candidateProjection(tree, ordered);
+      ]);
     }
 
     let wire: string;
-    if (summaries.length === 0) {
-      const policy: EnvelopePolicy = {
+    if (chunks.length === 0) {
+      wire = wireFor([], {
         ...basePolicy,
         no_results: true,
         suggestions: query === "" ? ["The wiki is empty — add pages under wiki/"] : [`Try: kb recall ${query}`],
-      };
-      wire = writeEnvelope(buildEnvelope({ policy, chunks: [] }));
+      });
     } else {
-      const { fitted, policy } = fitToBudget(summaries, budget, basePolicy);
-      wire = writeEnvelope(buildEnvelope({ policy, chunks: fitted.chunks }));
+      wire = fitToBudget(chunks, budget, basePolicy);
     }
     process.stdout.write(wire);
 
@@ -211,7 +186,7 @@ export default defineCommand({
         command: "map",
         query,
         pages_returned: tree.pages.length,
-        bytes_returned: new TextEncoder().encode(wire).length,
+        bytes_returned: byteLength(wire),
         exit_code: 0,
       });
     } catch {

@@ -18,10 +18,9 @@ export function isValidNodeId(id: string): boolean {
   return true;
 }
 
-export function parseNodeId(id: string): ParsedNodeId {
-  if (!isValidNodeId(id)) {
-    throw new Error(`invalid node id: ${id}`);
-  }
+/** Parse a node ID, or return null when it fails the grammar. */
+export function parseNodeId(id: string): ParsedNodeId | null {
+  if (!isValidNodeId(id)) return null;
   const hash = id.indexOf("#");
   if (hash < 0) return { page: id };
   return { page: id.slice(0, hash), section: id.slice(hash + 1) };

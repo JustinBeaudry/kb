@@ -1,12 +1,12 @@
 import { createHash } from "node:crypto";
 import { existsSync, realpathSync, statSync } from "node:fs";
 import { basename, join, relative, sep } from "node:path";
-import { isAbsolute } from "node:path";
 import { parseFrontmatter } from "../frontmatter";
-import { parseHeadings, parseSections, parseWikilinks, slugify } from "../markdown";
-import { assertGenuineScopeDir } from "../path-safety";
+import { parseSections, slugify } from "../markdown";
+import { assertGenuineScopeDir, assertSafeFilename } from "../path-safety";
 import { readWikiFileNoFollow, walkWiki, MAX_FILE_BYTES } from "../wiki-read";
 import { makeSectionIdAssigner } from "./node-id";
+import { walkSections } from "./traverse";
 import type { PageEntry, Section, SectionEntry, TreeCache } from "./types";
 
 interface PageFrontmatter {
@@ -52,7 +52,10 @@ export function resolveTarget(
   target: string
 ): string | null {
   const t = target.trim();
-  if (t === "" || isAbsolute(t) || t.split("/").includes("..") || t.includes("\0")) {
+  if (t === "") return null;
+  try {
+    assertSafeFilename(t);
+  } catch {
     return null;
   }
   const candidates = t.endsWith(".md") ? [t, `wiki/${t}`] : [`wiki/${t}.md`];
@@ -60,6 +63,26 @@ export function resolveTarget(
     if (pageIds.has(c)) return c;
   }
   return byAlias[t] ?? null;
+}
+
+/**
+ * Resolve a section's raw wikilink targets to page IDs, excluding self-links
+ * and unresolvable targets — the same pipeline linkTree runs page-wide.
+ */
+export function resolveSectionLinks(
+  pageIds: Set<string>,
+  byAlias: Record<string, string>,
+  pageId: string,
+  section: SectionEntry
+): string[] {
+  const out: string[] = [];
+  for (const raw of section.wikilinks) {
+    const resolved = resolveTarget(pageIds, byAlias, raw);
+    if (resolved !== null && resolved !== pageId && !out.includes(resolved)) {
+      out.push(resolved);
+    }
+  }
+  return out;
 }
 
 /**
@@ -87,7 +110,7 @@ export function linkTree(pages: PageEntry[]): TreeCache {
   for (const page of pages) {
     const resolvedPage = new Set<string>();
     const unresolved = new Set<string>();
-    const visit = (section: SectionEntry): void => {
+    walkSections(page, (section) => {
       for (const raw of section.wikilinks) {
         const resolved = resolveTarget(pageIds, byAlias, raw);
         if (resolved !== null && resolved !== page.id) {
@@ -96,9 +119,7 @@ export function linkTree(pages: PageEntry[]): TreeCache {
           unresolved.add(raw);
         }
       }
-      for (const child of section.children) visit(child);
-    };
-    for (const section of page.sections) visit(section);
+    });
 
     page.wikilinks = [...resolvedPage].sort();
     page.unresolved_wikilinks = [...unresolved].sort();
@@ -174,16 +195,18 @@ export function buildPage(vaultPath: string, filePath: string): PageEntry {
   base.aliases = stringArray(fm.aliases);
   if (typeof fm.type === "string") base.type = fm.type;
 
-  const h1 = parseHeadings(body).find((h) => h.level === 1);
+  const parsed = parseSections(body);
+  // H1 can never nest (level 1 is the minimum), so the first level-1 entry in
+  // the top-level section list is the first H1 of the body.
+  const h1 = parsed.find((s) => s.level === 1);
   base.title =
-    typeof fm.title === "string" && fm.title !== "" ? fm.title : (h1?.text ?? fallbackTitle);
+    typeof fm.title === "string" && fm.title !== "" ? fm.title : (h1?.heading ?? fallbackTitle);
 
   // Section line ranges from the parser are body-relative; shift them so they
   // are file-absolute and usable as citation line ranges.
   const offset = content.split("\n").length - body.split("\n").length;
   const assignId = makeSectionIdAssigner(id);
   let position = 0;
-  const rawLinks = parseWikilinks(body);
   const convert = (s: Section): SectionEntry => {
     position += 1;
     return {
@@ -191,12 +214,10 @@ export function buildPage(vaultPath: string, filePath: string): PageEntry {
       heading: s.heading,
       level: s.level,
       line_range: [s.line_range[0] + offset, s.line_range[1] + offset],
-      wikilinks: rawLinks
-        .filter((l) => l.line >= s.line_range[0] && l.line <= s.line_range[1])
-        .map((l) => l.target),
+      wikilinks: s.wikilinks,
       children: s.children.map(convert),
     };
   };
-  base.sections = parseSections(body).map(convert);
+  base.sections = parsed.map(convert);
   return base;
 }

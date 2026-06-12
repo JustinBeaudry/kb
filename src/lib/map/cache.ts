@@ -94,6 +94,6 @@ export async function loadOrBuildTree(vaultPath: string): Promise<TreeCache> {
   return tree;
 }
 
-export async function invalidateTree(vaultPath: string): Promise<void> {
+export function invalidateTree(vaultPath: string): void {
   rmSync(treeFile(vaultPath), { force: true });
 }

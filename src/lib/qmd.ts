@@ -72,11 +72,17 @@ export async function qmdSearchHints(query: string, topK = 5): Promise<string[] 
     const exitCode = await proc.exited;
     if (exitCode !== 0) return null;
 
+    const { isValidNodeId } = await import("./map/node-id");
     const ids: string[] = [];
     for (const line of output.split("\n")) {
-      const m = line.match(/(?:^|[\s/])((?:wiki\/)?[A-Za-z0-9._-]+\.md)/);
+      const m = line.match(/(\S+\.md)\b/);
       if (!m) continue;
-      const id = m[1]!.startsWith("wiki/") ? m[1]! : `wiki/${m[1]!}`;
+      // Normalize to a wiki-relative page ID and validate against the node-ID
+      // grammar so hints can never smuggle paths outside wiki/.
+      const token = m[1]!.replace(/^\.\//, "");
+      const wikiIdx = token.indexOf("wiki/");
+      const id = wikiIdx >= 0 ? token.slice(wikiIdx) : `wiki/${token}`;
+      if (!isValidNodeId(id)) continue;
       if (!ids.includes(id)) ids.push(id);
       if (ids.length >= topK) break;
     }

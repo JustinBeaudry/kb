@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { readWikiFileNoFollow } from "../wiki-read";
-import type { PageEntry, SectionEntry, TreeCache } from "./types";
+import { pagesById, walkSections } from "./traverse";
+import type { TreeCache } from "./types";
 
 export interface CandidateSet {
   exact: string[];
@@ -21,25 +22,17 @@ export interface SelectCandidatesOptions {
 
 const DEFAULT_LIMIT = 30;
 
-function eachSection(page: PageEntry, fn: (s: SectionEntry) => void): void {
-  const visit = (s: SectionEntry): void => {
-    fn(s);
-    for (const c of s.children) visit(c);
-  };
-  for (const s of page.sections) visit(s);
-}
-
 /**
  * Cheap deterministic pre-filter that reduces the LLM's candidate space.
  * Buckets fill in priority order — exact title/alias, tag, heading substring,
  * wikilink neighborhood, backlinks, lexical body fallback, qmd hints — with a
  * global cap and cross-bucket dedup.
  */
-export async function selectCandidates(
+export function selectCandidates(
   tree: TreeCache,
   query: string,
   opts: SelectCandidatesOptions
-): Promise<CandidateSet> {
+): CandidateSet {
   const limit = opts.limit ?? DEFAULT_LIMIT;
   const q = query.trim().toLowerCase();
   const seen = new Set<string>();
@@ -78,7 +71,7 @@ export async function selectCandidates(
   // Heading substring match — emits section node IDs.
   const matchedPages = new Set<string>([...set.exact, ...set.tagged]);
   for (const page of tree.pages) {
-    eachSection(page, (s) => {
+    walkSections(page, (s) => {
       if (s.heading.toLowerCase().includes(q)) {
         admit(set.heading, s.id);
         matchedPages.add(page.id);
@@ -87,7 +80,7 @@ export async function selectCandidates(
   }
 
   // One-hop wikilink neighborhood and backlinks of matched pages.
-  const byId = new Map(tree.pages.map((p) => [p.id, p]));
+  const byId = pagesById(tree.pages);
   for (const id of [...matchedPages].sort()) {
     const page = byId.get(id);
     if (!page) continue;

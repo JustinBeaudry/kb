@@ -124,7 +124,7 @@ describe("loadOrBuildTree", () => {
       first.pages.find((pg) => pg.id === "wiki/b.md")!.content_hash
     );
     // invalidateTree is the manual escape hatch.
-    await invalidateTree(vault);
+    invalidateTree(vault);
     const third = await loadOrBuildTree(vault);
     expect(third.pages.find((pg) => pg.id === "wiki/b.md")!.content_hash).not.toBe(
       first.pages.find((pg) => pg.id === "wiki/b.md")!.content_hash

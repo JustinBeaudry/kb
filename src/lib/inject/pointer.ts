@@ -1,5 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { byteLength } from "../bytes";
+
+export { byteLength };
 
 const POINTER_BUDGET = 500;
 const MAX_CATEGORIES = 8;
@@ -57,8 +60,4 @@ export function buildPointerPayload({ vaultPath, nudge }: PointerInput): string 
   }
 
   return rendered;
-}
-
-export function byteLength(s: string): number {
-  return new TextEncoder().encode(s).length;
 }

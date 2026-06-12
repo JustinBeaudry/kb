@@ -4,40 +4,26 @@ import { defineCommand } from "citty";
 import { resolveVaultPath } from "../lib/vault";
 import { buildEnvelope, writeEnvelope, type EnvelopeChunk } from "../lib/envelope";
 import { appendAccessLog } from "../lib/access-log";
+import { byteLength } from "../lib/bytes";
 import { PathUnsafeError } from "../lib/path-safety";
 import { readWikiFileNoFollow } from "../lib/wiki-read";
 import { loadOrBuildTree, invalidateTree } from "../lib/map/cache";
-import { resolveTarget } from "../lib/map/builder";
+import { resolveSectionLinks } from "../lib/map/builder";
 import { isValidNodeId, parseNodeId } from "../lib/map/node-id";
+import { findSectionById, pagesById, type SectionContext } from "../lib/map/traverse";
 import type { PageEntry, SectionEntry, TreeCache } from "../lib/map/types";
 
 const FOLLOW_CAP = 5;
 const FOLLOW_PREVIEW_CHARS = 200;
 
-interface SectionHit {
-  section: SectionEntry;
-  siblings: SectionEntry[];
-  ancestors: string[];
+interface Located {
+  tree: TreeCache;
+  byId: Map<string, PageEntry>;
+  page: PageEntry;
+  hit: SectionContext | null;
 }
 
-function findSection(page: PageEntry, id: string): SectionHit | null {
-  const search = (siblings: SectionEntry[], ancestors: string[]): SectionHit | null => {
-    for (const s of siblings) {
-      if (s.id === id) return { section: s, siblings, ancestors };
-      const hit = search(s.children, [...ancestors, s.heading]);
-      if (hit) return hit;
-    }
-    return null;
-  };
-  return search(page.sections, [page.title]);
-}
-
-function sectionChunk(
-  page: PageEntry,
-  section: SectionEntry,
-  ancestors: string[],
-  lines: string[]
-): EnvelopeChunk {
+function sectionChunk(page: PageEntry, section: SectionEntry, ancestors: string[], lines: string[]): EnvelopeChunk {
   const [start, end] = section.line_range;
   return {
     source: page.id,
@@ -72,35 +58,40 @@ export default defineCommand({
 
     const id = args.id;
     // Full grammar + path-safety validation before any cache lookup or read.
-    if (!isValidNodeId(id)) {
+    const parsed = parseNodeId(id);
+    if (!parsed) {
       fail(`invalid node id: ${id}`);
     }
-    const { page: pageId, section: sectionPart } = parseNodeId(id);
+    const { page: pageId, section: sectionPart } = parsed;
 
     const followRaw = Number.parseInt(args["follow-wikilinks"] ?? "0", 10);
     const followMax = Number.isFinite(followRaw) ? Math.min(Math.max(followRaw, 0), FOLLOW_CAP) : 0;
 
-    let tree: TreeCache;
-    try {
-      tree = await loadOrBuildTree(vaultPath);
-    } catch (err) {
-      if (err instanceof PathUnsafeError) fail(err.message);
-      throw err;
-    }
-
-    let page = tree.pages.find((p) => p.id === pageId);
-    let hit = page && sectionPart !== undefined ? findSection(page, id) : null;
-    if (!page || (sectionPart !== undefined && !hit)) {
-      // Stale-cache retry: rebuild once to catch edits landing between
-      // command start and ID resolution, then give up.
-      await invalidateTree(vaultPath);
-      tree = await loadOrBuildTree(vaultPath);
-      page = tree.pages.find((p) => p.id === pageId);
-      hit = page && sectionPart !== undefined ? findSection(page, id) : null;
-      if (!page || (sectionPart !== undefined && !hit)) {
-        fail(`unknown node: ${id}`);
+    const locate = async (): Promise<Located | null> => {
+      let tree: TreeCache;
+      try {
+        tree = await loadOrBuildTree(vaultPath);
+      } catch (err) {
+        if (err instanceof PathUnsafeError) fail(err.message);
+        throw err;
       }
+      const byId = pagesById(tree.pages);
+      const page = byId.get(pageId);
+      if (!page) return null;
+      const hit = sectionPart !== undefined ? findSectionById(page, id) : null;
+      if (sectionPart !== undefined && !hit) return null;
+      return { tree, byId, page, hit };
+    };
+
+    // Stale-cache retry: rebuild once to catch edits landing between command
+    // start and ID resolution, then give up.
+    let located = await locate();
+    if (!located) {
+      invalidateTree(vaultPath);
+      located = await locate();
+      if (!located) fail(`unknown node: ${id}`);
     }
+    const { tree, byId, page, hit } = located;
 
     const content = readWikiFileNoFollow(join(vaultPath, pageId));
     if (content === null) {
@@ -112,7 +103,7 @@ export default defineCommand({
     const navTrace: string[] = [id];
 
     let followSources: string[];
-    if (sectionPart === undefined) {
+    if (hit === null) {
       chunks.push({
         source: page.id,
         line_range: [1, lines.length],
@@ -124,7 +115,7 @@ export default defineCommand({
       });
       followSources = page.wikilinks;
     } else {
-      const { section, siblings, ancestors } = hit!;
+      const { section, siblings, ancestors } = hit;
       chunks.push(sectionChunk(page, section, ancestors, lines));
       if (args.neighbors) {
         const idx = siblings.indexOf(section);
@@ -133,20 +124,13 @@ export default defineCommand({
         if (prev) chunks.push(sectionChunk(page, prev, ancestors, lines));
         if (next) chunks.push(sectionChunk(page, next, ancestors, lines));
       }
-      const pageIds = new Set(tree.pages.map((p) => p.id));
-      followSources = [];
-      for (const raw of section.wikilinks) {
-        const resolved = resolveTarget(pageIds, tree.by_alias, raw);
-        if (resolved !== null && resolved !== page.id && !followSources.includes(resolved)) {
-          followSources.push(resolved);
-        }
-      }
+      followSources = resolveSectionLinks(new Set(byId.keys()), tree.by_alias, page.id, section);
     }
 
     for (const target of followSources.slice(0, followMax)) {
       // nav_trace carries only grammar-valid IDs — never raw vault content.
       if (!isValidNodeId(target)) continue;
-      const targetPage = tree.pages.find((p) => p.id === target);
+      const targetPage = byId.get(target);
       if (!targetPage) continue;
       const targetContent = readWikiFileNoFollow(join(vaultPath, target));
       if (targetContent === null) continue;
@@ -177,7 +161,7 @@ export default defineCommand({
         command: "get-node",
         query: id,
         pages_returned: chunks.length,
-        bytes_returned: new TextEncoder().encode(wire).length,
+        bytes_returned: byteLength(wire),
         exit_code: 0,
       });
     } catch {
