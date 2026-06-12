@@ -113,6 +113,43 @@ describe("map command", () => {
     expect(JSON.stringify(env.policy.suggestions ?? [])).toContain("kb map");
   });
 
+  it("section-only candidates under tight budget fall back to parent pages, never a silent empty envelope", async () => {
+    const vault = makeVault();
+    rmSync(join(vault, "wiki", "auth.md"));
+    rmSync(join(vault, "wiki", "deploy.md"));
+    for (let i = 0; i < 35; i++) {
+      writeFileSync(
+        join(vault, "wiki", `widget-${String(i).padStart(2, "0")}.md`),
+        `# Page ${i}\n\n## Match zzz-heading ${i}\nbody text\n`
+      );
+    }
+    const { stdout, exitCode } = await run(vault, ["zzz-heading", "--budget", "1024"]);
+    expect(exitCode).toBe(0);
+    expect(new TextEncoder().encode(stdout).length).toBeLessThanOrEqual(1024);
+    const env = parseEnvelope(stdout);
+    // The fix: parent pages stand in for section candidates under pressure.
+    expect(env.chunks.length).toBeGreaterThan(0);
+    for (const c of env.chunks) expect(c.node_kind).toBe("page");
+    expect(env.policy.map_tier === 2 || env.policy.map_tier === 3).toBe(true);
+  });
+
+  it("when fitting drops every chunk the envelope still signals truncation and suggestions", async () => {
+    const vault = makeVault();
+    rmSync(join(vault, "wiki", "auth.md"));
+    rmSync(join(vault, "wiki", "deploy.md"));
+    for (let i = 0; i < 35; i++) {
+      writeFileSync(
+        join(vault, "wiki", `widget-${String(i).padStart(2, "0")}.md`),
+        `# Page ${i}\n\n## Match zzz-heading ${i}\nbody text\n`
+      );
+    }
+    const { stdout, exitCode } = await run(vault, ["zzz-heading", "--budget", "420"]);
+    expect(exitCode).toBe(0);
+    const env = parseEnvelope(stdout);
+    expect(env.policy.truncated).toBe(true);
+    expect((env.policy.suggestions ?? []).length).toBeGreaterThan(0);
+  });
+
   it("a 50-page/150-section vault fits tier 1-2 within the 16 KiB default", async () => {
     const vault = makeVault();
     rmSync(join(vault, "wiki", "auth.md"));
