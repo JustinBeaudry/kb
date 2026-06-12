@@ -17,6 +17,8 @@ function extractCategories(indexMd: string): string[] {
 
 export interface PointerInput {
   vaultPath: string;
+  /** Optional one-line nudge, reserved inside POINTER_BUDGET before topic fitting. */
+  nudge?: string | null;
 }
 
 function readIndexSafely(indexPath: string): string {
@@ -27,7 +29,7 @@ function readIndexSafely(indexPath: string): string {
   }
 }
 
-export function buildPointerPayload({ vaultPath }: PointerInput): string {
+export function buildPointerPayload({ vaultPath, nudge }: PointerInput): string {
   const indexPath = join(vaultPath, "index.md");
   const categories: string[] = existsSync(indexPath)
     ? extractCategories(readIndexSafely(indexPath))
@@ -38,12 +40,16 @@ export function buildPointerPayload({ vaultPath }: PointerInput): string {
     "Curated memory available. Do not read sessions/ or raw/ directly.\n" +
     "Run `kb list-topics` or `kb recall <query>` to retrieve.";
 
-  if (categories.length === 0) return header;
+  // The nudge is reserved before topic fitting: topics shrink to make room so
+  // the payload keeps the POINTER_BUDGET invariant.
+  const suffix = nudge ? `\n${nudge}` : "";
 
-  let rendered = header;
+  if (categories.length === 0) return `${header}${suffix}`;
+
+  let rendered = `${header}${suffix}`;
   for (let n = Math.min(categories.length, MAX_CATEGORIES); n >= 1; n--) {
     const topics = categories.slice(0, n).join(", ");
-    const candidate = `${header}\n\nTopics: ${topics}.`;
+    const candidate = `${header}\n\nTopics: ${topics}.${suffix}`;
     if (byteLength(candidate) <= POINTER_BUDGET) {
       rendered = candidate;
       break;

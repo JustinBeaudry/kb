@@ -221,6 +221,116 @@ describe("inject hook — logging", () => {
   });
 });
 
+describe("inject hook — autoExtractNudge", () => {
+  function enableNudge(vault: string): void {
+    mkdirSync(join(vault, ".kb"), { recursive: true });
+    writeFileSync(join(vault, ".kb", "state.json"), JSON.stringify({ autoExtractNudge: true }));
+  }
+
+  function writeManifest(vault: string, name: string, frontmatter: string): void {
+    writeFileSync(join(vault, "sessions", name), `---\n${frontmatter}\n---\n`);
+  }
+
+  it("lazy mode surfaces the unprocessed count when enabled", async () => {
+    const vault = track(makeVault());
+    enableNudge(vault);
+    writeManifest(vault, "u1.md", "extracted: false");
+    // makeVault's manifest has no extracted field -> also unprocessed
+    const { exitCode, output } = await runHook(vault, { KB_INJECT_MODE: "lazy" });
+    expect(exitCode).toBe(0);
+    const ctx: string = JSON.parse(output).hookSpecificOutput.additionalContext;
+    expect(ctx).toContain("2 unprocessed session manifest");
+    expect(ctx).toContain("/kb:extract");
+  });
+
+  it("lazy mode stays under the pointer budget with the nudge present", async () => {
+    const vault = track(makeVault());
+    enableNudge(vault);
+    const headings: string[] = ["# Vault Index", ""];
+    for (let i = 0; i < 100; i++) headings.push(`## Category${i}`, `- [[Page${i}]]`, "");
+    writeFileSync(join(vault, "index.md"), headings.join("\n"));
+    const { output } = await runHook(vault, { KB_INJECT_MODE: "lazy" });
+    const ctx: string = JSON.parse(output).hookSpecificOutput.additionalContext;
+    expect(new TextEncoder().encode(ctx).length).toBeLessThan(500);
+    expect(ctx).toContain("unprocessed session manifest");
+  });
+
+  it("eager mode appends the nudge after content", async () => {
+    const vault = track(makeVault());
+    enableNudge(vault);
+    const { output } = await runHook(vault, { KB_INJECT_MODE: "eager" });
+    const ctx: string = JSON.parse(output).hookSpecificOutput.additionalContext;
+    expect(ctx).toContain("Working Set");
+    expect(ctx).toContain("unprocessed session manifest");
+  });
+
+  it("no nudge when all manifests are extracted", async () => {
+    const vault = track(makeVault());
+    enableNudge(vault);
+    writeFileSync(
+      join(vault, "sessions", "2026-04-14T09-00-00.md"),
+      "---\nsession_id: 'x'\nextracted: true\n---\n"
+    );
+    const { output } = await runHook(vault, { KB_INJECT_MODE: "lazy" });
+    const ctx: string = JSON.parse(output).hookSpecificOutput.additionalContext;
+    expect(ctx).not.toContain("unprocessed");
+  });
+
+  it("no nudge when the flag is false or not a strict boolean", async () => {
+    for (const value of [false, "yes", 1] as const) {
+      const vault = track(makeVault());
+      mkdirSync(join(vault, ".kb"), { recursive: true });
+      writeFileSync(join(vault, ".kb", "state.json"), JSON.stringify({ autoExtractNudge: value }));
+      const { output } = await runHook(vault, { KB_INJECT_MODE: "lazy" });
+      const ctx: string = JSON.parse(output).hookSpecificOutput.additionalContext;
+      expect(ctx).not.toContain("unprocessed");
+    }
+  });
+
+  it("corrupt state.json silently skips the nudge", async () => {
+    const vault = track(makeVault());
+    mkdirSync(join(vault, ".kb"), { recursive: true });
+    writeFileSync(join(vault, ".kb", "state.json"), "{ not valid json");
+    const { exitCode, output } = await runHook(vault, { KB_INJECT_MODE: "lazy" });
+    expect(exitCode).toBe(0);
+    const ctx: string = JSON.parse(output).hookSpecificOutput.additionalContext;
+    expect(ctx).toMatch(/kb recall/);
+    expect(ctx).not.toContain("unprocessed");
+  });
+
+  it("malformed manifest frontmatter does not crash the scan; nudge stays one line", async () => {
+    const vault = track(makeVault());
+    enableNudge(vault);
+    writeManifest(vault, "bad.md", "broken: [unclosed");
+    const { exitCode, output } = await runHook(vault, { KB_INJECT_MODE: "lazy" });
+    expect(exitCode).toBe(0);
+    const ctx: string = JSON.parse(output).hookSpecificOutput.additionalContext;
+    const nudgeLines = ctx.split("\n").filter((l) => l.includes("unprocessed"));
+    expect(nudgeLines.length).toBe(1);
+  });
+
+  it("symlinked sessions dir skips the nudge and exits 0", async () => {
+    const vault = track(makeVault());
+    enableNudge(vault);
+    const outside = track(join(tmpdir(), `kb-nudge-out-${Date.now()}`));
+    mkdirSync(outside, { recursive: true });
+    rmSync(join(vault, "sessions"), { recursive: true, force: true });
+    const { symlinkSync } = await import("node:fs");
+    symlinkSync(outside, join(vault, "sessions"));
+    const { exitCode, output } = await runHook(vault, { KB_INJECT_MODE: "lazy" });
+    expect(exitCode).toBe(0);
+    const ctx: string = JSON.parse(output).hookSpecificOutput.additionalContext;
+    expect(ctx).not.toContain("unprocessed");
+  });
+
+  it("mode off emits nothing even with the nudge enabled", async () => {
+    const vault = track(makeVault());
+    enableNudge(vault);
+    const { output } = await runHook(vault, { KB_INJECT_MODE: "off" });
+    expect(JSON.parse(output).hookSpecificOutput.additionalContext).toBe("");
+  });
+});
+
 describe("inject hook — concurrency", () => {
   it("concurrent invocations produce valid JSONL (one entry per call)", async () => {
     const vault = track(makeVault());

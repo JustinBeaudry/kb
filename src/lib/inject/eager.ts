@@ -4,6 +4,8 @@ import { join } from "node:path";
 export interface EagerInput {
   vaultPath: string;
   budget: number;
+  /** Optional one-line nudge, appended after sessions content within budget. */
+  nudge?: string | null;
 }
 
 function byteLength(s: string): number {
@@ -23,7 +25,7 @@ function appendIfFits(current: string, section: string, budget: number): string 
   return byteLength(candidate) <= budget ? candidate : current;
 }
 
-export function buildEagerContext({ vaultPath, budget }: EagerInput): string {
+export function buildEagerContext({ vaultPath, budget, nudge }: EagerInput): string {
   let ctx = "";
 
   const contextBody = readSafely(join(vaultPath, "context.md"));
@@ -69,6 +71,8 @@ export function buildEagerContext({ vaultPath, budget }: EagerInput): string {
       headerAdded = true;
     }
   }
+
+  if (nudge) ctx = appendIfFits(ctx, nudge, budget);
 
   return ctx;
 }

@@ -72,6 +72,26 @@ export function listUnprocessedManifests(vaultPath: string): string[] {
 }
 
 /**
+ * One-line session-start nudge, or null. Fail-soft by contract: any error
+ * (missing/corrupt state.json, symlinked sessions dir, unreadable manifests)
+ * means no nudge — this runs inside the inject hook, which never fails.
+ * Acts only on a strict `autoExtractNudge === true`; unrecognized state keys
+ * and non-boolean values are ignored.
+ */
+export function buildNudgeLine(vaultPath: string): string | null {
+  try {
+    const raw = readFileSync(join(vaultPath, ".kb", "state.json"), "utf-8");
+    const state = JSON.parse(raw) as { autoExtractNudge?: unknown };
+    if (state.autoExtractNudge !== true) return null;
+    const count = listUnprocessedManifests(vaultPath).length;
+    if (!Number.isInteger(count) || count <= 0) return null;
+    return `${count} unprocessed session manifest(s) — run /kb:extract`;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Flip `extracted: true` on a top-level session manifest. Fail-hard: invalid
  * paths, missing files, and malformed YAML all throw without touching the file.
  */

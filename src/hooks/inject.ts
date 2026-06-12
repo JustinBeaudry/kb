@@ -5,6 +5,7 @@ import { buildEagerContext } from "../lib/inject/eager";
 import { appendInjectLog } from "../lib/inject/log";
 import { resolveInjectMode } from "../lib/inject/modes";
 import { buildPointerPayload, byteLength } from "../lib/inject/pointer";
+import { buildNudgeLine } from "../lib/session-state";
 import { resolveVaultPath as resolveProjectVaultPath } from "../lib/vault";
 
 function resolveVaultPath(argv: string[]): string {
@@ -85,11 +86,14 @@ async function main(): Promise<void> {
   try {
     if (mode === "off") {
       context = "";
-    } else if (mode === "lazy") {
-      context = buildPointerPayload({ vaultPath });
-      advertised = countAdvertised(context);
     } else {
-      context = buildEagerContext({ vaultPath, budget });
+      const nudge = buildNudgeLine(vaultPath);
+      if (mode === "lazy") {
+        context = buildPointerPayload({ vaultPath, nudge });
+        advertised = countAdvertised(context);
+      } else {
+        context = buildEagerContext({ vaultPath, budget, nudge });
+      }
     }
   } catch {
     context = "";
