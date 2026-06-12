@@ -6,7 +6,9 @@ import { assertGenuineScopeDir } from "../path-safety";
 import { buildPage, linkTree, listWikiFiles, toPageId } from "./builder";
 import type { PageEntry, TreeCache } from "./types";
 
-const CACHE_SCHEMA_VERSION = "1";
+// v2: PageEntry gained preamble_wikilinks; the bump forces a one-time rebuild
+// so unchanged pages on the stat fast path still gain their preamble links.
+const CACHE_SCHEMA_VERSION = "2";
 
 function indexDir(vaultPath: string): string {
   return join(vaultPath, ".kb", "index");

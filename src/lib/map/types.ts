@@ -40,13 +40,15 @@ export interface PageEntry {
   mtime_ms: number;
   malformed?: boolean;
   sections: SectionEntry[];
+  /** Raw targets appearing before the first heading (or anywhere on heading-free pages). */
+  preamble_wikilinks?: string[];
   wikilinks: string[];
   unresolved_wikilinks: string[];
   backlinks: string[];
 }
 
 export interface TreeCache {
-  schema_version: "1";
+  schema_version: "2";
   built_at?: string;
   pages: PageEntry[];
   by_alias: Record<string, string>;

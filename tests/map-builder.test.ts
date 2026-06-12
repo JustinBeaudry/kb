@@ -202,6 +202,30 @@ describe("buildTree", () => {
     expect(page.wikilinks).toEqual([]);
   });
 
+  it("heading-free pages contribute their wikilinks to the graph", async () => {
+    const vault = makeVault();
+    writeFileSync(join(vault, "wiki", "stub.md"), "just a pointer to [[target]]\n");
+    writeFileSync(join(vault, "wiki", "target.md"), "# Target\nbody\n");
+    const tree = await buildTree(vault);
+    const stub = tree.pages.find((p) => p.id === "wiki/stub.md")!;
+    const target = tree.pages.find((p) => p.id === "wiki/target.md")!;
+    expect(stub.wikilinks).toEqual(["wiki/target.md"]);
+    expect(target.backlinks).toEqual(["wiki/stub.md"]);
+  });
+
+  it("preamble wikilinks before the first heading resolve without duplicating section links", async () => {
+    const vault = makeVault();
+    writeFileSync(
+      join(vault, "wiki", "pre.md"),
+      "preamble link [[target]] and [[ghost-page]]\n# Pre\nbody [[target]]\n"
+    );
+    writeFileSync(join(vault, "wiki", "target.md"), "# Target\nbody\n");
+    const tree = await buildTree(vault);
+    const pre = tree.pages.find((p) => p.id === "wiki/pre.md")!;
+    expect(pre.wikilinks).toEqual(["wiki/target.md"]);
+    expect(pre.unresolved_wikilinks).toContain("ghost-page");
+  });
+
   it("duplicate alias across pages: first page in path order wins", async () => {
     const vault = makeVault();
     writeFileSync(join(vault, "wiki", "a.md"), "---\naliases: [Shared]\n---\n# A\n");

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, realpathSync, statSync } from "node:fs";
 import { basename, join, relative, sep } from "node:path";
 import { parseFrontmatter } from "../frontmatter";
-import { parseSections, slugify } from "../markdown";
+import { parseSections, parseWikilinks, slugify } from "../markdown";
 import { assertGenuineScopeDir, assertSafeFilename } from "../path-safety";
 import { readWikiFileNoFollow, walkWiki, MAX_FILE_BYTES } from "../wiki-read";
 import { makeSectionIdAssigner } from "./node-id";
@@ -110,15 +110,17 @@ export function linkTree(pages: PageEntry[]): TreeCache {
   for (const page of pages) {
     const resolvedPage = new Set<string>();
     const unresolved = new Set<string>();
-    walkSections(page, (section) => {
-      for (const raw of section.wikilinks) {
-        const resolved = resolveTarget(pageIds, byAlias, raw);
-        if (resolved !== null && resolved !== page.id) {
-          resolvedPage.add(resolved);
-        } else if (resolved === null) {
-          unresolved.add(raw);
-        }
+    const collect = (raw: string): void => {
+      const resolved = resolveTarget(pageIds, byAlias, raw);
+      if (resolved !== null && resolved !== page.id) {
+        resolvedPage.add(resolved);
+      } else if (resolved === null) {
+        unresolved.add(raw);
       }
+    };
+    for (const raw of page.preamble_wikilinks ?? []) collect(raw);
+    walkSections(page, (section) => {
+      for (const raw of section.wikilinks) collect(raw);
     });
 
     page.wikilinks = [...resolvedPage].sort();
@@ -140,7 +142,7 @@ export function linkTree(pages: PageEntry[]): TreeCache {
   }
 
   return {
-    schema_version: "1",
+    schema_version: "2",
     pages,
     by_alias: sortedRecord(byAlias),
     by_tag: sortedRecord(
@@ -219,5 +221,13 @@ export function buildPage(vaultPath: string, filePath: string): PageEntry {
     };
   };
   base.sections = parsed.map(convert);
+
+  // Wikilinks before the first heading (or anywhere on a heading-free page)
+  // belong to no section; capture them so linkTree still resolves them.
+  const firstHeadingLine = parsed[0]?.line_range[0];
+  const preamble = parseWikilinks(body)
+    .filter((l) => firstHeadingLine === undefined || l.line < firstHeadingLine)
+    .map((l) => l.target);
+  if (preamble.length > 0) base.preamble_wikilinks = preamble;
   return base;
 }
