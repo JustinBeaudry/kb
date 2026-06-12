@@ -18,6 +18,8 @@ const main = defineCommand({
     "read-raw": () => import("./commands/read-raw").then((m) => m.default),
     "read-session": () => import("./commands/read-session").then((m) => m.default),
     "capture-session": () => import("./commands/capture-session").then((m) => m.default),
+    "mark-extracted": () => import("./commands/mark-extracted").then((m) => m.default),
+    sessions: () => import("./commands/sessions").then((m) => m.default),
     summarize: () => import("./commands/summarize").then((m) => m.default),
     summaries: () => import("./commands/summaries").then((m) => m.default),
   },
