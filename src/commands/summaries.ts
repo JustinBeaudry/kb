@@ -4,8 +4,11 @@ import { setSummaryPinned } from "../lib/summarizer";
 
 export default defineCommand({
   meta: { name: "summaries", description: "Manage cached session summaries" },
-  run() {
-    const vaultPath = resolveVaultPath(process.cwd());
+  args: {
+    vaultPath: { type: "string", description: "Path to the vault directory", alias: ["p"] },
+  },
+  run({ args }) {
+    const vaultPath = args.vaultPath ?? resolveVaultPath(process.cwd());
     const [action, session] = commandArgs("summaries");
 
     try {
@@ -21,7 +24,21 @@ export default defineCommand({
   },
 });
 
+// Raw-argv view minus the vault-path flag, which citty owns: without the
+// skip, its value token would be mistaken for the action/session positionals.
 function commandArgs(command: string): string[] {
   const index = process.argv.indexOf(command);
-  return index === -1 ? [] : process.argv.slice(index + 1);
+  if (index === -1) return [];
+  const out: string[] = [];
+  const rest = process.argv.slice(index + 1);
+  for (let i = 0; i < rest.length; i++) {
+    const arg = rest[i]!;
+    if (arg === "--vault-path" || arg === "--vaultPath" || arg === "-p") {
+      i += 1;
+      continue;
+    }
+    if (arg.startsWith("--vault-path=") || arg.startsWith("--vaultPath=")) continue;
+    out.push(arg);
+  }
+  return out;
 }

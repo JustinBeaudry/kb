@@ -264,6 +264,21 @@ describe("kb summarize", () => {
     expect(trashed).toHaveLength(1);
   });
 
+  it("--vault-path overrides KB_VAULT and the flag value is never mistaken for the session", async () => {
+    const bogus = join(env.root, "bogus-vault");
+    const prefix = env.sessionId.slice(0, 12);
+    // Flag before the positional.
+    const before = await runKb(env, ["summarize", "--vault-path", env.vault, prefix], {
+      KB_VAULT: bogus,
+    });
+    expect(before.exitCode).toBe(0);
+    expect(before.stdout.trim().split("\n").at(-1)!).toContain(env.vault);
+    // Flag (short alias) after the positional.
+    const after = await runKb(env, ["summarize", prefix, "-p", env.vault], { KB_VAULT: bogus });
+    expect(after.exitCode).toBe(0);
+    expect(after.stdout.trim().split("\n").at(-1)!).toContain(env.vault);
+  });
+
   it("exits non-zero without writing a summary when the summarizer command fails", async () => {
     const result = await runKb(env, ["summarize", env.manifestPath], {
       FAKE_CLAUDE_FAIL: "1",
@@ -301,5 +316,20 @@ describe("kb summaries pin", () => {
     const unpin = await runKb(env, ["summaries", "unpin", env.manifestPath]);
     expect(unpin.exitCode).toBe(0);
     expect(readSummaryFrontmatter(summaryPath).data.user_edited).toBe(false);
+  });
+
+  it("--vault-path overrides KB_VAULT without disturbing the action/session positionals", async () => {
+    const bogus = join(env.root, "bogus-vault");
+    const prefix = env.sessionId.slice(0, 12);
+    const pin = await runKb(env, ["summaries", "--vault-path", env.vault, "pin", prefix], {
+      KB_VAULT: bogus,
+    });
+    expect(pin.exitCode).toBe(0);
+    const summaryPath = pin.stdout.trim().split("\n").at(-1)!;
+    expect(summaryPath).toContain(env.vault);
+    expect(readSummaryFrontmatter(summaryPath).data.user_edited).toBe(true);
+
+    const unpin = await runKb(env, ["summaries", "pin", prefix, "-p", env.vault], { KB_VAULT: bogus });
+    expect(unpin.exitCode).toBe(0);
   });
 });
