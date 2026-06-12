@@ -57,9 +57,33 @@ export async function isVaultRegistered(vaultPath: string): Promise<boolean> {
 }
 
 /**
+ * Parse qmd search output into wiki-relative page IDs. Tokens are normalized
+ * (./ stripped, wiki/ prefix injected when absent) and validated against the
+ * node-ID grammar so external output can never smuggle paths outside wiki/.
+ */
+export function parseQmdOutput(output: string, topK = 5): string[] {
+  const ids: string[] = [];
+  for (const line of output.split("\n")) {
+    const m = line.match(/(\S+\.md)\b/);
+    if (!m) continue;
+    const token = m[1]!.replace(/^\.\//, "");
+    const wikiIdx = token.indexOf("wiki/");
+    const id = wikiIdx >= 0 ? token.slice(wikiIdx) : `wiki/${token}`;
+    if (!isValidNodeId(id)) continue;
+    if (!ids.includes(id)) ids.push(id);
+    if (ids.length >= topK) break;
+  }
+  return ids;
+}
+
+const QMD_SEARCH_TIMEOUT_MS = 2500;
+
+/**
  * Best-effort candidate hints from qmd search. Returns wiki-relative page IDs
- * parsed from the output, or null when qmd is absent or the call fails —
- * callers treat null as "no hints" and never surface an error.
+ * parsed from the output, or null when qmd is absent, fails, or exceeds the
+ * deadline — callers treat null as "no hints" and never surface an error.
+ * The deadline races the COMBINED stdout read + exit so verbose output that
+ * fills the pipe buffer cannot deadlock the command.
  */
 export async function qmdSearchHints(query: string, topK = 5): Promise<string[] | null> {
   if (!isQmdOnPath()) return null;
@@ -69,24 +93,25 @@ export async function qmdSearchHints(query: string, topK = 5): Promise<string[] 
       stdout: "pipe",
       stderr: "ignore",
     });
-    const output = await new Response(proc.stdout).text();
-    const exitCode = await proc.exited;
-    if (exitCode !== 0) return null;
+    const completion = Promise.all([new Response(proc.stdout).text(), proc.exited]);
+    completion.catch(() => {});
 
-    const ids: string[] = [];
-    for (const line of output.split("\n")) {
-      const m = line.match(/(\S+\.md)\b/);
-      if (!m) continue;
-      // Normalize to a wiki-relative page ID and validate against the node-ID
-      // grammar so hints can never smuggle paths outside wiki/.
-      const token = m[1]!.replace(/^\.\//, "");
-      const wikiIdx = token.indexOf("wiki/");
-      const id = wikiIdx >= 0 ? token.slice(wikiIdx) : `wiki/${token}`;
-      if (!isValidNodeId(id)) continue;
-      if (!ids.includes(id)) ids.push(id);
-      if (ids.length >= topK) break;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<null>((resolve) => {
+      timer = setTimeout(() => resolve(null), QMD_SEARCH_TIMEOUT_MS);
+    });
+    const winner = await Promise.race([completion, deadline]);
+    clearTimeout(timer);
+    if (winner === null) {
+      proc.kill();
+      // An orphaned grandchild (e.g. a sleep spawned by a wrapper script) can
+      // inherit the stdout pipe; unref so it cannot keep our process alive.
+      proc.unref();
+      return null;
     }
-    return ids;
+    const [output, exitCode] = winner;
+    if (exitCode !== 0) return null;
+    return parseQmdOutput(output, topK);
   } catch {
     return null;
   }
