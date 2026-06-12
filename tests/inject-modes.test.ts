@@ -101,6 +101,14 @@ describe("inject hook — mode: lazy (pointer payload)", () => {
     expect(ctx).toMatch(/kb recall/);
   });
 
+  it("steers retrieval to kb map first, recall as fallback", async () => {
+    const vault = track(makeVault());
+    const { output } = await runHook(vault, { KB_INJECT_MODE: "lazy" });
+    const ctx: string = JSON.parse(output).hookSpecificOutput.additionalContext;
+    expect(ctx).toMatch(/kb map/);
+    expect(ctx).toMatch(/fallback/);
+  });
+
   it("advertises top-N index headings when index.md present", async () => {
     const vault = track(makeVault());
     const { output } = await runHook(vault, { KB_INJECT_MODE: "lazy" });

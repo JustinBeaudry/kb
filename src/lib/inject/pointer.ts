@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { byteLength } from "../bytes";
 
 const POINTER_BUDGET = 500;
 const MAX_CATEGORIES = 8;
@@ -38,7 +39,7 @@ export function buildPointerPayload({ vaultPath, nudge }: PointerInput): string 
   const header =
     "## KB Vault\n" +
     "Curated memory available. Do not read sessions/ or raw/ directly.\n" +
-    "Run `kb list-topics` or `kb recall <query>` to retrieve.";
+    "Run `kb map <query>` to find knowledge; `kb recall <query>` only as plain-text fallback.";
 
   // The nudge is reserved before topic fitting: topics shrink to make room so
   // the payload keeps the POINTER_BUDGET invariant.
@@ -57,8 +58,4 @@ export function buildPointerPayload({ vaultPath, nudge }: PointerInput): string 
   }
 
   return rendered;
-}
-
-export function byteLength(s: string): number {
-  return new TextEncoder().encode(s).length;
 }

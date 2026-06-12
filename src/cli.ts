@@ -13,6 +13,8 @@ const main = defineCommand({
     doctor: () => import("./commands/doctor").then((m) => m.default),
     uninstall: () => import("./commands/uninstall").then((m) => m.default),
     recall: () => import("./commands/recall").then((m) => m.default),
+    map: () => import("./commands/map").then((m) => m.default),
+    "get-node": () => import("./commands/get-node").then((m) => m.default),
     get: () => import("./commands/get").then((m) => m.default),
     "list-topics": () => import("./commands/list-topics").then((m) => m.default),
     "read-raw": () => import("./commands/read-raw").then((m) => m.default),

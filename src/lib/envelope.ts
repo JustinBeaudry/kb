@@ -1,12 +1,17 @@
 import { randomBytes } from "node:crypto";
 
-export type Curation = "curated" | "raw-excerpt" | "session-excerpt";
+export type Curation = "curated" | "raw-excerpt" | "session-excerpt" | "heading-section";
+
+export type NodeKind = "page" | "section";
 
 export interface EnvelopeChunk {
   source: string;
   line_range: [number, number];
   curation: Curation;
   text: string;
+  node_id?: string;
+  heading_path?: string[];
+  node_kind?: NodeKind;
 }
 
 export interface EnvelopePolicy {
@@ -14,11 +19,13 @@ export interface EnvelopePolicy {
   source_scope?: "wiki" | "raw" | "sessions";
   no_results?: boolean;
   suggestions?: string[];
+  tree_root?: string;
+  nav_trace?: string[];
   [key: string]: unknown;
 }
 
 export interface Envelope {
-  schema_version: "1";
+  schema_version: "2";
   nonce: string;
   policy: EnvelopePolicy;
   chunks: EnvelopeChunk[];
@@ -31,7 +38,7 @@ export interface BuildEnvelopeInput {
 
 export function buildEnvelope(input: BuildEnvelopeInput): Envelope {
   return {
-    schema_version: "1",
+    schema_version: "2",
     nonce: randomBytes(16).toString("hex"),
     policy: input.policy,
     chunks: input.chunks,
@@ -56,7 +63,7 @@ function assertValidShape(parsed: unknown): asserts parsed is Envelope {
     throw new Error("envelope: body is not an object");
   }
   const p = parsed as Record<string, unknown>;
-  if (p.schema_version !== "1") {
+  if (p.schema_version !== "2") {
     throw new EnvelopeVersionError(p.schema_version);
   }
   if (typeof p.nonce !== "string" || !/^[0-9a-f]{32}$/.test(p.nonce)) {
@@ -78,7 +85,8 @@ function assertValidShape(parsed: unknown): asserts parsed is Envelope {
     if (
       c.curation !== "curated" &&
       c.curation !== "raw-excerpt" &&
-      c.curation !== "session-excerpt"
+      c.curation !== "session-excerpt" &&
+      c.curation !== "heading-section"
     ) {
       throw new Error(`envelope: chunks[${i}].curation invalid`);
     }
@@ -89,6 +97,18 @@ function assertValidShape(parsed: unknown): asserts parsed is Envelope {
       typeof c.line_range[1] !== "number"
     ) {
       throw new Error(`envelope: chunks[${i}].line_range must be [number, number]`);
+    }
+    if (c.node_id !== undefined && typeof c.node_id !== "string") {
+      throw new Error(`envelope: chunks[${i}].node_id must be a string`);
+    }
+    if (
+      c.heading_path !== undefined &&
+      (!Array.isArray(c.heading_path) || c.heading_path.some((h) => typeof h !== "string"))
+    ) {
+      throw new Error(`envelope: chunks[${i}].heading_path must be string[]`);
+    }
+    if (c.node_kind !== undefined && c.node_kind !== "page" && c.node_kind !== "section") {
+      throw new Error(`envelope: chunks[${i}].node_kind must be "page" or "section"`);
     }
   }
 }

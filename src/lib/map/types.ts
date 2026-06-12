@@ -1,0 +1,54 @@
+export interface Heading {
+  text: string;
+  level: number;
+  line: number;
+}
+
+export interface Section {
+  heading: string;
+  level: number;
+  line_range: [number, number];
+  wikilinks: string[];
+  children: Section[];
+}
+
+export interface Wikilink {
+  target: string;
+  heading?: string;
+  blockRef?: string;
+  display?: string;
+  line: number;
+}
+
+export interface SectionEntry {
+  id: string;
+  heading: string;
+  level: number;
+  line_range: [number, number];
+  wikilinks: string[];
+  children: SectionEntry[];
+}
+
+export interface PageEntry {
+  id: string;
+  title: string;
+  type?: string;
+  tags: string[];
+  aliases: string[];
+  content_hash: string;
+  size: number;
+  mtime_ms: number;
+  malformed?: boolean;
+  sections: SectionEntry[];
+  wikilinks: string[];
+  unresolved_wikilinks: string[];
+  backlinks: string[];
+}
+
+export interface TreeCache {
+  schema_version: "1";
+  built_at?: string;
+  pages: PageEntry[];
+  by_alias: Record<string, string>;
+  by_tag: Record<string, string[]>;
+}

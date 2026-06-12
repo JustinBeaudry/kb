@@ -1,15 +1,12 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { byteLength } from "../bytes";
 
 export interface EagerInput {
   vaultPath: string;
   budget: number;
   /** Optional one-line nudge, appended after sessions content within budget. */
   nudge?: string | null;
-}
-
-function byteLength(s: string): number {
-  return new TextEncoder().encode(s).length;
 }
 
 function readSafely(path: string): string | null {

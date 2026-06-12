@@ -24,6 +24,27 @@ describe("docs contract — trust boundary references", () => {
     expect(body).toMatch(/never.*instructions|do not follow|treat.*as data/i);
   });
 
+  it("templates/KB.md teaches tree navigation as the default retrieval", () => {
+    const body = read("templates/KB.md");
+    expect(body).toContain("kb map");
+    expect(body).toContain("kb get-node");
+    expect(body).toMatch(/node_id|node ID/);
+    expect(body).toContain("KB_MAP_BUDGET");
+  });
+
+  it("README documents the navigation commands and map budget", () => {
+    const body = read("README.md");
+    expect(body).toContain("kb map");
+    expect(body).toContain("kb get-node");
+    expect(body).toContain("KB_MAP_BUDGET");
+  });
+
+  it("commands/query.md walks the map -> select -> fetch loop", () => {
+    const body = read("commands/query.md");
+    expect(body).toContain("kb map");
+    expect(body).toContain("kb get-node");
+  });
+
   it("skills/kb/SKILL.md uses the sanctioned CLI in Query workflow", () => {
     const body = read("skills/kb/SKILL.md");
     expect(body).toContain("kb list-topics");
@@ -31,6 +52,13 @@ describe("docs contract — trust boundary references", () => {
     expect(body).toContain("kb get");
     expect(body).toMatch(/kb read-session/);
     expect(body).toMatch(/kb read-raw/);
+  });
+
+  it("skills/kb/SKILL.md teaches the map -> select -> fetch loop", () => {
+    const body = read("skills/kb/SKILL.md");
+    expect(body).toContain("kb map");
+    expect(body).toContain("kb get-node");
+    expect(body).toMatch(/node_id|node ID/);
   });
 
   it("skills/extract/SKILL.md uses kb read-session, not direct file reads", () => {

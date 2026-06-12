@@ -5,6 +5,7 @@
  * installed and the vault is registered as a collection, KB workflows use
  * qmd_deep_search as the primary search step.
  */
+import { isValidNodeId } from "./map/node-id";
 
 export function isQmdOnPath(): boolean {
   return !!Bun.which("qmd");
@@ -53,6 +54,42 @@ export async function isVaultRegistered(vaultPath: string): Promise<boolean> {
   const collections = await listQmdCollections();
   if (!collections) return false;
   return collections.some((c) => c.path === vaultPath);
+}
+
+/**
+ * Best-effort candidate hints from qmd search. Returns wiki-relative page IDs
+ * parsed from the output, or null when qmd is absent or the call fails —
+ * callers treat null as "no hints" and never surface an error.
+ */
+export async function qmdSearchHints(query: string, topK = 5): Promise<string[] | null> {
+  if (!isQmdOnPath()) return null;
+
+  try {
+    const proc = Bun.spawn(["qmd", "search", query], {
+      stdout: "pipe",
+      stderr: "ignore",
+    });
+    const output = await new Response(proc.stdout).text();
+    const exitCode = await proc.exited;
+    if (exitCode !== 0) return null;
+
+    const ids: string[] = [];
+    for (const line of output.split("\n")) {
+      const m = line.match(/(\S+\.md)\b/);
+      if (!m) continue;
+      // Normalize to a wiki-relative page ID and validate against the node-ID
+      // grammar so hints can never smuggle paths outside wiki/.
+      const token = m[1]!.replace(/^\.\//, "");
+      const wikiIdx = token.indexOf("wiki/");
+      const id = wikiIdx >= 0 ? token.slice(wikiIdx) : `wiki/${token}`;
+      if (!isValidNodeId(id)) continue;
+      if (!ids.includes(id)) ids.push(id);
+      if (ids.length >= topK) break;
+    }
+    return ids;
+  } catch {
+    return null;
+  }
 }
 
 export const QMD_INSTALL_HINT = `qmd is optional — install for hybrid BM25 + vector search:

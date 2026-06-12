@@ -4,7 +4,8 @@ import { DEFAULT_BUDGET } from "../lib/constants";
 import { buildEagerContext } from "../lib/inject/eager";
 import { appendInjectLog } from "../lib/inject/log";
 import { resolveInjectMode } from "../lib/inject/modes";
-import { buildPointerPayload, byteLength } from "../lib/inject/pointer";
+import { buildPointerPayload } from "../lib/inject/pointer";
+import { byteLength } from "../lib/bytes";
 import { buildNudgeLine } from "../lib/session-state";
 import { resolveVaultPath as resolveProjectVaultPath } from "../lib/vault";
 

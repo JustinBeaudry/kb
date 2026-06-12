@@ -8,7 +8,9 @@ export type AccessLogCommand =
   | "list-topics"
   | "read-raw"
   | "read-session"
-  | "sessions";
+  | "sessions"
+  | "map"
+  | "get-node";
 
 export type WriteAuditCommand = "mark-extracted";
 
