@@ -1,7 +1,7 @@
 ---
 title: "fix: close the open issue backlog (#9, #11-#16)"
 type: fix
-status: active
+status: completed
 date: 2026-06-12
 ---
 
