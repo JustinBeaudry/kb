@@ -1,16 +1,13 @@
 import {
   closeSync,
   constants as fsConstants,
-  copyFileSync,
   existsSync,
   openSync,
   readFileSync,
   readdirSync,
-  renameSync,
-  unlinkSync,
-  writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import { writeTextAtomic } from "./atomic-write";
 import { parseFrontmatter, serializeFrontmatter } from "./frontmatter";
 import { assertGenuineScopeDir, assertSafeFilename, PathUnsafeError } from "./path-safety";
 
@@ -21,18 +18,6 @@ function readNoFollow(path: string): string {
     return readFileSync(fd, "utf-8");
   } finally {
     closeSync(fd);
-  }
-}
-
-function writeTextAtomic(path: string, content: string): void {
-  const tmp = `${path}.tmp-${process.pid}-${Date.now()}`;
-  writeFileSync(tmp, content);
-  try {
-    renameSync(tmp, path);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "EXDEV") throw err;
-    copyFileSync(tmp, path);
-    unlinkSync(tmp);
   }
 }
 

@@ -9,6 +9,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, isAbsolute, join, resolve } from "node:path";
+import { writeTextAtomic } from "./atomic-write";
 import { parseFrontmatter, serializeFrontmatter } from "./frontmatter";
 import { sha256File } from "./hash";
 import {
@@ -414,14 +415,3 @@ function moveFile(from: string, to: string): void {
   }
 }
 
-function writeTextAtomic(path: string, content: string): void {
-  const tmp = `${path}.tmp-${process.pid}-${Date.now()}`;
-  writeFileSync(tmp, content);
-  try {
-    renameSync(tmp, path);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "EXDEV") throw err;
-    copyFileSync(tmp, path);
-    unlinkSync(tmp);
-  }
-}
