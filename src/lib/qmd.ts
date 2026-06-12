@@ -55,6 +55,37 @@ export async function isVaultRegistered(vaultPath: string): Promise<boolean> {
   return collections.some((c) => c.path === vaultPath);
 }
 
+/**
+ * Best-effort candidate hints from qmd search. Returns wiki-relative page IDs
+ * parsed from the output, or null when qmd is absent or the call fails —
+ * callers treat null as "no hints" and never surface an error.
+ */
+export async function qmdSearchHints(query: string, topK = 5): Promise<string[] | null> {
+  if (!isQmdOnPath()) return null;
+
+  try {
+    const proc = Bun.spawn(["qmd", "search", query], {
+      stdout: "pipe",
+      stderr: "ignore",
+    });
+    const output = await new Response(proc.stdout).text();
+    const exitCode = await proc.exited;
+    if (exitCode !== 0) return null;
+
+    const ids: string[] = [];
+    for (const line of output.split("\n")) {
+      const m = line.match(/(?:^|[\s/])((?:wiki\/)?[A-Za-z0-9._-]+\.md)/);
+      if (!m) continue;
+      const id = m[1]!.startsWith("wiki/") ? m[1]! : `wiki/${m[1]!}`;
+      if (!ids.includes(id)) ids.push(id);
+      if (ids.length >= topK) break;
+    }
+    return ids;
+  } catch {
+    return null;
+  }
+}
+
 export const QMD_INSTALL_HINT = `qmd is optional — install for hybrid BM25 + vector search:
 
   npm install -g @tobilu/qmd
