@@ -21,28 +21,53 @@ function stringArray(value: unknown): string[] {
   return value.filter((v): v is string => typeof v === "string");
 }
 
-function toPageId(vaultPath: string, filePath: string): string {
+export function toPageId(vaultPath: string, filePath: string): string {
   return relative(vaultPath, filePath).split(sep).join("/");
 }
 
-export async function buildTree(vaultPath: string): Promise<TreeCache> {
+export function listWikiFiles(vaultPath: string): string[] {
   const wikiDir = join(vaultPath, "wiki");
-  if (existsSync(wikiDir)) {
-    assertGenuineScopeDir(wikiDir, vaultPath);
-  } else {
-    return { schema_version: "1", pages: [], by_alias: {}, by_tag: {} };
-  }
+  if (!existsSync(wikiDir)) return [];
+  assertGenuineScopeDir(wikiDir, vaultPath);
   const wikiReal = realpathSync(wikiDir);
-
   const files: string[] = [];
   walkWiki(wikiDir, wikiReal, (p) => files.push(p));
-  files.sort();
+  return files.sort();
+}
 
-  const pages: PageEntry[] = [];
-  for (const file of files) {
-    pages.push(buildPage(vaultPath, file));
+export async function buildTree(vaultPath: string): Promise<TreeCache> {
+  const pages = listWikiFiles(vaultPath).map((file) => buildPage(vaultPath, file));
+  return linkTree(pages);
+}
+
+/**
+ * Resolve a raw wikilink target against the tree's page IDs and aliases.
+ * Returns the page ID, or null when the target is unsafe or unknown. Section
+ * wikilinks store raw targets, so resolution stays recomputable from cached
+ * pages as the vault changes.
+ */
+export function resolveTarget(
+  pageIds: Set<string>,
+  byAlias: Record<string, string>,
+  target: string
+): string | null {
+  const t = target.trim();
+  if (t === "" || isAbsolute(t) || t.split("/").includes("..") || t.includes("\0")) {
+    return null;
   }
+  const candidates = t.endsWith(".md") ? [t, `wiki/${t}`] : [`wiki/${t}.md`];
+  for (const c of candidates) {
+    if (pageIds.has(c)) return c;
+  }
+  return byAlias[t] ?? null;
+}
 
+/**
+ * Compute the cross-page layer — alias/tag indexes, resolved page wikilinks,
+ * unresolved targets, backlinks — from per-page parses. Pure recompute: it
+ * reads only raw section targets, so it is idempotent over cached pages.
+ */
+export function linkTree(pages: PageEntry[]): TreeCache {
   const pageIds = new Set(pages.map((p) => p.id));
 
   const byAlias: Record<string, string> = {};
@@ -58,39 +83,22 @@ export async function buildTree(vaultPath: string): Promise<TreeCache> {
     }
   }
 
-  // Resolve wikilink targets now that page IDs and aliases are known, then
-  // compute backlinks in a second pass.
   const backlinks = new Map<string, Set<string>>();
   for (const page of pages) {
     const resolvedPage = new Set<string>();
     const unresolved = new Set<string>();
-    const resolveTarget = (target: string): string | null => {
-      const t = target.trim();
-      if (t === "" || isAbsolute(t) || t.split("/").includes("..") || t.includes("\0")) {
-        return null;
-      }
-      const candidates = t.endsWith(".md") ? [t, `wiki/${t}`] : [`wiki/${t}.md`];
-      for (const c of candidates) {
-        if (pageIds.has(c)) return c;
-      }
-      return byAlias[t] ?? null;
-    };
-
-    const resolveSection = (section: SectionEntry): void => {
-      const sectionResolved = new Set<string>();
+    const visit = (section: SectionEntry): void => {
       for (const raw of section.wikilinks) {
-        const resolved = resolveTarget(raw);
+        const resolved = resolveTarget(pageIds, byAlias, raw);
         if (resolved !== null && resolved !== page.id) {
-          sectionResolved.add(resolved);
           resolvedPage.add(resolved);
         } else if (resolved === null) {
           unresolved.add(raw);
         }
       }
-      section.wikilinks = [...sectionResolved].sort();
-      for (const child of section.children) resolveSection(child);
+      for (const child of section.children) visit(child);
     };
-    for (const section of page.sections) resolveSection(section);
+    for (const section of page.sections) visit(section);
 
     page.wikilinks = [...resolvedPage].sort();
     page.unresolved_wikilinks = [...unresolved].sort();
@@ -124,7 +132,7 @@ function sortedRecord<T>(record: Record<string, T>): Record<string, T> {
   return Object.fromEntries(Object.entries(record).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
 }
 
-function buildPage(vaultPath: string, filePath: string): PageEntry {
+export function buildPage(vaultPath: string, filePath: string): PageEntry {
   const id = toPageId(vaultPath, filePath);
   const st = statSync(filePath);
   const fallbackTitle = basename(filePath, ".md");

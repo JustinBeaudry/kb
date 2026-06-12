@@ -169,7 +169,9 @@ describe("buildTree", () => {
     expect(page.unresolved_wikilinks).toContain("../etc/passwd");
     expect(page.unresolved_wikilinks).toContain("/abs/path");
     expect(page.unresolved_wikilinks).toContain("nonexistent");
-    expect(page.sections[0]!.wikilinks).toEqual([]);
+    // Sections keep raw targets; resolution is recomputed by linkTree.
+    expect(page.sections[0]!.wikilinks).toEqual(["../etc/passwd", "/abs/path", "nonexistent"]);
+    expect(page.wikilinks).toEqual([]);
   });
 
   it("duplicate alias across pages: first page in path order wins", async () => {
