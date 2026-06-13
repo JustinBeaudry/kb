@@ -90,26 +90,45 @@ export async function qmdSearchHints(query: string, topK = 5): Promise<string[] 
 
   try {
     const proc = Bun.spawn(["qmd", "search", query], {
+      stdin: "ignore",
       stdout: "pipe",
       stderr: "ignore",
     });
-    const completion = Promise.all([new Response(proc.stdout).text(), proc.exited]);
+    // Read stdout through a reader we own so the timeout path can cancel our
+    // end of the pipe — Response(...).text() would lock the stream and leave
+    // nothing to cancel.
+    const reader = proc.stdout.getReader();
+    const decoder = new TextDecoder();
+    let output = "";
+    const readAll = (async () => {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        output += decoder.decode(value, { stream: true });
+      }
+      output += decoder.decode();
+    })();
+    readAll.catch(() => {});
+    const completion = Promise.all([readAll, proc.exited]);
     completion.catch(() => {});
 
     let timer: ReturnType<typeof setTimeout> | undefined;
     const deadline = new Promise<null>((resolve) => {
       timer = setTimeout(() => resolve(null), QMD_SEARCH_TIMEOUT_MS);
     });
-    const winner = await Promise.race([completion, deadline]);
+    const winner = await Promise.race([completion.then(() => true as const), deadline]);
     clearTimeout(timer);
     if (winner === null) {
-      proc.kill();
-      // An orphaned grandchild (e.g. a sleep spawned by a wrapper script) can
-      // inherit the stdout pipe; unref so it cannot keep our process alive.
+      // SIGKILL, not SIGTERM: a qmd that traps TERM would survive and keep
+      // running. Cancelling the reader closes our end of the stdout pipe so
+      // neither the killed child nor an orphaned grandchild that inherited
+      // the pipe can keep the CLI process alive.
+      proc.kill("SIGKILL");
+      await reader.cancel().catch(() => {});
       proc.unref();
       return null;
     }
-    const [output, exitCode] = winner;
+    const exitCode = await proc.exited;
     if (exitCode !== 0) return null;
     return parseQmdOutput(output, topK);
   } catch {

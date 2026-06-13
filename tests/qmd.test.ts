@@ -26,9 +26,12 @@ function installFakeQmd(script: string): string {
 // Bun.spawn's binary lookup does not reliably honor in-process PATH
 // mutations, so hints are exercised in a child process whose PATH is fully
 // controlled (shim dir + system bins only — never the host's real qmd).
+// The child deliberately does NOT call process.exit: every test here also
+// proves the CLI process exits naturally after qmdSearchHints returns, even
+// when a timed-out qmd (or its orphaned children) holds the stdout pipe.
 async function runHints(pathDirs: string): Promise<string[] | null> {
   const proc = Bun.spawn(
-    [process.execPath, "-e", 'const { qmdSearchHints } = await import("./src/lib/qmd"); process.stdout.write(JSON.stringify(await qmdSearchHints("query"))); process.exit(0);'],
+    [process.execPath, "-e", 'const { qmdSearchHints } = await import("./src/lib/qmd"); process.stdout.write(JSON.stringify(await qmdSearchHints("query")));'],
     {
       stdout: "pipe",
       stderr: "pipe",
@@ -36,7 +39,8 @@ async function runHints(pathDirs: string): Promise<string[] | null> {
     }
   );
   const stdout = await new Response(proc.stdout).text();
-  await proc.exited;
+  const exitCode = await proc.exited;
+  if (exitCode !== 0) throw new Error(`runHints child exited ${exitCode}: ${stdout}`);
   return JSON.parse(stdout);
 }
 
@@ -88,6 +92,15 @@ describe("qmdSearchHints", () => {
     );
     const start = Date.now();
     expect(await runHints(shim)).toBeNull();
+    expect(Date.now() - start).toBeLessThan(10_000);
+  });
+
+  it("a qmd that traps SIGTERM cannot keep the CLI alive past the deadline", async () => {
+    const shim = installFakeQmd('trap "" TERM\nsleep 30');
+    const start = Date.now();
+    expect(await runHints(shim)).toBeNull();
+    // runHints awaits natural child exit — this bounds the whole lifecycle,
+    // not just the qmdSearchHints return value.
     expect(Date.now() - start).toBeLessThan(10_000);
   });
 
