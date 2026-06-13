@@ -151,6 +151,37 @@ describe("map command", () => {
     for (const c of env.chunks) expect(c.node_kind).toBe("page");
   });
 
+  it("mixed candidate set under tight budget represents section pages alongside the page chunk", async () => {
+    const vault = makeVault();
+    rmSync(join(vault, "wiki", "auth.md"));
+    rmSync(join(vault, "wiki", "deploy.md"));
+    // One page matches by exact title (-> page chunk). 40 zone pages match
+    // only by heading (-> section chunks). The candidate cap (30) truncates
+    // the lexical bucket, so most zone parents never become page candidates
+    // on their own. Pre-fix, the single hub page tripped the
+    // `pages.length === 0` gate and every orphan section page was dropped at
+    // tier-2; post-fix their parents are derived unconditionally.
+    writeFileSync(join(vault, "wiki", "hub.md"), "# match-me\n\nthe hub page\n");
+    for (let i = 0; i < 40; i++) {
+      writeFileSync(
+        join(vault, "wiki", `zone-${String(i).padStart(2, "0")}.md`),
+        `# Zone ${i}\n\n## match-me area ${i}\nbody text here\n`
+      );
+    }
+    // Budget sized so the derived page tier (hub + ~28 orphan zone parents)
+    // fits at tier-2; the bug pre-fix was that those parents never appeared.
+    const { stdout, exitCode } = await run(vault, ["match-me", "--budget", "6000"]);
+    expect(exitCode).toBe(0);
+    const env = parseEnvelope(stdout);
+    expect(env.policy.map_tier).toBe(2);
+    for (const c of env.chunks) expect(c.node_kind).toBe("page");
+    const ids = env.chunks.map((c) => c.node_id);
+    expect(ids).toContain("wiki/hub.md");
+    // Many orphan zone parents (section candidates, not their own page candidates).
+    expect(ids.filter((id) => id?.startsWith("wiki/zone-")).length).toBeGreaterThan(1);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
   it("when fitting drops every chunk the envelope still signals truncation and suggestions", async () => {
     const vault = makeVault();
     rmSync(join(vault, "wiki", "auth.md"));

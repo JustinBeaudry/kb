@@ -105,17 +105,23 @@ function fitToBudget(
   const tier1 = wireFor(chunks, { ...basePolicy, map_tier: 1 });
   if (byteLength(tier1) <= budget) return tier1;
 
-  let pages = chunks.filter((c) => c.node_kind === "page");
-  if (pages.length === 0) {
-    const byPage = pagesById(tree.pages);
-    const seen = new Set<string>();
-    for (const c of chunks) {
-      const parsed = parseNodeId(c.node_id ?? "");
-      if (!parsed || seen.has(parsed.page)) continue;
-      seen.add(parsed.page);
-      const page = byPage.get(parsed.page);
-      if (page) pages.push(pageSummary(page));
-    }
+  // Page-kind chunks first, then derive a parent-page summary for any section
+  // candidate whose page isn't already represented. This keeps the page tier
+  // complete for mixed candidate sets, not just the section-only case — the
+  // candidate cap can truncate the lexical bucket and leave a section's parent
+  // off the page list otherwise.
+  const pages = chunks.filter((c) => c.node_kind === "page");
+  const seen = new Set<string>(
+    pages.map((c) => parseNodeId(c.node_id ?? "")?.page).filter((p): p is string => p !== undefined)
+  );
+  const byPage = pagesById(tree.pages);
+  for (const c of chunks) {
+    if (c.node_kind !== "section") continue;
+    const parsed = parseNodeId(c.node_id ?? "");
+    if (!parsed || seen.has(parsed.page)) continue;
+    seen.add(parsed.page);
+    const page = byPage.get(parsed.page);
+    if (page) pages.push(pageSummary(page));
   }
   const tier2 = wireFor(pages, { ...basePolicy, map_tier: 2 });
   if (pages.length > 0 && byteLength(tier2) <= budget) return tier2;
