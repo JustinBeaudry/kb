@@ -182,6 +182,28 @@ describe("map command", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
+  it("does not double-add a page that is both a page candidate and a section candidate's parent", async () => {
+    const vault = makeVault();
+    rmSync(join(vault, "wiki", "auth.md"));
+    rmSync(join(vault, "wiki", "deploy.md"));
+    // hub matches by title (page chunk) AND has a matching section heading
+    // (section chunk for the same page) — exercises the seen.has() dedup guard.
+    writeFileSync(join(vault, "wiki", "hub.md"), "# match-me\n\n## match-me subsection\nbody\n");
+    for (let i = 0; i < 40; i++) {
+      writeFileSync(
+        join(vault, "wiki", `zone-${String(i).padStart(2, "0")}.md`),
+        `# Zone ${i}\n\n## match-me area ${i}\nbody text here\n`
+      );
+    }
+    const { stdout, exitCode } = await run(vault, ["match-me", "--budget", "6000"]);
+    expect(exitCode).toBe(0);
+    const env = parseEnvelope(stdout);
+    const ids = env.chunks.map((c) => c.node_id);
+    // hub.md present exactly once despite matching as both page and section.
+    expect(ids.filter((id) => id === "wiki/hub.md").length).toBe(1);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
   it("when fitting drops every chunk the envelope still signals truncation and suggestions", async () => {
     const vault = makeVault();
     rmSync(join(vault, "wiki", "auth.md"));
