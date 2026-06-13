@@ -78,6 +78,16 @@ describe("qmdSearchHints", () => {
     expect(await runHints(shim)).toEqual(["wiki/hit.md"]);
   });
 
+  it("a fast qmd success does not leave the deadline timer pending (process exits promptly)", async () => {
+    // runHints awaits natural child exit. A leaked 2.5s deadline timer would
+    // keep the child's event loop alive ~2.5s after the call returns; a
+    // cleared timer lets it exit in well under that.
+    const shim = installFakeQmd('echo "0.9 wiki/hit.md snippet"');
+    const start = Date.now();
+    expect(await runHints(shim)).toEqual(["wiki/hit.md"]);
+    expect(Date.now() - start).toBeLessThan(2000);
+  });
+
   it("returns null when qmd hangs past the deadline", async () => {
     const shim = installFakeQmd("sleep 30");
     const start = Date.now();

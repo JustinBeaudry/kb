@@ -116,21 +116,28 @@ export async function qmdSearchHints(query: string, topK = 5): Promise<string[] 
     const deadline = new Promise<null>((resolve) => {
       timer = setTimeout(() => resolve(null), QMD_SEARCH_TIMEOUT_MS);
     });
-    const winner = await Promise.race([completion.then(() => true as const), deadline]);
-    clearTimeout(timer);
-    if (winner === null) {
-      // SIGKILL, not SIGTERM: a qmd that traps TERM would survive and keep
-      // running. Cancelling the reader closes our end of the stdout pipe so
-      // neither the killed child nor an orphaned grandchild that inherited
-      // the pipe can keep the CLI process alive.
-      proc.kill("SIGKILL");
-      await reader.cancel().catch(() => {});
-      proc.unref();
-      return null;
+    // try/finally so the deadline timer is cleared on every exit path —
+    // including when the completion chain rejects and throws past this point
+    // into the outer catch. A leaked pending timer would otherwise keep the
+    // event loop (and the CLI process) alive until it fires.
+    try {
+      const winner = await Promise.race([completion.then(() => true as const), deadline]);
+      if (winner === null) {
+        // SIGKILL, not SIGTERM: a qmd that traps TERM would survive and keep
+        // running. Cancelling the reader closes our end of the stdout pipe so
+        // neither the killed child nor an orphaned grandchild that inherited
+        // the pipe can keep the CLI process alive.
+        proc.kill("SIGKILL");
+        await reader.cancel().catch(() => {});
+        proc.unref();
+        return null;
+      }
+      const exitCode = await proc.exited;
+      if (exitCode !== 0) return null;
+      return parseQmdOutput(output, topK);
+    } finally {
+      clearTimeout(timer);
     }
-    const exitCode = await proc.exited;
-    if (exitCode !== 0) return null;
-    return parseQmdOutput(output, topK);
   } catch {
     return null;
   }
