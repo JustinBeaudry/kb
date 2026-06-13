@@ -1,8 +1,10 @@
-import { describe, it, expect, afterEach } from "bun:test";
+import { describe, it, expect, afterEach, spyOn } from "bun:test";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import * as fs from "node:fs";
 import { mkdirSync, writeFileSync, rmSync, symlinkSync } from "node:fs";
 import { buildPage, buildTree } from "../src/lib/map/builder";
+import { MAX_FILE_BYTES } from "../src/lib/wiki-read";
 import { isValidNodeId, parseNodeId } from "../src/lib/map/node-id";
 
 const vaults: string[] = [];
@@ -181,6 +183,30 @@ describe("buildTree", () => {
   it("buildPage on a file deleted mid-scan returns null instead of throwing", async () => {
     const vault = makeVault();
     expect(buildPage(vault, join(vault, "wiki", "ghost.md"))).toBeNull();
+  });
+
+  it("buildPage records a present-but-unreadable (oversize) file as an empty page", async () => {
+    const vault = makeVault();
+    const p = join(vault, "wiki", "big.md");
+    writeFileSync(p, `# Big\n${"x".repeat(MAX_FILE_BYTES + 1)}\n`);
+    const page = buildPage(vault, p);
+    expect(page).not.toBeNull();
+    expect(page!.id).toBe("wiki/big.md");
+    expect(page!.sections).toEqual([]);
+  });
+
+  it("buildPage returns null when the file is gone at read time (statSync ok, read null, not present)", async () => {
+    const vault = makeVault();
+    const p = join(vault, "wiki", "big.md");
+    // Oversize so readWikiFileNoFollow returns null naturally; existsSync
+    // forced false simulates deletion between the stat and the read.
+    writeFileSync(p, `# Big\n${"x".repeat(MAX_FILE_BYTES + 1)}\n`);
+    const spy = spyOn(fs, "existsSync").mockReturnValue(false);
+    try {
+      expect(buildPage(vault, p)).toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("empty wiki returns empty tree", async () => {

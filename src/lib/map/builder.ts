@@ -184,6 +184,11 @@ export function buildPage(vaultPath: string, filePath: string): PageEntry | null
 
   const content = readWikiFileNoFollow(filePath);
   if (content === null) {
+    // A null read means oversize/unreadable OR the file was deleted between
+    // the stat above and this read. Re-check existence: a now-missing file is
+    // "removed" (return null, matching the stat-time ENOENT branch) rather
+    // than a phantom page with empty sections.
+    if (!existsSync(filePath)) return null;
     const reason = st.size > MAX_FILE_BYTES ? `exceeds ${MAX_FILE_BYTES} bytes` : "unreadable";
     process.stderr.write(`warning: skipping body of ${id}: ${reason}\n`);
     return base;
