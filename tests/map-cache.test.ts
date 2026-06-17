@@ -32,7 +32,7 @@ describe("loadOrBuildTree", () => {
     expect(tree.pages.map((p) => p.id)).toEqual(["wiki/a.md", "wiki/b.md"]);
     expect(existsSync(treePath(vault))).toBe(true);
     const onDisk = JSON.parse(readFileSync(treePath(vault), "utf-8"));
-    expect(onDisk.schema_version).toBe("1");
+    expect(onDisk.schema_version).toBe("2");
     expect(typeof onDisk.built_at).toBe("string");
   });
 
@@ -80,7 +80,7 @@ describe("loadOrBuildTree", () => {
     writeFileSync(treePath(vault), "{ not json");
     const tree = await loadOrBuildTree(vault);
     expect(tree.pages.length).toBe(2);
-    expect(JSON.parse(readFileSync(treePath(vault), "utf-8")).schema_version).toBe("1");
+    expect(JSON.parse(readFileSync(treePath(vault), "utf-8")).schema_version).toBe("2");
   });
 
   it("rebuilds from scratch on unknown cache schema_version", async () => {
@@ -91,6 +91,21 @@ describe("loadOrBuildTree", () => {
     writeFileSync(treePath(vault), JSON.stringify(raw));
     const tree = await loadOrBuildTree(vault);
     expect(tree.pages.length).toBe(2);
+  });
+
+  it("pre-upgrade v1 caches trigger a clean rebuild that carries preamble links", async () => {
+    const vault = makeVault();
+    writeFileSync(join(vault, "wiki", "stub.md"), "pointer to [[a]]\n");
+    await loadOrBuildTree(vault);
+    const raw = JSON.parse(readFileSync(treePath(vault), "utf-8"));
+    expect(raw.schema_version).toBe("2");
+    // Simulate a cache written by the previous release.
+    raw.schema_version = "1";
+    for (const p of raw.pages) delete p.preamble_wikilinks;
+    writeFileSync(treePath(vault), JSON.stringify(raw));
+    const tree = await loadOrBuildTree(vault);
+    const stub = tree.pages.find((p) => p.id === "wiki/stub.md")!;
+    expect(stub.wikilinks).toEqual(["wiki/a.md"]);
   });
 
   it("ignores leftover tmp files from interrupted writes", async () => {

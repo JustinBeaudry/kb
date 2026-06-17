@@ -92,14 +92,39 @@ function wireFor(chunks: EnvelopeChunk[], policy: EnvelopePolicy): string {
  * Reserve-then-fit with three degradation tiers: (1) full page+section
  * summaries, (2) page summaries only, (3) title-only page summaries with
  * suggestions reserved first and the tail dropped (binary search) until fit.
+ * When the candidate set is section-only, tiers 2-3 fall back to the
+ * sections' parent pages so degradation never produces a silent empty
+ * envelope.
  */
-function fitToBudget(chunks: EnvelopeChunk[], budget: number, basePolicy: EnvelopePolicy): string {
+function fitToBudget(
+  chunks: EnvelopeChunk[],
+  budget: number,
+  basePolicy: EnvelopePolicy,
+  tree: TreeCache
+): string {
   const tier1 = wireFor(chunks, { ...basePolicy, map_tier: 1 });
   if (byteLength(tier1) <= budget) return tier1;
 
+  // Page-kind chunks first, then derive a parent-page summary for any section
+  // candidate whose page isn't already represented. This keeps the page tier
+  // complete for mixed candidate sets, not just the section-only case — the
+  // candidate cap can truncate the lexical bucket and leave a section's parent
+  // off the page list otherwise.
   const pages = chunks.filter((c) => c.node_kind === "page");
+  const seen = new Set<string>(
+    pages.map((c) => parseNodeId(c.node_id ?? "")?.page).filter((p): p is string => p !== undefined)
+  );
+  const byPage = pagesById(tree.pages);
+  for (const c of chunks) {
+    if (c.node_kind !== "section") continue;
+    const parsed = parseNodeId(c.node_id ?? "");
+    if (!parsed || seen.has(parsed.page)) continue;
+    seen.add(parsed.page);
+    const page = byPage.get(parsed.page);
+    if (page) pages.push(pageSummary(page));
+  }
   const tier2 = wireFor(pages, { ...basePolicy, map_tier: 2 });
-  if (byteLength(tier2) <= budget) return tier2;
+  if (pages.length > 0 && byteLength(tier2) <= budget) return tier2;
 
   const tier3Policy: EnvelopePolicy = {
     ...basePolicy,
@@ -116,7 +141,9 @@ function fitToBudget(chunks: EnvelopeChunk[], budget: number, basePolicy: Envelo
     if (sizeFor(mid) <= budget) lo = mid;
     else hi = mid - 1;
   }
-  const truncated = lo < minimal.length;
+  // Input chunks were non-empty (run() guards), so dropping everything must
+  // still surface a truncation signal alongside the suggestions.
+  const truncated = lo < minimal.length || minimal.length === 0;
   return wireFor(minimal.slice(0, lo), truncated ? { ...tier3Policy, truncated: true } : tier3Policy);
 }
 
@@ -179,7 +206,7 @@ export default defineCommand({
             : ["Try a broader query, or: kb recall <query>"],
       });
     } else {
-      wire = fitToBudget(chunks, budget, basePolicy);
+      wire = fitToBudget(chunks, budget, basePolicy, tree);
     }
     process.stdout.write(wire);
 

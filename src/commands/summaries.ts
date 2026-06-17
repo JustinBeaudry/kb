@@ -1,11 +1,16 @@
 import { defineCommand } from "citty";
 import { resolveVaultPath } from "../lib/vault";
+import { commandArgs } from "../lib/argv";
 import { setSummaryPinned } from "../lib/summarizer";
 
 export default defineCommand({
   meta: { name: "summaries", description: "Manage cached session summaries" },
-  run() {
-    const vaultPath = resolveVaultPath(process.cwd());
+  args: {
+    vaultPath: { type: "string", description: "Path to the vault directory", alias: ["p"] },
+  },
+  run({ args }) {
+    // || (not ??): a valueless trailing flag parses as "", which must fall back.
+    const vaultPath = args.vaultPath || resolveVaultPath(process.cwd());
     const [action, session] = commandArgs("summaries");
 
     try {
@@ -21,7 +26,3 @@ export default defineCommand({
   },
 });
 
-function commandArgs(command: string): string[] {
-  const index = process.argv.indexOf(command);
-  return index === -1 ? [] : process.argv.slice(index + 1);
-}

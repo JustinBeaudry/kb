@@ -2,12 +2,12 @@ import { createHash } from "node:crypto";
 import { existsSync, realpathSync, statSync } from "node:fs";
 import { basename, join, relative, sep } from "node:path";
 import { parseFrontmatter } from "../frontmatter";
-import { parseSections, slugify } from "../markdown";
+import { parseSections, parseWikilinks, slugify } from "../markdown";
 import { assertGenuineScopeDir, assertSafeFilename } from "../path-safety";
 import { readWikiFileNoFollow, walkWiki, MAX_FILE_BYTES } from "../wiki-read";
 import { makeSectionIdAssigner } from "./node-id";
 import { walkSections } from "./traverse";
-import type { PageEntry, Section, SectionEntry, TreeCache } from "./types";
+import { CACHE_SCHEMA_VERSION, type PageEntry, type Section, type SectionEntry, type TreeCache } from "./types";
 
 interface PageFrontmatter {
   title?: unknown;
@@ -36,7 +36,9 @@ export function listWikiFiles(vaultPath: string): string[] {
 }
 
 export async function buildTree(vaultPath: string): Promise<TreeCache> {
-  const pages = listWikiFiles(vaultPath).map((file) => buildPage(vaultPath, file));
+  const pages = listWikiFiles(vaultPath)
+    .map((file) => buildPage(vaultPath, file))
+    .filter((p): p is PageEntry => p !== null);
   return linkTree(pages);
 }
 
@@ -110,15 +112,17 @@ export function linkTree(pages: PageEntry[]): TreeCache {
   for (const page of pages) {
     const resolvedPage = new Set<string>();
     const unresolved = new Set<string>();
-    walkSections(page, (section) => {
-      for (const raw of section.wikilinks) {
-        const resolved = resolveTarget(pageIds, byAlias, raw);
-        if (resolved !== null && resolved !== page.id) {
-          resolvedPage.add(resolved);
-        } else if (resolved === null) {
-          unresolved.add(raw);
-        }
+    const collect = (raw: string): void => {
+      const resolved = resolveTarget(pageIds, byAlias, raw);
+      if (resolved !== null && resolved !== page.id) {
+        resolvedPage.add(resolved);
+      } else if (resolved === null) {
+        unresolved.add(raw);
       }
+    };
+    for (const raw of page.preamble_wikilinks ?? []) collect(raw);
+    walkSections(page, (section) => {
+      for (const raw of section.wikilinks) collect(raw);
     });
 
     page.wikilinks = [...resolvedPage].sort();
@@ -140,7 +144,7 @@ export function linkTree(pages: PageEntry[]): TreeCache {
   }
 
   return {
-    schema_version: "1",
+    schema_version: CACHE_SCHEMA_VERSION,
     pages,
     by_alias: sortedRecord(byAlias),
     by_tag: sortedRecord(
@@ -153,9 +157,16 @@ function sortedRecord<T>(record: Record<string, T>): Record<string, T> {
   return Object.fromEntries(Object.entries(record).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
 }
 
-export function buildPage(vaultPath: string, filePath: string): PageEntry {
+export function buildPage(vaultPath: string, filePath: string): PageEntry | null {
   const id = toPageId(vaultPath, filePath);
-  const st = statSync(filePath);
+  let st: ReturnType<typeof statSync>;
+  try {
+    st = statSync(filePath);
+  } catch (err) {
+    // Deleted between directory walk and stat — treat as removed, not fatal.
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw err;
+  }
   const fallbackTitle = basename(filePath, ".md");
   const base: PageEntry = {
     id,
@@ -173,6 +184,11 @@ export function buildPage(vaultPath: string, filePath: string): PageEntry {
 
   const content = readWikiFileNoFollow(filePath);
   if (content === null) {
+    // A null read means oversize/unreadable OR the file was deleted between
+    // the stat above and this read. Re-check existence: a now-missing file is
+    // "removed" (return null, matching the stat-time ENOENT branch) rather
+    // than a phantom page with empty sections.
+    if (!existsSync(filePath)) return null;
     const reason = st.size > MAX_FILE_BYTES ? `exceeds ${MAX_FILE_BYTES} bytes` : "unreadable";
     process.stderr.write(`warning: skipping body of ${id}: ${reason}\n`);
     return base;
@@ -219,5 +235,13 @@ export function buildPage(vaultPath: string, filePath: string): PageEntry {
     };
   };
   base.sections = parsed.map(convert);
+
+  // Wikilinks before the first heading (or anywhere on a heading-free page)
+  // belong to no section; capture them so linkTree still resolves them.
+  const firstHeadingLine = parsed[0]?.line_range[0];
+  const preamble = parseWikilinks(body)
+    .filter((l) => firstHeadingLine === undefined || l.line < firstHeadingLine)
+    .map((l) => l.target);
+  if (preamble.length > 0) base.preamble_wikilinks = preamble;
   return base;
 }

@@ -1,11 +1,16 @@
 import { defineCommand } from "citty";
 import { resolveVaultPath } from "../lib/vault";
+import { commandArgs } from "../lib/argv";
 import { summarizeAll, summarizeSession } from "../lib/summarizer";
 
 export default defineCommand({
   meta: { name: "summarize", description: "Generate or return a cached session summary" },
-  async run() {
-    const vaultPath = resolveVaultPath(process.cwd());
+  args: {
+    vaultPath: { type: "string", description: "Path to the vault directory", alias: ["p"] },
+  },
+  async run({ args: cittyArgs }) {
+    // || (not ??): a valueless trailing flag parses as "", which must fall back.
+    const vaultPath = cittyArgs.vaultPath || resolveVaultPath(process.cwd());
     const args = commandArgs("summarize");
     const flags = parseFlags(args);
 
@@ -65,7 +70,3 @@ function parseFlags(args: string[]): ParsedFlags {
   return parsed;
 }
 
-function commandArgs(command: string): string[] {
-  const index = process.argv.indexOf(command);
-  return index === -1 ? [] : process.argv.slice(index + 1);
-}

@@ -1,8 +1,10 @@
-import { describe, it, expect, afterEach } from "bun:test";
+import { describe, it, expect, afterEach, spyOn } from "bun:test";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import * as fs from "node:fs";
 import { mkdirSync, writeFileSync, rmSync, symlinkSync } from "node:fs";
-import { buildTree } from "../src/lib/map/builder";
+import { buildPage, buildTree } from "../src/lib/map/builder";
+import { MAX_FILE_BYTES } from "../src/lib/wiki-read";
 import { isValidNodeId, parseNodeId } from "../src/lib/map/node-id";
 
 const vaults: string[] = [];
@@ -126,6 +128,34 @@ describe("buildTree", () => {
     expect(ids).toEqual(["wiki/dup.md#setup", "wiki/dup.md#setup-2", "wiki/dup.md#setup-3"]);
   });
 
+  it("ordinal suffix never collides with a natural '-2' slug", async () => {
+    const vault = makeVault();
+    writeFileSync(join(vault, "wiki", "col.md"), "## Setup\na\n## Setup\nb\n## Setup 2\nc\n");
+    const tree = await buildTree(vault);
+    const ids = tree.pages[0]!.sections.map((s) => s.id);
+    expect(new Set(ids).size).toBe(3);
+    expect(ids).toEqual(["wiki/col.md#setup", "wiki/col.md#setup-2", "wiki/col.md#setup-2-2"]);
+  });
+
+  it("natural '-2' slug arriving first still yields unique IDs", async () => {
+    const vault = makeVault();
+    writeFileSync(join(vault, "wiki", "col2.md"), "## Setup 2\na\n## Setup\nb\n## Setup\nc\n");
+    const tree = await buildTree(vault);
+    const ids = tree.pages[0]!.sections.map((s) => s.id);
+    expect(new Set(ids).size).toBe(3);
+    expect(ids).toEqual(["wiki/col2.md#setup-2", "wiki/col2.md#setup", "wiki/col2.md#setup-3"]);
+  });
+
+  it("positional fallback never collides with a literal section-N heading", async () => {
+    const vault = makeVault();
+    writeFileSync(join(vault, "wiki", "pos.md"), "## ???\na\n## section-1\nb\n");
+    const tree = await buildTree(vault);
+    const ids = tree.pages[0]!.sections.map((s) => s.id);
+    expect(new Set(ids).size).toBe(2);
+    expect(ids[0]).toBe("wiki/pos.md#section-1");
+    expect(ids[1]).toBe("wiki/pos.md#section-1-2");
+  });
+
   it("heading that slugifies to empty falls back to positional ID", async () => {
     const vault = makeVault();
     writeFileSync(join(vault, "wiki", "odd.md"), "## ???\ntext\n");
@@ -150,6 +180,35 @@ describe("buildTree", () => {
     expect(tree.pages.map((p) => p.id)).not.toContain("wiki/linked.md");
   });
 
+  it("buildPage on a file deleted mid-scan returns null instead of throwing", async () => {
+    const vault = makeVault();
+    expect(buildPage(vault, join(vault, "wiki", "ghost.md"))).toBeNull();
+  });
+
+  it("buildPage records a present-but-unreadable (oversize) file as an empty page", async () => {
+    const vault = makeVault();
+    const p = join(vault, "wiki", "big.md");
+    writeFileSync(p, `# Big\n${"x".repeat(MAX_FILE_BYTES + 1)}\n`);
+    const page = buildPage(vault, p);
+    expect(page).not.toBeNull();
+    expect(page!.id).toBe("wiki/big.md");
+    expect(page!.sections).toEqual([]);
+  });
+
+  it("buildPage returns null when the file is gone at read time (statSync ok, read null, not present)", async () => {
+    const vault = makeVault();
+    const p = join(vault, "wiki", "big.md");
+    // Oversize so readWikiFileNoFollow returns null naturally; existsSync
+    // forced false simulates deletion between the stat and the read.
+    writeFileSync(p, `# Big\n${"x".repeat(MAX_FILE_BYTES + 1)}\n`);
+    const spy = spyOn(fs, "existsSync").mockReturnValue(false);
+    try {
+      expect(buildPage(vault, p)).toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it("empty wiki returns empty tree", async () => {
     const vault = makeVault();
     const tree = await buildTree(vault);
@@ -172,6 +231,30 @@ describe("buildTree", () => {
     // Sections keep raw targets; resolution is recomputed by linkTree.
     expect(page.sections[0]!.wikilinks).toEqual(["../etc/passwd", "/abs/path", "nonexistent"]);
     expect(page.wikilinks).toEqual([]);
+  });
+
+  it("heading-free pages contribute their wikilinks to the graph", async () => {
+    const vault = makeVault();
+    writeFileSync(join(vault, "wiki", "stub.md"), "just a pointer to [[target]]\n");
+    writeFileSync(join(vault, "wiki", "target.md"), "# Target\nbody\n");
+    const tree = await buildTree(vault);
+    const stub = tree.pages.find((p) => p.id === "wiki/stub.md")!;
+    const target = tree.pages.find((p) => p.id === "wiki/target.md")!;
+    expect(stub.wikilinks).toEqual(["wiki/target.md"]);
+    expect(target.backlinks).toEqual(["wiki/stub.md"]);
+  });
+
+  it("preamble wikilinks before the first heading resolve without duplicating section links", async () => {
+    const vault = makeVault();
+    writeFileSync(
+      join(vault, "wiki", "pre.md"),
+      "preamble link [[target]] and [[ghost-page]]\n# Pre\nbody [[target]]\n"
+    );
+    writeFileSync(join(vault, "wiki", "target.md"), "# Target\nbody\n");
+    const tree = await buildTree(vault);
+    const pre = tree.pages.find((p) => p.id === "wiki/pre.md")!;
+    expect(pre.wikilinks).toEqual(["wiki/target.md"]);
+    expect(pre.unresolved_wikilinks).toContain("ghost-page");
   });
 
   it("duplicate alias across pages: first page in path order wins", async () => {

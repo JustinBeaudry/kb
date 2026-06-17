@@ -4,9 +4,7 @@ import { writeTextAtomic } from "../atomic-write";
 import { withExclusiveLock } from "../lockfile";
 import { assertGenuineScopeDir } from "../path-safety";
 import { buildPage, linkTree, listWikiFiles, toPageId } from "./builder";
-import type { PageEntry, TreeCache } from "./types";
-
-const CACHE_SCHEMA_VERSION = "1";
+import { CACHE_SCHEMA_VERSION, type PageEntry, type TreeCache } from "./types";
 
 function indexDir(vaultPath: string): string {
   return join(vaultPath, ".kb", "index");
@@ -74,7 +72,18 @@ export async function loadOrBuildTree(vaultPath: string): Promise<TreeCache> {
     const id = toPageId(vaultPath, file);
     const prior = cachedById.get(id);
     if (prior !== undefined) {
-      const st = statSync(file);
+      let st: ReturnType<typeof statSync> | null = null;
+      try {
+        st = statSync(file);
+      } catch (err) {
+        // Deleted between walk and stat — treat as removed.
+        if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+      }
+      if (st === null) {
+        cachedById.delete(id);
+        changed = true;
+        continue;
+      }
       if (st.size === prior.size && Math.trunc(st.mtimeMs) === prior.mtime_ms) {
         pages.push(prior);
         cachedById.delete(id);
@@ -82,7 +91,8 @@ export async function loadOrBuildTree(vaultPath: string): Promise<TreeCache> {
       }
       cachedById.delete(id);
     }
-    pages.push(buildPage(vaultPath, file));
+    const page = buildPage(vaultPath, file);
+    if (page !== null) pages.push(page);
     changed = true;
   }
   // Anything left in cachedById was removed from disk.

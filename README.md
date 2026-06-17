@@ -117,6 +117,8 @@ Toggle session-start nudge: `/kb:extract on` or `/kb:extract off`.
 | `kb summarize <manifest>` | Generate or reuse a cached session summary |
 | `kb summaries pin\|unpin` | Pin or unpin a cached summary |
 
+All commands accept `--vault-path <dir>` (alias `-p <dir>`) to target a vault explicitly, overriding `KB_VAULT` and per-project `.kb` files.
+
 ## Trust boundary
 
 Vault content is two-tier:

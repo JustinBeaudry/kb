@@ -57,36 +57,87 @@ export async function isVaultRegistered(vaultPath: string): Promise<boolean> {
 }
 
 /**
+ * Parse qmd search output into wiki-relative page IDs. Tokens are normalized
+ * (./ stripped, wiki/ prefix injected when absent) and validated against the
+ * node-ID grammar so external output can never smuggle paths outside wiki/.
+ */
+export function parseQmdOutput(output: string, topK = 5): string[] {
+  const seen = new Set<string>();
+  for (const line of output.split("\n")) {
+    const m = line.match(/(\S+\.md)\b/);
+    if (!m) continue;
+    const token = m[1]!.replace(/^\.\//, "");
+    const wikiIdx = token.indexOf("wiki/");
+    const id = wikiIdx >= 0 ? token.slice(wikiIdx) : `wiki/${token}`;
+    if (!isValidNodeId(id)) continue;
+    seen.add(id);
+    if (seen.size >= topK) break;
+  }
+  return [...seen];
+}
+
+const QMD_SEARCH_TIMEOUT_MS = 2500;
+
+/**
  * Best-effort candidate hints from qmd search. Returns wiki-relative page IDs
- * parsed from the output, or null when qmd is absent or the call fails —
- * callers treat null as "no hints" and never surface an error.
+ * parsed from the output, or null when qmd is absent, fails, or exceeds the
+ * deadline — callers treat null as "no hints" and never surface an error.
+ * The deadline races the COMBINED stdout read + exit so verbose output that
+ * fills the pipe buffer cannot deadlock the command.
  */
 export async function qmdSearchHints(query: string, topK = 5): Promise<string[] | null> {
   if (!isQmdOnPath()) return null;
 
   try {
     const proc = Bun.spawn(["qmd", "search", query], {
+      stdin: "ignore",
       stdout: "pipe",
       stderr: "ignore",
     });
-    const output = await new Response(proc.stdout).text();
-    const exitCode = await proc.exited;
-    if (exitCode !== 0) return null;
+    // Read stdout through a reader we own so the timeout path can cancel our
+    // end of the pipe — Response(...).text() would lock the stream and leave
+    // nothing to cancel.
+    const reader = proc.stdout.getReader();
+    const decoder = new TextDecoder();
+    let output = "";
+    const readAll = (async () => {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        output += decoder.decode(value, { stream: true });
+      }
+      output += decoder.decode();
+    })();
+    readAll.catch(() => {});
+    const completion = Promise.all([readAll, proc.exited]);
+    completion.catch(() => {});
 
-    const ids: string[] = [];
-    for (const line of output.split("\n")) {
-      const m = line.match(/(\S+\.md)\b/);
-      if (!m) continue;
-      // Normalize to a wiki-relative page ID and validate against the node-ID
-      // grammar so hints can never smuggle paths outside wiki/.
-      const token = m[1]!.replace(/^\.\//, "");
-      const wikiIdx = token.indexOf("wiki/");
-      const id = wikiIdx >= 0 ? token.slice(wikiIdx) : `wiki/${token}`;
-      if (!isValidNodeId(id)) continue;
-      if (!ids.includes(id)) ids.push(id);
-      if (ids.length >= topK) break;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<null>((resolve) => {
+      timer = setTimeout(() => resolve(null), QMD_SEARCH_TIMEOUT_MS);
+    });
+    // try/finally so the deadline timer is cleared on every exit path —
+    // including when the completion chain rejects and throws past this point
+    // into the outer catch. A leaked pending timer would otherwise keep the
+    // event loop (and the CLI process) alive until it fires.
+    try {
+      const winner = await Promise.race([completion.then(() => true as const), deadline]);
+      if (winner === null) {
+        // SIGKILL, not SIGTERM: a qmd that traps TERM would survive and keep
+        // running. Cancelling the reader closes our end of the stdout pipe so
+        // neither the killed child nor an orphaned grandchild that inherited
+        // the pipe can keep the CLI process alive.
+        proc.kill("SIGKILL");
+        await reader.cancel().catch(() => {});
+        proc.unref();
+        return null;
+      }
+      const exitCode = await proc.exited;
+      if (exitCode !== 0) return null;
+      return parseQmdOutput(output, topK);
+    } finally {
+      clearTimeout(timer);
     }
-    return ids;
   } catch {
     return null;
   }

@@ -113,6 +113,114 @@ describe("map command", () => {
     expect(JSON.stringify(env.policy.suggestions ?? [])).toContain("kb map");
   });
 
+  it("section-only candidates under tight budget fall back to parent pages, never a silent empty envelope", async () => {
+    const vault = makeVault();
+    rmSync(join(vault, "wiki", "auth.md"));
+    rmSync(join(vault, "wiki", "deploy.md"));
+    for (let i = 0; i < 35; i++) {
+      writeFileSync(
+        join(vault, "wiki", `widget-${String(i).padStart(2, "0")}.md`),
+        `# Page ${i}\n\n## Match zzz-heading ${i}\nbody text\n`
+      );
+    }
+    const { stdout, exitCode } = await run(vault, ["zzz-heading", "--budget", "1024"]);
+    expect(exitCode).toBe(0);
+    expect(new TextEncoder().encode(stdout).length).toBeLessThanOrEqual(1024);
+    const env = parseEnvelope(stdout);
+    // The fix: parent pages stand in for section candidates under pressure.
+    expect(env.chunks.length).toBeGreaterThan(0);
+    for (const c of env.chunks) expect(c.node_kind).toBe("page");
+    expect(env.policy.map_tier === 2 || env.policy.map_tier === 3).toBe(true);
+  });
+
+  it("section-only candidates whose parent pages fit return an exact tier-2 envelope", async () => {
+    const vault = makeVault();
+    rmSync(join(vault, "wiki", "auth.md"));
+    rmSync(join(vault, "wiki", "deploy.md"));
+    for (let i = 0; i < 5; i++) {
+      writeFileSync(
+        join(vault, "wiki", `widget-${i}.md`),
+        `# Page ${i}\n\n## Match zzz-heading ${i}\nbody text\n`
+      );
+    }
+    const { stdout, exitCode } = await run(vault, ["zzz-heading", "--budget", "1500"]);
+    expect(exitCode).toBe(0);
+    const env = parseEnvelope(stdout);
+    expect(env.policy.map_tier).toBe(2);
+    expect(env.chunks.length).toBe(5);
+    for (const c of env.chunks) expect(c.node_kind).toBe("page");
+  });
+
+  it("mixed candidate set under tight budget represents section pages alongside the page chunk", async () => {
+    const vault = makeVault();
+    rmSync(join(vault, "wiki", "auth.md"));
+    rmSync(join(vault, "wiki", "deploy.md"));
+    // One page matches by exact title (-> page chunk). 40 zone pages match
+    // only by heading (-> section chunks). The candidate cap (30) truncates
+    // the lexical bucket, so most zone parents never become page candidates
+    // on their own. Pre-fix, the single hub page tripped the
+    // `pages.length === 0` gate and every orphan section page was dropped at
+    // tier-2; post-fix their parents are derived unconditionally.
+    writeFileSync(join(vault, "wiki", "hub.md"), "# match-me\n\nthe hub page\n");
+    for (let i = 0; i < 40; i++) {
+      writeFileSync(
+        join(vault, "wiki", `zone-${String(i).padStart(2, "0")}.md`),
+        `# Zone ${i}\n\n## match-me area ${i}\nbody text here\n`
+      );
+    }
+    // Budget sized so the derived page tier (hub + ~28 orphan zone parents)
+    // fits at tier-2; the bug pre-fix was that those parents never appeared.
+    const { stdout, exitCode } = await run(vault, ["match-me", "--budget", "6000"]);
+    expect(exitCode).toBe(0);
+    const env = parseEnvelope(stdout);
+    expect(env.policy.map_tier).toBe(2);
+    for (const c of env.chunks) expect(c.node_kind).toBe("page");
+    const ids = env.chunks.map((c) => c.node_id);
+    expect(ids).toContain("wiki/hub.md");
+    // Many orphan zone parents (section candidates, not their own page candidates).
+    expect(ids.filter((id) => id?.startsWith("wiki/zone-")).length).toBeGreaterThan(1);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("does not double-add a page that is both a page candidate and a section candidate's parent", async () => {
+    const vault = makeVault();
+    rmSync(join(vault, "wiki", "auth.md"));
+    rmSync(join(vault, "wiki", "deploy.md"));
+    // hub matches by title (page chunk) AND has a matching section heading
+    // (section chunk for the same page) — exercises the seen.has() dedup guard.
+    writeFileSync(join(vault, "wiki", "hub.md"), "# match-me\n\n## match-me subsection\nbody\n");
+    for (let i = 0; i < 40; i++) {
+      writeFileSync(
+        join(vault, "wiki", `zone-${String(i).padStart(2, "0")}.md`),
+        `# Zone ${i}\n\n## match-me area ${i}\nbody text here\n`
+      );
+    }
+    const { stdout, exitCode } = await run(vault, ["match-me", "--budget", "6000"]);
+    expect(exitCode).toBe(0);
+    const env = parseEnvelope(stdout);
+    const ids = env.chunks.map((c) => c.node_id);
+    // hub.md present exactly once despite matching as both page and section.
+    expect(ids.filter((id) => id === "wiki/hub.md").length).toBe(1);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("when fitting drops every chunk the envelope still signals truncation and suggestions", async () => {
+    const vault = makeVault();
+    rmSync(join(vault, "wiki", "auth.md"));
+    rmSync(join(vault, "wiki", "deploy.md"));
+    for (let i = 0; i < 35; i++) {
+      writeFileSync(
+        join(vault, "wiki", `widget-${String(i).padStart(2, "0")}.md`),
+        `# Page ${i}\n\n## Match zzz-heading ${i}\nbody text\n`
+      );
+    }
+    const { stdout, exitCode } = await run(vault, ["zzz-heading", "--budget", "420"]);
+    expect(exitCode).toBe(0);
+    const env = parseEnvelope(stdout);
+    expect(env.policy.truncated).toBe(true);
+    expect((env.policy.suggestions ?? []).length).toBeGreaterThan(0);
+  });
+
   it("a 50-page/150-section vault fits tier 1-2 within the 16 KiB default", async () => {
     const vault = makeVault();
     rmSync(join(vault, "wiki", "auth.md"));
