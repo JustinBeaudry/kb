@@ -2,7 +2,12 @@ import { describe, it, expect, afterEach } from "bun:test";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { chmodSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { parseQmdOutput, qmdSearchHints } from "../src/lib/qmd";
+import {
+  parseQmdCollectionList,
+  parseQmdCollectionShow,
+  parseQmdOutput,
+  qmdSearchHints,
+} from "../src/lib/qmd";
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -69,6 +74,125 @@ describe("parseQmdOutput", () => {
   it("returns empty for garbage or empty output", () => {
     expect(parseQmdOutput("", 5)).toEqual([]);
     expect(parseQmdOutput("no markdown paths here\n", 5)).toEqual([]);
+  });
+});
+
+describe("parseQmdCollectionList", () => {
+  it("extracts names from the block format and skips the header and detail lines", () => {
+    const output = [
+      "Collections (3):",
+      "",
+      "wiki (qmd://wiki/)",
+      "  Pattern:  **/*.md",
+      "  Files:    0",
+      "  Updated:  0s ago",
+      "",
+      "cairn (qmd://cairn/)",
+      "  Pattern:  **/*.md",
+      "  Files:    70",
+      "  Updated:  81d ago",
+      "",
+      "kb (qmd://kb/)",
+      "  Pattern:  **/*.md",
+      "  Files:    22",
+      "  Updated:  20m ago",
+      "",
+    ].join("\n");
+    expect(parseQmdCollectionList(output).map((c) => c.name)).toEqual(["wiki", "cairn", "kb"]);
+  });
+
+  it("extracts names from a flat 'name path' format", () => {
+    expect(parseQmdCollectionList("kb /some/vault\nwiki /other\n").map((c) => c.name)).toEqual([
+      "kb",
+      "wiki",
+    ]);
+  });
+
+  it("returns empty for empty or comment-only output", () => {
+    expect(parseQmdCollectionList("")).toEqual([]);
+    expect(parseQmdCollectionList("# nothing here\n")).toEqual([]);
+  });
+});
+
+describe("parseQmdCollectionShow", () => {
+  it("extracts the filesystem path from the Path: line", () => {
+    const output = [
+      "Collection: kb",
+      "  Path:     /Users/someone/Projects/thing/kb",
+      "  Pattern:  **/*.md",
+      "  Include:  yes (default)",
+    ].join("\n");
+    expect(parseQmdCollectionShow(output)).toBe("/Users/someone/Projects/thing/kb");
+  });
+
+  it("returns null when no Path line is present", () => {
+    expect(parseQmdCollectionShow("Collection: kb\n  Pattern: **/*.md\n")).toBeNull();
+    expect(parseQmdCollectionShow("")).toBeNull();
+  });
+});
+
+// isVaultRegistered is exercised in a child process for the same PATH-control
+// reason as runHints below.
+async function runIsVaultRegistered(pathDirs: string, vaultPath: string): Promise<boolean> {
+  const proc = Bun.spawn(
+    [
+      process.execPath,
+      "-e",
+      `const { isVaultRegistered } = await import("./src/lib/qmd"); process.stdout.write(JSON.stringify(await isVaultRegistered(${JSON.stringify(vaultPath)})));`,
+    ],
+    {
+      stdout: "pipe",
+      stderr: "pipe",
+      env: { ...process.env, PATH: `${pathDirs}:/usr/bin:/bin` },
+    }
+  );
+  const stdout = await new Response(proc.stdout).text();
+  const exitCode = await proc.exited;
+  if (exitCode !== 0) throw new Error(`runIsVaultRegistered child exited ${exitCode}: ${stdout}`);
+  return JSON.parse(stdout);
+}
+
+function installFakeQmdWithCollections(collectionPath: string): string {
+  return installFakeQmd(
+    [
+      'if [ "$1" = "collection" ] && [ "$2" = "list" ]; then',
+      '  echo "Collections (1):"',
+      '  echo ""',
+      '  echo "kb (qmd://kb/)"',
+      '  echo "  Pattern:  **/*.md"',
+      '  echo "  Files:    22"',
+      'elif [ "$1" = "collection" ] && [ "$2" = "show" ] && [ "$3" = "kb" ]; then',
+      '  echo "Collection: kb"',
+      `  echo "  Path:     ${collectionPath}"`,
+      "else",
+      "  exit 1",
+      "fi",
+    ].join("\n")
+  );
+}
+
+describe("isVaultRegistered", () => {
+  it("matches a vault whose path appears in qmd collection show", async () => {
+    const vault = join(tmpdir(), `kb-vault-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(vault, { recursive: true });
+    dirs.push(vault);
+    const shim = installFakeQmdWithCollections(vault);
+    expect(await runIsVaultRegistered(shim, vault)).toBe(true);
+  });
+
+  it("does not match a collection registered over a different path, even with the expected name", async () => {
+    const shim = installFakeQmdWithCollections("/somewhere/else/entirely");
+    const vault = join(tmpdir(), `kb-vault-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(vault, { recursive: true });
+    dirs.push(vault);
+    expect(await runIsVaultRegistered(shim, vault)).toBe(false);
+  });
+
+  it("returns false when qmd is absent from PATH", async () => {
+    const empty = join(tmpdir(), `kb-empty-path-${Date.now()}`);
+    mkdirSync(empty, { recursive: true });
+    dirs.push(empty);
+    expect(await runIsVaultRegistered(empty, "/any/vault")).toBe(false);
   });
 });
 
