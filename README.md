@@ -1,15 +1,29 @@
 # KB
 
-A persistent memory plugin for Claude Code. Markdown vault maintained by
-your agent across sessions. Based on [Karpathy's LLM Wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
+KB creates a local, Markdown knowledge base and index for Claude Code and for
+you. The vault is human-readable because it is just Obsidian-compatible
+Markdown: open it in Obsidian to browse pages, wikilinks, backlinks, the graph,
+and the categorized index. It is machine-readable because agents retrieve the
+same knowledge through bounded CLI commands that return structured JSON
+envelopes with source attribution, node IDs, and line ranges.
+
+Based on [Karpathy's LLM Wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
 
 ## What it does
 
-- **SessionStart hook** injects vault context — a compact pointer by default
+- **Markdown vault** scaffolds `KB.md`, `context.md`, `index.md`, `log.md`,
+  `wiki/`, `raw/`, and `sessions/` as a local knowledge base you can inspect
+  directly
+- **Human-readable index** keeps curated wiki pages connected through
+  Obsidian-style wikilinks, frontmatter, backlinks, and a categorized
+  `index.md`
+- **Machine-readable index** exposes `kb map` and `kb get-node` for
+  budget-bounded tree navigation over pages and sections
+- **SessionStart hook** injects vault context: a compact pointer by default
   (lazy mode), or the working set, index, and recent session summaries in
   eager mode
 - **Stop hook** writes a small session manifest when you finish working
-- **PostCompact hook** re-injects vault context after compaction (solves compaction amnesia)
+- **PostCompact hook** re-injects vault context after compaction
 - **Trust boundary** separates curated knowledge (`wiki/`) from untrusted
   content (`raw/`, `sessions/`), with sanctioned CLI commands for each tier
 - **KB.md template** teaches Claude to ingest sources, answer queries, and lint your vault
@@ -36,14 +50,16 @@ Prefer not to pipe to a shell? Download the archive for your OS/arch from the
 against `checksums.txt`, extract the `kb` binary, and move it onto your PATH.
 (Windows: grab the `.zip`.)
 
-Then scaffold the vault:
+Then scaffold a new vault:
 
 ```bash
 kb init
 ```
 
-Scaffolds `~/kb` with the vault structure. `init` does not touch Claude Code
-configuration — hooks ship with the KB plugin:
+Scaffolds `~/kb` with the vault structure. You can open this folder directly
+as an Obsidian vault; KB does not require Obsidian, but the files are designed
+to read well there. `init` does not touch Claude Code configuration — hooks
+ship with the KB plugin:
 
 ```bash
 claude plugin marketplace add JustinBeaudry/kb
@@ -60,6 +76,10 @@ not.
 kb init --vault-path /path/to/vault
 ```
 
+`kb init` intentionally refuses to initialize inside an existing Obsidian vault.
+Create a new KB vault, then open that folder in Obsidian if you want a human UI
+over the same files.
+
 ### Per-project vault
 
 Create a `.kb` file in your project root containing the vault path:
@@ -67,6 +87,17 @@ Create a `.kb` file in your project root containing the vault path:
 ```
 /path/to/project/vault
 ```
+
+## Knowledge model
+
+KB has two audiences for the same data:
+
+- **Humans** read and edit Markdown. `wiki/` contains typed knowledge pages,
+  `index.md` is the browsable topic index, `context.md` is the active working
+  set, and wikilinks/backlinks make the vault useful in Obsidian.
+- **Agents and tools** read bounded envelopes. `kb map` builds a structural map
+  of the wiki, `kb get-node` fetches exact page or section evidence by node ID,
+  and `kb recall`/`kb get` provide plain-text fallback retrieval.
 
 ## Usage
 
@@ -153,10 +184,12 @@ Vault content is two-tier:
   in non-interactive use).
 
 All retrieval commands emit a length-prefixed JSON envelope with source
-attribution, and access is recorded in `.kb/access-log.jsonl` with hashed
-queries — never plaintext. The plugin ships deny rules that block direct
-Read/Grep of `raw/` and `sessions/`, plus a `security-self-test` hook that
-detects when those rules regress.
+attribution. Tree-navigation commands also include `node_id`, `heading_path`,
+and `node_kind` fields so agents can move from a compact map to exact
+evidence. Access is recorded in `.kb/access-log.jsonl` with hashed queries —
+never plaintext. The plugin ships deny rules that block direct Read/Grep of
+`raw/` and `sessions/`, plus a `security-self-test` hook that detects when
+those rules regress.
 
 ## Page types
 
@@ -186,6 +219,7 @@ Each type has a structural template defined in KB.md with recommended sections.
     summaries/    # Cached summaries from manifests
     .trash/       # Non-destructive quarantine for replaced summaries
   .kb/            # Operational state (not knowledge)
+    index/         # Cached machine-readable tree for kb map/get-node
     state.json    #   toggles (e.g. autoExtractNudge)
     config.json   #   inject_mode and other settings
     *.jsonl       #   access and inject logs, hashed queries only
@@ -198,7 +232,8 @@ The inject hook has three modes, resolved in priority order:
 
 - **`lazy`** — the default written to `.kb/config.json` on fresh installs. Injects
   a ~500-byte pointer (vault location, topic headings, retrieval commands);
-  the agent pulls content on demand via `kb recall`/`kb get`.
+  the agent pulls content on demand via `kb map`, `kb get-node`, `kb recall`,
+  and `kb get`.
 - **`eager`** — the fallback for vaults without a config. Injects content
   directly under a 32KB budget (configurable via `KB_BUDGET`), in priority
   order:
