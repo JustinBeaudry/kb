@@ -1,0 +1,5 @@
+Lets update the README based on any changes as we see fit, to make it reflect reality, and also emphasize that KB creates a human and machine readable knowledge base and index. Its human readable as it can be opened in Obsidian.
+
+---
+
+Is this pushed to main now?
