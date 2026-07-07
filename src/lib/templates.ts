@@ -1,13 +1,10 @@
 // src/lib/templates.ts
-import { readFileSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const TEMPLATES_DIR = join(__dirname, "..", "..", "templates");
+// KB.md is embedded at build time (Bun text import) rather than read from a
+// path relative to this file, so compiled single-file binaries ship it too.
+import kbMdTemplate from "../../templates/KB.md" with { type: "text" };
 
 export function getKbMdTemplate(): string {
-  return readFileSync(join(TEMPLATES_DIR, "KB.md"), "utf-8");
+  return kbMdTemplate;
 }
 
 export const INDEX_MD_STUB = `# Vault Index

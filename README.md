@@ -16,10 +16,30 @@ your agent across sessions. Based on [Karpathy's LLM Wiki pattern](https://gist.
 
 ## Install
 
-Requires [Bun](https://bun.sh) — the CLI and hooks run TypeScript directly.
+Download the prebuilt `kb` binary for your platform, verify its checksum, and
+put it on your PATH — one command:
 
 ```bash
-bunx @beaudry/kb init
+curl -fsSL https://raw.githubusercontent.com/JustinBeaudry/kb/main/install.sh | sh
+```
+
+Installs to `/usr/local/bin` (falling back to `~/.local/bin` if that isn't
+writable). Pin a version or change the location with env vars:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/JustinBeaudry/kb/main/install.sh \
+  | KB_VERSION=0.7.0 KB_INSTALL_DIR="$HOME/bin" sh
+```
+
+Prefer not to pipe to a shell? Download the archive for your OS/arch from the
+[Releases page](https://github.com/JustinBeaudry/kb/releases), verify it
+against `checksums.txt`, extract the `kb` binary, and move it onto your PATH.
+(Windows: grab the `.zip`.)
+
+Then scaffold the vault:
+
+```bash
+kb init
 ```
 
 Scaffolds `~/kb` with the vault structure. `init` does not touch Claude Code
@@ -30,12 +50,14 @@ claude plugin marketplace add JustinBeaudry/kb
 claude plugin install kb@kb
 ```
 
-Safe to run `init` again — idempotent.
+Safe to run `init` again — idempotent. The plugin's hooks run TypeScript
+directly and require [Bun](https://bun.sh); the standalone `kb` binary does
+not.
 
 ### Custom vault path
 
 ```bash
-bunx @beaudry/kb init --vault-path /path/to/vault
+kb init --vault-path /path/to/vault
 ```
 
 ### Per-project vault
@@ -228,11 +250,12 @@ or custom integrations, set `KB_SUMMARIZE_COMMAND` to a compatible command.
 ## Uninstall
 
 ```bash
-bunx @beaudry/kb uninstall
+kb uninstall
 ```
 
 Prints the plugin-removal command (`claude plugin remove kb`). Your vault is
-preserved either way.
+preserved either way. To remove the binary itself, delete it from wherever
+the installer placed it (`/usr/local/bin/kb` or `~/.local/bin/kb`).
 
 ## License
 
