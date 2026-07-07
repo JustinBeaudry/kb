@@ -1,0 +1,88 @@
+name: Release
+
+# Tag push (kb uses un-prefixed tags: 0.7.0) → build prebuilt binaries for
+# every supported platform, package them with checksums, and publish a GitHub
+# release. install.sh resolves the latest release via the GitHub API and
+# verifies downloads against checksums.txt, so this workflow is the single
+# distribution channel for the CLI.
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: build & publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Verify tag matches package.json version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(bun -e 'console.log(require("./package.json").version)')"
+          if [ "$tag" != "$pkg" ]; then
+            echo "tag $GITHUB_REF_NAME does not match package.json version $pkg" >&2
+            exit 1
+          fi
+
+      - name: Gate (typecheck + tests)
+        run: bun run lint && bun test
+
+      - name: Build binaries
+        run: |
+          set -eu
+          version="${GITHUB_REF_NAME#v}"
+          mkdir -p dist/release
+          # target|os|arch|binary-name
+          for spec in \
+            "bun-linux-x64|linux|amd64|kb" \
+            "bun-linux-arm64|linux|arm64|kb" \
+            "bun-darwin-x64|darwin|amd64|kb" \
+            "bun-darwin-arm64|darwin|arm64|kb" \
+            "bun-windows-x64|windows|amd64|kb.exe"; do
+            target="${spec%%|*}"; rest="${spec#*|}"
+            os="${rest%%|*}"; rest="${rest#*|}"
+            arch="${rest%%|*}"; bin="${rest#*|}"
+            out="dist/${os}_${arch}"
+            mkdir -p "$out"
+            bun build --compile --minify --target="$target" src/cli.ts --outfile "$out/$bin"
+            cp LICENSE README.md "$out/"
+            name="kb_${version}_${os}_${arch}"
+            if [ "$os" = "windows" ]; then
+              (cd "$out" && zip -q "../release/${name}.zip" "$bin" LICENSE README.md)
+            else
+              tar -czf "dist/release/${name}.tar.gz" -C "$out" "$bin" LICENSE README.md
+            fi
+          done
+          (cd dist/release && sha256sum ./* | sed 's|\./||' > checksums.txt)
+
+      - name: Smoke-test the linux binary
+        run: |
+          ./dist/linux_amd64/kb --help >/dev/null
+          vault="$(mktemp -d)"
+          ./dist/linux_amd64/kb init --vault-path "$vault"
+          test -s "$vault/KB.md"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/release/* \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            --notes "SHA-256 checksums are in \`checksums.txt\`. Install with \`curl -fsSL https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/install.sh | sh\`."

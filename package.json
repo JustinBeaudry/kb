@@ -1,6 +1,7 @@
 {
   "name": "@beaudry/kb",
-  "version": "0.6.1",
+  "version": "0.7.0",
+  "private": true,
   "type": "module",
   "description": "A persistent memory plugin for Claude Code",
   "license": "MIT",
@@ -23,16 +24,6 @@
   ],
   "bin": {
     "kb": "bin/kb.mjs"
-  },
-  "files": [
-    "bin",
-    "src",
-    "templates",
-    "README.md",
-    "LICENSE"
-  ],
-  "publishConfig": {
-    "access": "public"
   },
   "scripts": {
     "dev": "bun run src/cli.ts",

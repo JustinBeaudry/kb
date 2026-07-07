@@ -1,7 +1,10 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
+// package.json is inlined at build time (Bun JSON import), so compiled
+// binaries carry the right version and it can never drift from the release.
+import pkg from "../../package.json";
 
-export const VERSION = "0.6.0";
+export const VERSION: string = pkg.version;
 export const DEFAULT_VAULT_PATH = join(homedir(), "kb");
 export const KB_DIR = ".kb";
 export const STATE_FILE = ".kb/state.json";
