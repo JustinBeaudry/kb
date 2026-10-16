@@ -1,0 +1,39 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "20f229dcf27d",
+  "strategy": "manual-commit",
+  "branch": "feat/portable-agent-workflows",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/commands/get-node.ts",
+    "src/commands/get.ts",
+    "src/commands/list-topics.ts",
+    "src/commands/map.ts",
+    "src/commands/recall.ts",
+    "src/hooks/inject.ts",
+    "src/lib/inject/eager.ts",
+    "src/lib/inject/modes.ts",
+    "src/lib/retrieval.ts",
+    "tests/inject-modes.test.ts",
+    "tests/inject-startup.test.ts",
+    "tests/inject.test.ts",
+    "tests/retrieval-budgets.test.ts",
+    "tests/retrieval-page.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/20/f229dcf27d/0/metadata.json",
+      "transcript": "/20/f229dcf27d/0/full.jsonl",
+      "compact_transcript": "/20/f229dcf27d/0/transcript.jsonl",
+      "content_hash": "/20/f229dcf27d/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1652,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 369664,
+    "output_tokens": 311,
+    "api_call_count": 2
+  }
+}

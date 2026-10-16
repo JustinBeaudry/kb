@@ -1,0 +1,53 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "20f229dcf27d",
+  "session_id": "01a145f5-1fc7-7943-8d9a-8be25c845f06",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-16T19:35:32.332284Z",
+  "branch": "feat/portable-agent-workflows",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/commands/get-node.ts",
+    "src/commands/get.ts",
+    "src/commands/list-topics.ts",
+    "src/commands/map.ts",
+    "src/commands/recall.ts",
+    "src/hooks/inject.ts",
+    "src/lib/inject/eager.ts",
+    "src/lib/inject/modes.ts",
+    "src/lib/retrieval.ts",
+    "tests/inject-modes.test.ts",
+    "tests/inject-startup.test.ts",
+    "tests/inject.test.ts",
+    "tests/retrieval-budgets.test.ts",
+    "tests/retrieval-page.test.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-6-astra",
+  "turn_id": "1c4aeb6da5cc",
+  "checkpoint_transcript_start": 1728,
+  "transcript_lines_at_start": 1728,
+  "compact_transcript_start": 195,
+  "token_usage": {
+    "input_tokens": 1652,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 369664,
+    "output_tokens": 311,
+    "api_call_count": 2
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-16T19:35:32.15624Z",
+    "agent_lines": 991,
+    "agent_removed": 133,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 991,
+    "total_lines_changed": 1124,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}
