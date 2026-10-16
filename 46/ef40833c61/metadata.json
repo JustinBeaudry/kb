@@ -1,0 +1,45 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "46ef40833c61",
+  "strategy": "manual-commit",
+  "branch": "feat/portable-agent-workflows",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "README.md",
+    "commands/extract.md",
+    "commands/ingest.md",
+    "commands/lint.md",
+    "commands/query.md",
+    "commands/refine.md",
+    "skills/extract/SKILL.md",
+    "skills/kb/SKILL.md",
+    "skills/kb/references/ingest.md",
+    "skills/kb/references/maintenance.md",
+    "skills/kb/references/query.md",
+    "skills/kb/references/sessions.md",
+    "skills/refine/SKILL.md",
+    "src/cli.ts",
+    "src/commands/capture-session.ts",
+    "src/commands/init.ts",
+    "src/lib/qmd.ts",
+    "templates/KB.md",
+    "tests/docs-contract.test.ts",
+    "tests/skill-contract.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/46/ef40833c61/0/metadata.json",
+      "transcript": "/46/ef40833c61/0/full.jsonl",
+      "compact_transcript": "/46/ef40833c61/0/transcript.jsonl",
+      "content_hash": "/46/ef40833c61/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 408,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 185600,
+    "output_tokens": 148,
+    "api_call_count": 1
+  }
+}
