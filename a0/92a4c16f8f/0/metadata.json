@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "a092a4c16f8f",
+  "session_id": "01a145f5-1fc7-7943-8d9a-8be25c845f06",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-16T20:51:19.744443Z",
+  "branch": "feat/portable-agent-workflows",
+  "checkpoints_count": 3,
+  "save_step_count": 1,
+  "files_touched": [],
+  "agent": "Codex",
+  "model": "gpt-6-astra",
+  "turn_id": "5f8b0ae6ca47",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 1503280,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 43571456,
+    "output_tokens": 170604,
+    "api_call_count": 412
+  },
+  "session_metrics": {
+    "turn_count": 4
+  }
+}
