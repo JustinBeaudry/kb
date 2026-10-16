@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { extractExcerpt } from "../src/lib/excerpt";
+import { decodeTranscriptLine } from "../src/lib/transcript";
 
 interface TranscriptCase {
   name: string;
@@ -50,6 +51,44 @@ const cases = [
     expected: "GENERIC_USER\nGENERIC_ASSISTANT",
   },
 ] satisfies TranscriptCase[];
+
+describe("portable transcript record validation", () => {
+  for (const fixture of [
+    { name: "null", role: null },
+    { name: "numeric", role: 42 },
+  ]) {
+    it(`marks a bare generic message with a ${fixture.name} role as malformed`, () => {
+      const line = JSON.stringify({ role: fixture.role, content: "MALFORMED_TEXT" });
+
+      const decoded = decodeTranscriptLine(line);
+
+      expect(decoded).toEqual({ turn: null, malformed: true });
+    });
+  }
+
+  for (const fixture of [
+    {
+      name: "typed metadata with a numeric role",
+      record: { type: "session_meta", role: 42, content: "IGNORED_TEXT" },
+    },
+    {
+      name: "unrelated metadata with content",
+      record: { kind: "metadata", content: "IGNORED_TEXT" },
+    },
+    {
+      name: "an untyped record without a role",
+      record: { content: "IGNORED_TEXT" },
+    },
+  ]) {
+    it(`ignores ${fixture.name} without inferring a conversation role`, () => {
+      const line = JSON.stringify(fixture.record);
+
+      const decoded = decodeTranscriptLine(line);
+
+      expect(decoded).toEqual({ turn: null, malformed: false });
+    });
+  }
+});
 
 describe("portable transcript excerpts", () => {
   let root: string;

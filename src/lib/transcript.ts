@@ -36,7 +36,10 @@ export function decodeTranscriptLine(line: string): DecodedTranscriptRecord {
     return { turn: null, malformed: false };
   }
 
-  if (record.type === "message" && typeof record.role !== "string") {
+  if (
+    (record.type === "message" || (record.type === undefined && "role" in record)) &&
+    typeof record.role !== "string"
+  ) {
     return { turn: null, malformed: true };
   }
 

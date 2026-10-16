@@ -260,6 +260,16 @@ process.stdout.write(process.env.SUMMARY_FIXTURE_OUTPUT ?? "");
       retainedText: [],
     },
     {
+      name: "bare generic message with a null role",
+      record: { role: null, content: "MALFORMED_TEXT" },
+      retainedText: [],
+    },
+    {
+      name: "bare generic message with a numeric role",
+      record: { role: 42, content: "MALFORMED_TEXT" },
+      retainedText: [],
+    },
+    {
       name: "Claude content block with a missing type",
       record: { type: "user", message: { content: [{ text: "MALFORMED_TEXT" }, { type: "text", text: "RETAINED_BLOCK" }] } },
       retainedText: ["RETAINED_BLOCK"],
@@ -295,6 +305,22 @@ process.stdout.write(process.env.SUMMARY_FIXTURE_OUTPUT ?? "");
       expect(readSummaryFrontmatter(env.summary).data.degraded).toBe(true);
     });
   }
+
+  it("retains degraded status when reusing a cached summary of a malformed bare generic message", async () => {
+    writeSession(env, [
+      { role: null, content: "MALFORMED_TEXT" },
+      { role: "assistant", content: "SURVIVING_TEXT" },
+    ]);
+    const generated = await runSummarize(env);
+    expect(generated.exitCode).toBe(0);
+
+    const cached = await runSummarize(env);
+
+    expect(cached.exitCode).toBe(0);
+    expect(JSON.parse(cached.stdout)).toMatchObject({ cached: true, degraded: true });
+    expect(readSummaryFrontmatter(env.summary).data.degraded).toBe(true);
+    expect(readProviderCalls(env.providerLog)).toHaveLength(1);
+  });
 
   for (const fixture of [
     {
