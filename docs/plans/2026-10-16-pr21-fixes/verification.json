@@ -1,0 +1,154 @@
+{
+  "reviewed_parent": "e58f96e404ba2a013863c00b5e85a337fad4150d",
+  "verification_state": "Final implementation and test bytes are committed at implementation_commit; the source hashes match the tested bytes. This record is added in a later evidence-only commit.",
+  "platform": "darwin",
+  "arch": "arm64",
+  "bun_version": "1.4.3",
+  "regressions": {
+    "fix-generic-red.log": {
+      "passed": 41,
+      "failed": 5,
+      "assertions": 194,
+      "sha256": "b35af0af57094d3b48463c38eeb7b34a5adddc4a2ab4daa0cf5c91d9e114644e"
+    },
+    "fix-relocation-red.log": {
+      "passed": 4,
+      "failed": 1,
+      "assertions": 69,
+      "sha256": "ea6bcc1b42b1b724d08cca8be976f35934ee897a46a2b105ceb899a7fa4de0ec"
+    },
+    "fix-lifecycle-red.log": {
+      "passed": 0,
+      "failed": 2,
+      "assertions": 11,
+      "sha256": "1228ddac71a7ab9589c7fd182344945b5cb2d7418ecf020cc2d9be3a6613f1a4"
+    },
+    "fix-interrupt-red.log": {
+      "passed": 0,
+      "failed": 2,
+      "assertions": 8,
+      "sha256": "a4d82bb2603a04011fde6208fe1a70304d9c447261a4db3b06c1c0e7c868be03"
+    },
+    "fix-full-gate.log": {
+      "passed": 481,
+      "failed": 0,
+      "assertions": 3380,
+      "sha256": "6ba1cb68ad5ca5e189460c978c7767d50686ac7edf3fcbb02eeaf4caf1d68aad",
+      "scope": "Initial integrated fixes, before preventive signal-registration ordering change."
+    }
+  },
+  "stack_gate": {
+    "command": "bun run lint && bun run test",
+    "exit_code": 0,
+    "lint": "strict TypeScript passed",
+    "tests": 481,
+    "failed": 0,
+    "assertions": 3380,
+    "files": 44,
+    "test_elapsed_seconds": 47.41,
+    "raw_log": "fix-final-serial-gate.log",
+    "sha256": "9c93682dbaf0dc5a76f05bab165087e28304c89100299ee2655db5ae0ad9ea23"
+  },
+  "frozen_evaluation": {
+    "passed": 20,
+    "total": 20,
+    "baseline_passed": 5,
+    "evaluator_sha256": "9b6e6a6dc2480e718d7958d21f08c3ad3a2d1b2f83f2e0d592ead24df9866af3",
+    "source_sha256": "aca4862948faa82e6078808f17e087b399e3f8a37dc13ec5424224674c092fe0",
+    "raw_report": "fix-final-evals.json",
+    "sha256": "af564dc912d5b094d84c52b1f052e2179b8abe6bd5aa7ac9c10d80afbbae45a6"
+  },
+  "standalone": {
+    "pass": true,
+    "calls": 28,
+    "conditions": {
+      "PATH": "empty directory",
+      "inherited_credentials": false,
+      "hooks": false,
+      "provider": "local /bin/sh fixture"
+    },
+    "checks": [
+      "compiled CLI help and fresh vault scaffolding",
+      "map/get-node Unicode evidence",
+      "1200-byte retrieval replays all 201 source lines",
+      "generic JSONL capture without Git",
+      "generic executable summarization without external Bun or Claude"
+    ],
+    "raw_report": "fix-final-standalone.json",
+    "sha256": "8108a738a6cbca2efd30c5bcefc3b7883f9500910e1393efcb30a3001a0bb31e"
+  },
+  "routing_smoke": "routing-smoke.json",
+  "correction_file_sha256": {
+    "commands/extract.md": "983741505af70bb5436bfc4f1697d4b2e1d39b778a94251501266fdef58e21c0",
+    "commands/ingest.md": "8f5afc8c9bcfc3edeefcd26d455ed8076377d090edd9cf70898fa75dffa07760",
+    "commands/lint.md": "b3eb6c0263fab909c03ae80d8cbebf3eb0125d61416168f01fe2511d724cec50",
+    "commands/query.md": "e6250bbfcb28844aca8e5a3681785597be63d09ce399a644908eed78dabe4e3f",
+    "commands/refine.md": "2812829d549197ebd48d3f8f133e73b4e522781b25b212417303818ec98b829f",
+    "skills/kb/references/sessions.md": "0a6af8fbc46cc481ddb06a046ab4eb8828809796cf151cc962e92d3f66375438",
+    "src/lib/summarizer.ts": "e9269772ca2e6486f4b2efddfbcbd2db66471b7da63ad59ee8d4bf382bf305f9",
+    "src/lib/transcript.ts": "37519a9bbea904d3508f9375db09a163743e9bb5e14ffd6b5064cd46b2b7bb8f",
+    "tests/skill-contract.test.ts": "916acdff28bdd681514a5fd91b84c4f283f97bce5b7ced736e5e04cf8abb9431",
+    "tests/summarizer-lifecycle.test.ts": "563734f6d0b53c28c10d21822974fe0856586c72a639f4cad9f03a17d4a1c80f",
+    "tests/summarizer-portability.test.ts": "8c9954b8258b9390b3951142b4cce3b07dca5b839e8dd31d5c74c695e5ef2ea0",
+    "tests/transcript-portability.test.ts": "b30784cc3cb92b17747f49845f349f589fe5add1d92571493d8a96fb7990f032"
+  },
+  "limits": [
+    "macOS arm64 execution only; Windows taskkill and Linux process-group branches were reviewed but not run on those systems.",
+    "SIGKILL cannot be intercepted; independently detached provider work and remote work already accepted by a service may outlive the local invocation.",
+    "Navigation smoke is one host and does not establish cross-harness success rates or best-in-class performance."
+  ],
+  "raw_evidence": "Full raw logs remain in the local sibling 2026-10-16-pr21-adversarial-review directory; this report records counts and hashes without adding the complete review dump to the PR.",
+  "compiled_lifecycle_and_recovery": {
+    "platform": "Darwin",
+    "pass": true,
+    "checks": [
+      "compiled empty-PATH wrapper timeout cancels foreground child, no late marker, cached summary preserved",
+      "compiled emitted-JSON recovery creates a fresh capture and summary, original manifest preserved"
+    ],
+    "timeout_return_seconds": 1.039,
+    "raw_report": "fix-final-binary-lifecycle.json",
+    "sha256": "902d538f388ea644ad4b8b12df192995796e2e24a67670ff934c9cd3b1e22f67"
+  },
+  "verification_observations": [
+    {
+      "observation": "One unchanged qmd registration test timed out at 5000 ms in the first final-source full gate.",
+      "raw_log": "fix-final-gate.log",
+      "sha256": "ef60f2271b2925e0396c0e6a0682dad68d40d560198157bf07b826fba2732054",
+      "run": {
+        "passed": 480,
+        "failed": 1,
+        "errors": 1,
+        "assertions": 3379,
+        "seconds": 53.52
+      },
+      "investigation": "qmd implementation/tests were unchanged; immediate focused rerun passed 3/3, ten further focused runs passed 30/30, then the full serial gate passed 481/481. No source, assertion or timeout changes made for this observation; cause remains unconfirmed.",
+      "followup_logs": {
+        "fix-qmd-isolation.log": "9456758036037073d996e1e8940b61a318003f720baa00b144f352f358f5ee57",
+        "fix-qmd-repeated.log": "e0f6eedc3332f031ce4bd93ae6d2951f0722a64c8f25342edfec52ec48fc8c48"
+      }
+    },
+    {
+      "observation": "Fresh review questioned the interval between provider spawn and signal-handler registration.",
+      "investigation": "Twenty immediate provider-to-parent SIGTERM probes before the ordering adjustment produced no surviving markers; all exited with SIGTERM. Registration was still moved before spawn, with listener cleanup on spawn failure, as preventive hardening. Final gates cover that ordering.",
+      "trials": 20,
+      "reproduced": false,
+      "raw_report": "fix-startup-signal-probe.json",
+      "sha256": "85e95657344c01ae0ef762745af6e389ba66fc488fab6a02dc51f334cdeda79d"
+    }
+  ],
+  "review": {
+    "report": "review.md",
+    "confirmed_findings": 0,
+    "unresolved_correction_findings": 0
+  },
+  "implementation_commit": "1768aba372f1d37e2d5a1b435542e793a351ca17",
+  "publication": {
+    "url": "https://github.com/JustinBeaudry/kb/pull/21",
+    "branch": "feat/portable-agent-workflows",
+    "verified_remote_implementation_head": "1768aba372f1d37e2d5a1b435542e793a351ca17",
+    "state": "OPEN",
+    "is_draft": false,
+    "method": "normal git push, followed by gh pr view",
+    "evidence_commit": "This report is added after the verified implementation head; the PR description links its final revision."
+  }
+}
