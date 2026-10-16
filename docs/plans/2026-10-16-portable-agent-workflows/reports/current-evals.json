@@ -1,0 +1,1016 @@
+{
+  "schema_version": 1,
+  "evaluation_kind": "deterministic-cli-contracts",
+  "label": "current",
+  "generated_at": "2026-10-16T19:35:52.066Z",
+  "fixture_version": "portable-workflows-v1",
+  "evaluator_sha256": "9b6e6a6dc2480e718d7958d21f08c3ad3a2d1b2f83f2e0d592ead24df9866af3",
+  "source": {
+    "root": "/Users/justinbeaudry/Projects/kb",
+    "commit": "def8139fdf5fdd8fa2dd15454fe13481878f646f",
+    "dirty_paths": "docs/plans/2026-10-16-portable-agent-workflows/checks.md\ndocs/plans/2026-10-16-portable-agent-workflows/graph.md\ndocs/plans/2026-10-16-portable-agent-workflows/progress.md",
+    "sha256": "b98c4a33b8f8ef683ec54a290df4d94a60ecf03149f9c11a70f96b90f1e5d188"
+  },
+  "runtime": {
+    "bun": "1.4.3",
+    "platform": "darwin",
+    "arch": "arm64",
+    "package_version": "0.7.0"
+  },
+  "conditions": {
+    "provider": "local deterministic fixture only",
+    "optional_qmd": "absent from PATH",
+    "hooks_or_mcp_required_for_queries": false,
+    "credentials_inherited": false,
+    "cli_timeout_ms": 15000,
+    "default_wire_budget_bytes": 16384
+  },
+  "summary": {
+    "total": 20,
+    "passed": 20,
+    "failed": 0
+  },
+  "observations": [
+    {
+      "id": "transcript-legacy",
+      "kind": "deterministic-contract",
+      "pass": true,
+      "checks": [
+        {
+          "name": "supported transcript succeeds",
+          "expected": 0,
+          "actual": 0,
+          "pass": true
+        },
+        {
+          "name": "both conversational roles reach provider",
+          "expected": [
+            "USER_FACT: retain audit records for 45 days.",
+            "ASSISTANT_FACT: retry delivery at most 3 times."
+          ],
+          "actual": {
+            "user": true,
+            "assistant": true
+          },
+          "pass": true
+        },
+        {
+          "name": "supported transcript is complete",
+          "expected": false,
+          "actual": false,
+          "pass": true
+        }
+      ],
+      "commands": [
+        {
+          "command": [
+            "kb",
+            "summarize",
+            "--json",
+            "<fixture>/vault/sessions/2026-10-15T12-00-00-legacy.md"
+          ],
+          "exitCode": 0,
+          "stdout": "{\"path\":\"<fixture>/vault/sessions/summaries/2026-10-15T12-00-00-legacy.md\",\"cached\":false,\"degraded\":false,\"chunked\":false,\"truncated_turns\":0}\n",
+          "stderr": "",
+          "stdoutBytes": 198,
+          "latencyMs": 364.92,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "id": "transcript-claude-user",
+      "kind": "deterministic-contract",
+      "pass": true,
+      "checks": [
+        {
+          "name": "supported transcript succeeds",
+          "expected": 0,
+          "actual": 0,
+          "pass": true
+        },
+        {
+          "name": "both conversational roles reach provider",
+          "expected": [
+            "USER_FACT: retain audit records for 45 days.",
+            "ASSISTANT_FACT: retry delivery at most 3 times."
+          ],
+          "actual": {
+            "user": true,
+            "assistant": true
+          },
+          "pass": true
+        },
+        {
+          "name": "supported transcript is complete",
+          "expected": false,
+          "actual": false,
+          "pass": true
+        }
+      ],
+      "commands": [
+        {
+          "command": [
+            "kb",
+            "summarize",
+            "--json",
+            "<fixture>/vault/sessions/2026-10-15T12-00-00-claude-user.md"
+          ],
+          "exitCode": 0,
+          "stdout": "{\"path\":\"<fixture>/vault/sessions/summaries/2026-10-15T12-00-00-claude-user.md\",\"cached\":false,\"degraded\":false,\"chunked\":false,\"truncated_turns\":0}\n",
+          "stderr": "",
+          "stdoutBytes": 203,
+          "latencyMs": 254.95,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "id": "transcript-codex",
+      "kind": "deterministic-contract",
+      "pass": true,
+      "checks": [
+        {
+          "name": "supported transcript succeeds",
+          "expected": 0,
+          "actual": 0,
+          "pass": true
+        },
+        {
+          "name": "both conversational roles reach provider",
+          "expected": [
+            "USER_FACT: retain audit records for 45 days.",
+            "ASSISTANT_FACT: retry delivery at most 3 times."
+          ],
+          "actual": {
+            "user": true,
+            "assistant": true
+          },
+          "pass": true
+        },
+        {
+          "name": "supported transcript is complete",
+          "expected": false,
+          "actual": false,
+          "pass": true
+        },
+        {
+          "name": "duplicate event stream ignored",
+          "expected": [
+            1,
+            1
+          ],
+          "actual": [
+            1,
+            1
+          ],
+          "pass": true
+        },
+        {
+          "name": "tool record ignored",
+          "expected": false,
+          "actual": false,
+          "pass": true
+        }
+      ],
+      "commands": [
+        {
+          "command": [
+            "kb",
+            "summarize",
+            "--json",
+            "<fixture>/vault/sessions/2026-10-15T12-00-00-codex.md"
+          ],
+          "exitCode": 0,
+          "stdout": "{\"path\":\"<fixture>/vault/sessions/summaries/2026-10-15T12-00-00-codex.md\",\"cached\":false,\"degraded\":false,\"chunked\":false,\"truncated_turns\":0}\n",
+          "stderr": "",
+          "stdoutBytes": 197,
+          "latencyMs": 234.31,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "id": "transcript-generic",
+      "kind": "deterministic-contract",
+      "pass": true,
+      "checks": [
+        {
+          "name": "supported transcript succeeds",
+          "expected": 0,
+          "actual": 0,
+          "pass": true
+        },
+        {
+          "name": "both conversational roles reach provider",
+          "expected": [
+            "USER_FACT: retain audit records for 45 days.",
+            "ASSISTANT_FACT: retry delivery at most 3 times."
+          ],
+          "actual": {
+            "user": true,
+            "assistant": true
+          },
+          "pass": true
+        },
+        {
+          "name": "supported transcript is complete",
+          "expected": false,
+          "actual": false,
+          "pass": true
+        }
+      ],
+      "commands": [
+        {
+          "command": [
+            "kb",
+            "summarize",
+            "--json",
+            "<fixture>/vault/sessions/2026-10-15T12-00-00-generic.md"
+          ],
+          "exitCode": 0,
+          "stdout": "{\"path\":\"<fixture>/vault/sessions/summaries/2026-10-15T12-00-00-generic.md\",\"cached\":false,\"degraded\":false,\"chunked\":false,\"truncated_turns\":0}\n",
+          "stderr": "",
+          "stdoutBytes": 199,
+          "latencyMs": 226.5,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "id": "unsupported-transcript-fallback",
+      "kind": "deterministic-contract",
+      "pass": true,
+      "checks": [
+        {
+          "name": "unsupported input is never apparently complete",
+          "expected": "actionable rejection or marked usable fallback",
+          "actual": {
+            "exitCode": 0,
+            "degraded": true,
+            "fallbackUsed": true,
+            "summaryWritten": true
+          },
+          "pass": true
+        }
+      ],
+      "commands": [
+        {
+          "command": [
+            "kb",
+            "summarize",
+            "--json",
+            "<fixture>/vault/sessions/2026-10-15T12-00-00-unsupported.md"
+          ],
+          "exitCode": 0,
+          "stdout": "{\"path\":\"<fixture>/vault/sessions/summaries/2026-10-15T12-00-00-unsupported.md\",\"cached\":false,\"degraded\":true,\"chunked\":false,\"truncated_turns\":0}\n",
+          "stderr": "",
+          "stdoutBytes": 202,
+          "latencyMs": 232.48,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "id": "unsupported-transcript-empty",
+      "kind": "deterministic-contract",
+      "pass": true,
+      "checks": [
+        {
+          "name": "unsupported input is never apparently complete",
+          "expected": "actionable rejection and no cache",
+          "actual": {
+            "exitCode": 1,
+            "degraded": null,
+            "fallbackUsed": false,
+            "summaryWritten": false
+          },
+          "pass": true
+        }
+      ],
+      "commands": [
+        {
+          "command": [
+            "kb",
+            "summarize",
+            "--json",
+            "<fixture>/vault/sessions/2026-10-15T12-00-00-unsupported.md"
+          ],
+          "exitCode": 1,
+          "stdout": "",
+          "stderr": "No supported conversation text or usable excerpt is available. Supply a supported JSONL transcript and recapture the session before summarizing.\n",
+          "stdoutBytes": 0,
+          "latencyMs": 45.34,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "id": "provider-no-vendor-args",
+      "kind": "deterministic-contract",
+      "pass": true,
+      "checks": [
+        {
+          "name": "generic executable succeeds",
+          "expected": 0,
+          "actual": 0,
+          "pass": true
+        },
+        {
+          "name": "only configured arguments reach executable",
+          "expected": [],
+          "actual": [],
+          "pass": true
+        }
+      ],
+      "commands": [
+        {
+          "command": [
+            "kb",
+            "summarize",
+            "--json",
+            "<fixture>/vault/sessions/2026-10-15T12-00-00-legacy.md"
+          ],
+          "exitCode": 0,
+          "stdout": "{\"path\":\"<fixture>/vault/sessions/summaries/2026-10-15T12-00-00-legacy.md\",\"cached\":false,\"degraded\":false,\"chunked\":false,\"truncated_turns\":0}\n",
+          "stderr": "",
+          "stdoutBytes": 198,
+          "latencyMs": 236.81,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "id": "provider-explicit-args",
+      "kind": "deterministic-contract",
+      "pass": true,
+      "checks": [
+        {
+          "name": "generic executable succeeds",
+          "expected": 0,
+          "actual": 0,
+          "pass": true
+        },
+        {
+          "name": "only configured arguments reach executable",
+          "expected": [
+            "--fixture-model",
+            "portable",
+            "value with spaces"
+          ],
+          "actual": [
+            "--fixture-model",
+            "portable",
+            "value with spaces"
+          ],
+          "pass": true
+        }
+      ],
+      "commands": [
+        {
+          "command": [
+            "kb",
+            "summarize",
+            "--json",
+            "<fixture>/vault/sessions/2026-10-15T12-00-00-legacy.md"
+          ],
+          "exitCode": 0,
+          "stdout": "{\"path\":\"<fixture>/vault/sessions/summaries/2026-10-15T12-00-00-legacy.md\",\"cached\":false,\"degraded\":false,\"chunked\":false,\"truncated_turns\":0}\n",
+          "stderr": "",
+          "stdoutBytes": 198,
+          "latencyMs": 235.24,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "id": "provider-reject-empty",
+      "kind": "deterministic-contract",
+      "pass": true,
+      "checks": [
+        {
+          "name": "invalid output rejected before cache write",
+          "expected": "nonzero, actionable stderr, no cache",
+          "actual": {
+            "exitCode": 1,
+            "summaryWritten": false
+          },
+          "pass": true
+        }
+      ],
+      "commands": [
+        {
+          "command": [
+            "kb",
+            "summarize",
+            "--json",
+            "<fixture>/vault/sessions/2026-10-15T12-00-00-legacy.md"
+          ],
+          "exitCode": 1,
+          "stdout": "",
+          "stderr": "The summarizer returned empty output. Return nonempty Summary and Extraction Candidates sections.\n",
+          "stdoutBytes": 0,
+          "latencyMs": 229.57,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "id": "provider-reject-invalid",
+      "kind": "deterministic-contract",
+      "pass": true,
+      "checks": [
+        {
+          "name": "invalid output rejected before cache write",
+          "expected": "nonzero, actionable stderr, no cache",
+          "actual": {
+            "exitCode": 1,
+            "summaryWritten": false
+          },
+          "pass": true
+        }
+      ],
+      "commands": [
+        {
+          "command": [
+            "kb",
+            "summarize",
+            "--json",
+            "<fixture>/vault/sessions/2026-10-15T12-00-00-legacy.md"
+          ],
+          "exitCode": 1,
+          "stdout": "",
+          "stderr": "Invalid summary: return a nonempty \"## Summary\" section.\n",
+          "stdoutBytes": 0,
+          "latencyMs": 240.62,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "id": "bounded-get",
+      "kind": "deterministic-contract",
+      "pass": true,
+      "checks": [
+        {
+          "name": "multiline evidence succeeds",
+          "expected": 0,
+          "actual": 0,
+          "pass": true
+        },
+        {
+          "name": "complete wire respects default budget",
+          "expected": "<= 16384",
+          "actual": 16218,
+          "pass": true
+        },
+        {
+          "name": "valid length-prefixed evidence",
+          "expected": true,
+          "actual": true,
+          "pass": true
+        },
+        {
+          "name": "truncation has actionable continuation",
+          "expected": "truncated=true and command/args",
+          "actual": {
+            "trust": "curated",
+            "source_scope": "wiki",
+            "truncated": true,
+            "continuation": {
+              "command": "get",
+              "args": [
+                "--start-line",
+                "102",
+                "--budget",
+                "16384",
+                "-p",
+                "<fixture>/vault",
+                "--",
+                "long-evidence"
+              ]
+            }
+          },
+          "pass": true
+        }
+      ],
+      "commands": [
+        {
+          "command": [
+            "kb",
+            "get",
+            "long-evidence"
+          ],
+          "exitCode": 0,
+          "stdout": "16212\n{\"schema_version\":\"2\",\"nonce\":\"86d8eec172158fdf70c50d4fa0735d33\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"truncated\":true,\"continuation\":{\"command\":\"get\",\"args\":[\"--start-line\",\"102\",\"--budget\",\"16384\",\"-p\",\"<fixture>/vault\",\"--\",\"long-evidence\"]}},\"chunks\":[{\"source\":\"wiki/long-evidence.md\",\"line_range\":[1,101],\"curation\":\"curated\",\"text\":\"---\\ntitle: Long Evidence\\ntype: concept\\ncreated: 2026-10-01\\nupdated: 2026-10-15\\ntags:\\n  - long\\n---\\n# Long Evidence\\n\\n## Evidence rows\\nEvidence row 0001: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0002: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0003: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0004: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0005: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0006: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0007: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0008: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0009: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0010: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0011: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0012: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0013: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0014: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0015: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0016: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0017: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0018: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0019: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0020: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0021: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0022: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0023: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0024: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0025: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0026: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0027: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0028: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0029: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0030: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0031: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0032: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0033: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0034: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0035: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0036: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0037: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0038: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0039: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0040: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0041: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0042: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0043: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0044: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0045: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0046: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0047: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0048: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0049: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0050: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0051: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0052: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0053: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0054: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0055: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0056: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0057: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0058: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0059: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0060: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0061: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0062: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0063: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0064: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0065: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0066: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0067: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0068: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0069: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0070: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0071: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0072: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0073: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0074: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0075: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0076: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0077: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0078: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0079: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0080: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0081: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0082: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0083: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0084: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0085: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0086: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0087: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0088: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0089: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0090: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \"}]}",
+          "stderr": "",
+          "stdoutBytes": 16218,
+          "latencyMs": 32.06,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "id": "bounded-get-node",
+      "kind": "deterministic-contract",
+      "pass": true,
+      "checks": [
+        {
+          "name": "multiline evidence succeeds",
+          "expected": 0,
+          "actual": 0,
+          "pass": true
+        },
+        {
+          "name": "complete wire respects default budget",
+          "expected": "<= 16384",
+          "actual": 16316,
+          "pass": true
+        },
+        {
+          "name": "valid length-prefixed evidence",
+          "expected": true,
+          "actual": true,
+          "pass": true
+        },
+        {
+          "name": "truncation has actionable continuation",
+          "expected": "truncated=true and command/args",
+          "actual": {
+            "trust": "curated",
+            "source_scope": "wiki",
+            "nav_trace": [
+              "wiki/long-evidence.md#evidence-rows"
+            ],
+            "truncated": true,
+            "continuation": {
+              "command": "get-node",
+              "args": [
+                "--start-line",
+                "102",
+                "--budget",
+                "16384",
+                "-p",
+                "<fixture>/vault",
+                "--",
+                "wiki/long-evidence.md#evidence-rows"
+              ]
+            }
+          },
+          "pass": true
+        }
+      ],
+      "commands": [
+        {
+          "command": [
+            "kb",
+            "get-node",
+            "wiki/long-evidence.md#evidence-rows"
+          ],
+          "exitCode": 0,
+          "stdout": "16310\n{\"schema_version\":\"2\",\"nonce\":\"4642a4b98e8be02086c4155148db1c19\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"nav_trace\":[\"wiki/long-evidence.md#evidence-rows\"],\"truncated\":true,\"continuation\":{\"command\":\"get-node\",\"args\":[\"--start-line\",\"102\",\"--budget\",\"16384\",\"-p\",\"<fixture>/vault\",\"--\",\"wiki/long-evidence.md#evidence-rows\"]}},\"chunks\":[{\"source\":\"wiki/long-evidence.md\",\"line_range\":[11,101],\"curation\":\"heading-section\",\"text\":\"## Evidence rows\\nEvidence row 0001: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0002: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0003: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0004: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0005: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0006: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0007: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0008: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0009: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0010: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0011: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0012: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0013: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0014: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0015: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0016: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0017: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0018: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0019: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0020: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0021: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0022: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0023: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0024: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0025: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0026: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0027: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0028: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0029: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0030: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0031: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0032: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0033: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0034: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0035: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0036: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0037: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0038: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0039: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0040: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0041: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0042: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0043: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0044: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0045: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0046: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0047: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0048: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0049: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0050: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0051: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0052: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0053: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0054: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0055: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0056: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0057: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0058: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0059: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0060: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0061: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0062: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0063: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0064: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0065: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0066: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0067: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0068: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0069: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0070: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0071: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0072: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0073: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0074: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0075: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0076: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0077: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0078: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0079: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0080: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0081: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0082: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0083: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0084: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0085: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0086: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0087: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0088: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0089: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0090: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \",\"node_id\":\"wiki/long-evidence.md#evidence-rows\",\"heading_path\":[\"Long Evidence\",\"Long Evidence\",\"Evidence rows\"],\"node_kind\":\"section\"}]}",
+          "stderr": "",
+          "stdoutBytes": 16316,
+          "latencyMs": 42.24,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "id": "bounded-recall",
+      "kind": "deterministic-contract",
+      "pass": true,
+      "checks": [
+        {
+          "name": "multiline evidence succeeds",
+          "expected": 0,
+          "actual": 0,
+          "pass": true
+        },
+        {
+          "name": "complete wire respects default budget",
+          "expected": "<= 16384",
+          "actual": 15641,
+          "pass": true
+        },
+        {
+          "name": "valid length-prefixed evidence",
+          "expected": true,
+          "actual": true,
+          "pass": true
+        },
+        {
+          "name": "truncation has actionable continuation",
+          "expected": "truncated=true and command/args",
+          "actual": {
+            "trust": "curated",
+            "source_scope": "wiki",
+            "truncated": true,
+            "continuation": {
+              "command": "recall",
+              "args": [
+                "--offset",
+                "13",
+                "--budget",
+                "16384",
+                "-p",
+                "<fixture>/vault",
+                "--",
+                "Evidence row"
+              ]
+            }
+          },
+          "pass": true
+        }
+      ],
+      "commands": [
+        {
+          "command": [
+            "kb",
+            "recall",
+            "Evidence row"
+          ],
+          "exitCode": 0,
+          "stdout": "15635\n{\"schema_version\":\"2\",\"nonce\":\"f9bac97eda138cdf6177cd00ce20f243\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"truncated\":true,\"continuation\":{\"command\":\"recall\",\"args\":[\"--offset\",\"13\",\"--budget\",\"16384\",\"-p\",\"<fixture>/vault\",\"--\",\"Evidence row\"]}},\"chunks\":[{\"source\":\"wiki/long-evidence.md\",\"line_range\":[8,14],\"curation\":\"curated\",\"text\":\"---\\n# Long Evidence\\n\\n## Evidence rows\\nEvidence row 0001: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0002: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0003: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \"},{\"source\":\"wiki/long-evidence.md\",\"line_range\":[9,15],\"curation\":\"curated\",\"text\":\"# Long Evidence\\n\\n## Evidence rows\\nEvidence row 0001: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0002: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0003: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0004: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \"},{\"source\":\"wiki/long-evidence.md\",\"line_range\":[10,16],\"curation\":\"curated\",\"text\":\"\\n## Evidence rows\\nEvidence row 0001: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0002: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0003: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0004: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0005: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \"},{\"source\":\"wiki/long-evidence.md\",\"line_range\":[11,17],\"curation\":\"curated\",\"text\":\"## Evidence rows\\nEvidence row 0001: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0002: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0003: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0004: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0005: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0006: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \"},{\"source\":\"wiki/long-evidence.md\",\"line_range\":[12,18],\"curation\":\"curated\",\"text\":\"Evidence row 0001: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0002: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0003: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0004: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0005: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0006: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0007: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \"},{\"source\":\"wiki/long-evidence.md\",\"line_range\":[13,19],\"curation\":\"curated\",\"text\":\"Evidence row 0002: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0003: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0004: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0005: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0006: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0007: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0008: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \"},{\"source\":\"wiki/long-evidence.md\",\"line_range\":[14,20],\"curation\":\"curated\",\"text\":\"Evidence row 0003: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0004: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0005: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0006: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0007: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0008: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0009: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \"},{\"source\":\"wiki/long-evidence.md\",\"line_range\":[15,21],\"curation\":\"curated\",\"text\":\"Evidence row 0004: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0005: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0006: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0007: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0008: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0009: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0010: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \"},{\"source\":\"wiki/long-evidence.md\",\"line_range\":[16,22],\"curation\":\"curated\",\"text\":\"Evidence row 0005: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0006: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0007: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0008: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0009: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0010: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0011: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \"},{\"source\":\"wiki/long-evidence.md\",\"line_range\":[17,23],\"curation\":\"curated\",\"text\":\"Evidence row 0006: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0007: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0008: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0009: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0010: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0011: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0012: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \"},{\"source\":\"wiki/long-evidence.md\",\"line_range\":[18,24],\"curation\":\"curated\",\"text\":\"Evidence row 0007: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0008: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0009: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0010: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0011: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0012: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0013: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \"},{\"source\":\"wiki/long-evidence.md\",\"line_range\":[19,25],\"curation\":\"curated\",\"text\":\"Evidence row 0008: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0009: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0010: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0011: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0012: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0013: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0014: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \"},{\"source\":\"wiki/long-evidence.md\",\"line_range\":[20,26],\"curation\":\"curated\",\"text\":\"Evidence row 0009: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0010: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0011: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0012: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0013: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0014: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \\nEvidence row 0015: Montréal 準備完了 \\\\\\\"quoted\\\\\\\" delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. delivery audit detail. \"}]}",
+          "stderr": "",
+          "stdoutBytes": 15641,
+          "latencyMs": 23.1,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "id": "oversized-single-line",
+      "kind": "deterministic-contract",
+      "pass": true,
+      "checks": [
+        {
+          "name": "indivisible line stays bounded with remedy",
+          "expected": "bounded truncation or empty stdout failure with line and --budget",
+          "actual": {
+            "exitCode": 0,
+            "bytes": 536,
+            "policy": {
+              "trust": "curated",
+              "source_scope": "wiki",
+              "truncated": true,
+              "continuation": {
+                "command": "get",
+                "args": [
+                  "--start-line",
+                  "12",
+                  "--budget",
+                  "16384",
+                  "-p",
+                  "<fixture>/vault",
+                  "--",
+                  "huge-line"
+                ]
+              }
+            }
+          },
+          "pass": true
+        }
+      ],
+      "commands": [
+        {
+          "command": [
+            "kb",
+            "get",
+            "huge-line"
+          ],
+          "exitCode": 0,
+          "stdout": "532\n{\"schema_version\":\"2\",\"nonce\":\"21ff39a52993156e9662ecb0849c6e96\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"truncated\":true,\"continuation\":{\"command\":\"get\",\"args\":[\"--start-line\",\"12\",\"--budget\",\"16384\",\"-p\",\"<fixture>/vault\",\"--\",\"huge-line\"]}},\"chunks\":[{\"source\":\"wiki/huge-line.md\",\"line_range\":[1,11],\"curation\":\"curated\",\"text\":\"---\\ntitle: Huge Line\\ntype: concept\\ncreated: 2026-10-01\\nupdated: 2026-10-15\\ntags:\\n  - long\\n---\\n# Huge Line\\n\\n## Single line\"}]}",
+          "stderr": "",
+          "stdoutBytes": 536,
+          "latencyMs": 22.05,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "id": "lazy-default-absent-config",
+      "kind": "deterministic-contract",
+      "pass": true,
+      "checks": [
+        {
+          "name": "startup emits a pointer",
+          "expected": "kb map",
+          "actual": "## KB Vault\nCurated memory available. Do not read sessions/ or raw/ directly.\nRun `kb map <query>` to find knowledge; `kb recall <query>` only as plain-text fallback.\n\nTopics: Operations, Architecture.",
+          "pass": true
+        },
+        {
+          "name": "session body absent",
+          "expected": false,
+          "actual": false,
+          "pass": true
+        },
+        {
+          "name": "pointer is compact",
+          "expected": "<= 500 context bytes",
+          "actual": 201,
+          "pass": true
+        },
+        {
+          "name": "hook completes",
+          "expected": false,
+          "actual": false,
+          "pass": true
+        },
+        {
+          "name": "startup records lazy mode",
+          "expected": "lazy",
+          "actual": "lazy",
+          "pass": true
+        }
+      ],
+      "commands": [
+        {
+          "command": [
+            "inject",
+            "<fixture>/vault"
+          ],
+          "exitCode": 0,
+          "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"## KB Vault\\nCurated memory available. Do not read sessions/ or raw/ directly.\\nRun `kb map <query>` to find knowledge; `kb recall <query>` only as plain-text fallback.\\n\\nTopics: Operations, Architecture.\"}}\n",
+          "stderr": "",
+          "stdoutBytes": 284,
+          "latencyMs": 26.12,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "id": "lazy-default-invalid-config",
+      "kind": "deterministic-contract",
+      "pass": true,
+      "checks": [
+        {
+          "name": "startup emits a pointer",
+          "expected": "kb map",
+          "actual": "## KB Vault\nCurated memory available. Do not read sessions/ or raw/ directly.\nRun `kb map <query>` to find knowledge; `kb recall <query>` only as plain-text fallback.\n\nTopics: Operations, Architecture.",
+          "pass": true
+        },
+        {
+          "name": "session body absent",
+          "expected": false,
+          "actual": false,
+          "pass": true
+        },
+        {
+          "name": "pointer is compact",
+          "expected": "<= 500 context bytes",
+          "actual": 201,
+          "pass": true
+        },
+        {
+          "name": "hook completes",
+          "expected": false,
+          "actual": false,
+          "pass": true
+        },
+        {
+          "name": "startup records lazy mode",
+          "expected": "lazy",
+          "actual": "lazy",
+          "pass": true
+        }
+      ],
+      "commands": [
+        {
+          "command": [
+            "inject",
+            "<fixture>/vault"
+          ],
+          "exitCode": 0,
+          "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"## KB Vault\\nCurated memory available. Do not read sessions/ or raw/ directly.\\nRun `kb map <query>` to find knowledge; `kb recall <query>` only as plain-text fallback.\\n\\nTopics: Operations, Architecture.\"}}\n",
+          "stderr": "",
+          "stdoutBytes": 284,
+          "latencyMs": 26.45,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "id": "canonical-retrieval-shell-only",
+      "kind": "deterministic-contract",
+      "pass": true,
+      "checks": [
+        {
+          "name": "map advertises exact relevant node",
+          "expected": "wiki/delivery-policy.md#retries",
+          "actual": "wiki/delivery-policy.md#retries",
+          "pass": true
+        },
+        {
+          "name": "exact source lines back answer",
+          "expected": "Retry failed deliveries at most 3 times",
+          "actual": {
+            "source": "wiki/delivery-policy.md",
+            "text": "## Retries\nRetry failed deliveries at most 3 times with exponential backoff.\n",
+            "line_range": [
+              12,
+              14
+            ],
+            "node_id": "wiki/delivery-policy.md#retries"
+          },
+          "pass": true
+        },
+        {
+          "name": "knowledge unchanged by retrieval",
+          "expected": {
+            "context.md": "8209ae9e0b8fc255f12f9f0f336fe623f36ba08dc1dcac7d953c8d1e03042336",
+            "KB.md": "61be819c2d95e79c1e37c2e396fb85a528f615e8c70c454caffe64bd3194b93e",
+            "wiki/meeting-note.md": "874cb6e4198c734c1d6907bd328254e163ae5b63b9cba796a9bb9ad546f46225",
+            "wiki/storage-decision.md": "f668e3a8287ce649abc5d37cab761788767ba3acca5acfed23c0972cf89d197d",
+            "wiki/injected-source.md": "26e057a6915f8c8986d7e7823f869e4f3ca959337247b8cf667dd13dc1791788",
+            "wiki/unicode.md": "5c2a2221d97d4784d285e57bf93bf440b7e85d355c1a76ec889fb6ccc9ea1977",
+            "wiki/release-plan.md": "1c56a45de159cefb8a09c63ebc5e3bc5191f86e901ca4c8f06e2f7357863276a",
+            "wiki/delivery-policy.md": "a5b506969fb35e296a932513359e4ef51490d3f2995baea724db924f91472214",
+            "wiki/huge-line.md": "36d596deaad3fb8f0cc68213e4bd2d0d5e8211b6e0dac47b4021011cbf541aa0",
+            "wiki/long-evidence.md": "a2f51237d71219204d4b2ab7756d3eae0d51e813d9e24a4d5fc49ef6fde0ac32",
+            "log.md": "db281ce97c9177e2e7b932060a03e9fd409521a523fcccd46cc7c2cb1cd2d276",
+            "sessions/legacy.md": "403a10723d7d292fca6afdeaafbb025ef93a4cb82a6e1a75d32018d9c8492e36",
+            "sessions/summaries/legacy.md": "968a15048ea3b90a53ae07ef86d3d54b6c99813dbbc356a7b9fccaddf8a9dd5e",
+            "index.md": "dd57e8fcec404cee548dd19318d0550f87e4ef9f84063bdbd6add19a586bcddb",
+            "raw/existing-source.md": "de44e677ca6e38f39dda919938750f5529e856a52e6c06c4dcf6734392822af1",
+            "raw/vendor-note.md": "73b3493c7af8f26995116ed5e50741fadf77af04968d915ddb10be9ab33cca51"
+          },
+          "actual": {
+            "context.md": "8209ae9e0b8fc255f12f9f0f336fe623f36ba08dc1dcac7d953c8d1e03042336",
+            "KB.md": "61be819c2d95e79c1e37c2e396fb85a528f615e8c70c454caffe64bd3194b93e",
+            "wiki/meeting-note.md": "874cb6e4198c734c1d6907bd328254e163ae5b63b9cba796a9bb9ad546f46225",
+            "wiki/storage-decision.md": "f668e3a8287ce649abc5d37cab761788767ba3acca5acfed23c0972cf89d197d",
+            "wiki/injected-source.md": "26e057a6915f8c8986d7e7823f869e4f3ca959337247b8cf667dd13dc1791788",
+            "wiki/unicode.md": "5c2a2221d97d4784d285e57bf93bf440b7e85d355c1a76ec889fb6ccc9ea1977",
+            "wiki/release-plan.md": "1c56a45de159cefb8a09c63ebc5e3bc5191f86e901ca4c8f06e2f7357863276a",
+            "wiki/delivery-policy.md": "a5b506969fb35e296a932513359e4ef51490d3f2995baea724db924f91472214",
+            "wiki/huge-line.md": "36d596deaad3fb8f0cc68213e4bd2d0d5e8211b6e0dac47b4021011cbf541aa0",
+            "wiki/long-evidence.md": "a2f51237d71219204d4b2ab7756d3eae0d51e813d9e24a4d5fc49ef6fde0ac32",
+            "log.md": "db281ce97c9177e2e7b932060a03e9fd409521a523fcccd46cc7c2cb1cd2d276",
+            "sessions/legacy.md": "403a10723d7d292fca6afdeaafbb025ef93a4cb82a6e1a75d32018d9c8492e36",
+            "sessions/summaries/legacy.md": "968a15048ea3b90a53ae07ef86d3d54b6c99813dbbc356a7b9fccaddf8a9dd5e",
+            "index.md": "dd57e8fcec404cee548dd19318d0550f87e4ef9f84063bdbd6add19a586bcddb",
+            "raw/existing-source.md": "de44e677ca6e38f39dda919938750f5529e856a52e6c06c4dcf6734392822af1",
+            "raw/vendor-note.md": "73b3493c7af8f26995116ed5e50741fadf77af04968d915ddb10be9ab33cca51"
+          },
+          "pass": true
+        },
+        {
+          "name": "portable tool conditions",
+          "expected": [
+            "bun",
+            "fixture-provider"
+          ],
+          "actual": [
+            "bun",
+            "fixture-provider"
+          ],
+          "pass": true
+        }
+      ],
+      "commands": [
+        {
+          "command": [
+            "kb",
+            "map",
+            "retries"
+          ],
+          "exitCode": 0,
+          "stdout": "835\n{\"schema_version\":\"2\",\"nonce\":\"8eabc8696751f58e03c85bf824873ba5\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"tree_root\":\"wiki/\",\"map_tier\":1},\"chunks\":[{\"source\":\"wiki/delivery-policy.md\",\"line_range\":[1,22],\"curation\":\"curated\",\"text\":\"Delivery Policy [operations, retries]\",\"node_id\":\"wiki/delivery-policy.md\",\"heading_path\":[\"Delivery Policy\"],\"node_kind\":\"page\"},{\"source\":\"wiki/delivery-policy.md\",\"line_range\":[12,14],\"curation\":\"heading-section\",\"text\":\"Delivery Policy > Delivery Policy > Retries\",\"node_id\":\"wiki/delivery-policy.md#retries\",\"heading_path\":[\"Delivery Policy\",\"Delivery Policy\",\"Retries\"],\"node_kind\":\"section\"},{\"source\":\"wiki/release-plan.md\",\"line_range\":[1,21],\"curation\":\"curated\",\"text\":\"Release Plan [release]\",\"node_id\":\"wiki/release-plan.md\",\"heading_path\":[\"Release Plan\"],\"node_kind\":\"page\"}]}",
+          "stderr": "",
+          "stdoutBytes": 839,
+          "latencyMs": 41.18,
+          "timedOut": false
+        },
+        {
+          "command": [
+            "kb",
+            "get-node",
+            "wiki/delivery-policy.md#retries"
+          ],
+          "exitCode": 0,
+          "stdout": "480\n{\"schema_version\":\"2\",\"nonce\":\"786aa15ecb689f916ccf55b15e90b287\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"nav_trace\":[\"wiki/delivery-policy.md#retries\"]},\"chunks\":[{\"source\":\"wiki/delivery-policy.md\",\"line_range\":[12,14],\"curation\":\"heading-section\",\"text\":\"## Retries\\nRetry failed deliveries at most 3 times with exponential backoff.\\n\",\"node_id\":\"wiki/delivery-policy.md#retries\",\"heading_path\":[\"Delivery Policy\",\"Delivery Policy\",\"Retries\"],\"node_kind\":\"section\"}]}",
+          "stderr": "",
+          "stdoutBytes": 484,
+          "latencyMs": 31.61,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "id": "absence-is-explicit",
+      "kind": "deterministic-contract",
+      "pass": true,
+      "checks": [
+        {
+          "name": "missing evidence yields no-results",
+          "expected": {
+            "no_results": true,
+            "chunks": 0
+          },
+          "actual": {
+            "policy": {
+              "trust": "curated",
+              "source_scope": "wiki",
+              "tree_root": "wiki/",
+              "no_results": true,
+              "suggestions": [
+                "Try a broader query, or: kb recall <query>"
+              ]
+            },
+            "chunks": 0
+          },
+          "pass": true
+        }
+      ],
+      "commands": [
+        {
+          "command": [
+            "kb",
+            "map",
+            "SOC2-auditor-unknown-8271"
+          ],
+          "exitCode": 0,
+          "stdout": "227\n{\"schema_version\":\"2\",\"nonce\":\"4b9766e2dbf9e28737d6f74056d25992\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"tree_root\":\"wiki/\",\"no_results\":true,\"suggestions\":[\"Try a broader query, or: kb recall <query>\"]},\"chunks\":[]}",
+          "stderr": "",
+          "stdoutBytes": 231,
+          "latencyMs": 40.07,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "id": "unicode-evidence",
+      "kind": "deterministic-contract",
+      "pass": true,
+      "checks": [
+        {
+          "name": "unicode and escaping survive whole-wire framing",
+          "expected": [
+            "Montréal",
+            "Zoë",
+            "準備完了",
+            "✅",
+            "\"a\\b\""
+          ],
+          "actual": "---\ntitle: Regional Notes\ntype: concept\ncreated: 2026-10-01\nupdated: 2026-10-15\ntags:\n  - regional\n---\n# Regional Notes\n\n## Unicode evidence\nThe Montréal pilot owner is Zoë. The Japanese label is 準備完了. Status emoji: ✅.\n\n## Quoted value\nKeep the literal value \"a\\b\" in reports.\n",
+          "pass": true
+        }
+      ],
+      "commands": [
+        {
+          "command": [
+            "kb",
+            "get",
+            "unicode"
+          ],
+          "exitCode": 0,
+          "stdout": "514\n{\"schema_version\":\"2\",\"nonce\":\"89589a9c5dc3cc4a73c390dd7642f065\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\"},\"chunks\":[{\"source\":\"wiki/unicode.md\",\"line_range\":[1,16],\"curation\":\"curated\",\"text\":\"---\\ntitle: Regional Notes\\ntype: concept\\ncreated: 2026-10-01\\nupdated: 2026-10-15\\ntags:\\n  - regional\\n---\\n# Regional Notes\\n\\n## Unicode evidence\\nThe Montréal pilot owner is Zoë. The Japanese label is 準備完了. Status emoji: ✅.\\n\\n## Quoted value\\nKeep the literal value \\\"a\\\\b\\\" in reports.\\n\"}]}",
+          "stderr": "",
+          "stdoutBytes": 518,
+          "latencyMs": 22.04,
+          "timedOut": false
+        }
+      ]
+    },
+    {
+      "id": "missing-provider-actionable",
+      "kind": "deterministic-contract",
+      "pass": true,
+      "checks": [
+        {
+          "name": "missing optional provider fails without cache",
+          "expected": "nonzero with command guidance",
+          "actual": {
+            "exitCode": 1,
+            "stderr": "ENOENT: no such file or directory, posix_spawn '<fixture>/bin/missing-provider'\n",
+            "summaryWritten": false
+          },
+          "pass": true
+        }
+      ],
+      "commands": [
+        {
+          "command": [
+            "kb",
+            "summarize",
+            "--json",
+            "<fixture>/vault/sessions/2026-10-15T12-00-00-legacy.md"
+          ],
+          "exitCode": 1,
+          "stdout": "",
+          "stderr": "ENOENT: no such file or directory, posix_spawn '<fixture>/bin/missing-provider'\n",
+          "stdoutBytes": 0,
+          "latencyMs": 37,
+          "timedOut": false
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "No model was called; these outcomes do not measure answer quality or skill compliance.",
+    "Latency is one local wall-clock sample per CLI invocation, not a performance benchmark.",
+    "Bytes are complete stdout measurements before temporary-path normalization.",
+    "Actual agent outcomes require separate trials using scenarios.json and saved command/answer/write evidence."
+  ]
+}

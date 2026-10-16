@@ -1,0 +1,35 @@
+bun test v1.4.3 (c6da4a4d3)
+
+tests/git.test.ts:
+(pass) headCommit > returns the HEAD SHA after a commit [58.42ms]
+(pass) headCommit > returns null in a non-git directory [4.86ms]
+(pass) headCommit > returns null in a git repo with no commits [27.72ms]
+(pass) headCommit > does not hide a missing working directory as unavailable Git [0.81ms]
+93 |       new Response(proc.stdout).text(),
+94 |       new Response(proc.stderr).text(),
+95 |       proc.exited,
+96 |     ]);
+97 |
+98 |     expect(exitCode).toBe(0);
+                          ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/git.test.ts:98:22)
+(fail) optional Git provenance > returns null and empty provenance when the Git executable is absent [13.42ms]
+(pass) currentBranch > returns the current branch name [48.02ms]
+(pass) currentBranch > returns null in a non-git directory [5.36ms]
+(pass) filesChangedSince > returns committed changes between a commit SHA and HEAD [79.48ms]
+(pass) filesChangedSince > reports deletions [71.23ms]
+(pass) filesChangedSince > returns empty array in non-git dir [5.08ms]
+(pass) filesChangedSince > returns empty array when nothing changed between two refs [52.52ms]
+(pass) uncommittedChanges > reports untracked, modified, and staged files [54.91ms]
+(pass) uncommittedChanges > returns empty array on clean repo [47.90ms]
+(pass) uncommittedChanges > returns empty array in non-git dir [4.93ms]
+
+ 13 pass
+ 1 fail
+ 18 expect() calls
+Ran 14 tests across 1 file. [483.00ms]

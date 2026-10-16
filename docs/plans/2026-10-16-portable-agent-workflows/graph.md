@@ -49,6 +49,7 @@ The first increment includes the generic summarizer executable contract because 
 - T1, T2, and E1 run independently in parallel. Only tests/evaluations are edited before C1.
 - I1 and I2 run in parallel. D1 uses their documented interfaces and reconciles final names before C2.
 - A1 trials use separate temporary fixture copies. Review is read-only.
+- R1 stage 1 checks spec coverage, then stage 2 reviews transcript/provider handling, retrieval/startup, and portable instructions/evaluations in parallel. Reviewers own only distinct reports; root resolves and verifies findings.
 
 ## File ownership
 
@@ -101,21 +102,26 @@ C0, C1, C2, and C3 run directly through tools, never through a subagent. Root re
 
 ## Completion checklist
 
-- [ ] Every model output and review report exists.
-- [ ] RED failures were observed before implementation.
-- [ ] Portable transcript and summarizer tests pass.
-- [ ] Retrieval budgets, continuations, and startup tests pass.
-- [ ] Portable instructions and examples match actual commands.
-- [ ] Baseline and current deterministic evaluation results are saved.
-- [ ] Agent behavior trials are saved with limitations stated.
-- [ ] `bun run lint && bun run test` passes against the final tree.
-- [ ] Spec compliance and code quality reviews are resolved.
-- [ ] Graph, checks, progress, and reusable template reflect the actual run.
+- [x] Every model output and review report exists.
+- [x] RED failures were observed before implementation.
+- [x] Portable transcript and summarizer tests pass.
+- [x] Retrieval budgets, continuations, and startup tests pass.
+- [x] Portable instructions and examples match actual commands.
+- [x] Baseline and current deterministic evaluation results are saved.
+- [x] Agent behavior trials are saved with limitations stated.
+- [x] `bun run lint && bun run test` passes against the final tree.
+- [x] Spec compliance and code quality reviews are resolved.
+- [x] Graph, checks, progress, and reusable template reflect the actual run.
 
 ## Rules learned
 
 - Existing unit-test success is a baseline, not evidence of cross-harness agent quality.
 - A caller-supplied executable must not receive a different vendor's implicit arguments.
+- Output byte limits do not bound runtime allocation. Consume only the current page and lookahead, then measure peak memory on a representative matching corpus.
+- Replay argument arrays with leading-dash positionals; separate options from values and terminate options with `--`.
+- Explicit malformed message discriminators must mark retained input incomplete; valid ignored metadata needs separate controls.
+- Actual agent trials can reveal regressions despite passing contracts. Keep their failed versions and mixed outcomes, then rerun corrected instructions on fresh fixtures.
+- Prefer narrow section retrieval before broad pagination. A host display limit is distinct from valid CLI wire framing.
 
 ## Decisions log
 
@@ -125,3 +131,16 @@ C0, C1, C2, and C3 run directly through tools, never through a subagent. Root re
 - 2026-10-16: Run the work on a new local branch. Publication and external-harness/model spending are excluded.
 - 2026-10-16: DX contract review selects shell-only agents as the primary persona. First success is a cited answer from `map` then `get-node`; recovery must explain the next command. Retain the existing envelope and small-result behavior. Do not add map tier/cursor complexity when its current narrowing/raise-budget recovery suffices.
 - 2026-10-16: Record generic transcript, deadline, and pagination interfaces before implementation so documentation/evaluation workers use the same contract.
+- 2026-10-16: C1 accepted before production edits: T1 2/25 and T2 4/37 pass; frozen deterministic evaluator 5/20 pass. I1/I2/D1 released in parallel. These are regression-contract baselines, not agent-quality scores.
+- 2026-10-16: A1 preselects six paired scenarios before observing answers: superseded decision, absent evidence, long-tail evidence, source-injected instructions, question without filing, and unsupported transcript. Each version/scenario gets a fresh fixture and solving-agent context. This is a 12-trial smoke comparison in the available host, not a multi-harness benchmark or statistical superiority claim.
+- 2026-10-16: Root owns small integration edits to CLI/package descriptions, init guidance, capture help, optional qmd setup wording, the eval script, and inclusion of eval source in the TypeScript gate. No mutation semantics or dependencies change in these edits.
+- 2026-10-16: I1 correction 1 fixes a measured fixture race: a fresh executable took 339 ms to start, exceeding the original 100 ms timeout. The corrected 1000 ms deadline precedes 3000 ms simulated work and retains process termination/cache-preservation assertions. Root reran that corrected test against archived base: failed as intended after 3376 ms (`evidence/timeout-correction-red.log`). Production timeout logic was not relaxed.
+- 2026-10-16: Compiled empty-PATH smoke exposed a real missing-Git capture failure after successful retrieval. Extend I1 ownership to `src/lib/git.ts` and `tests/git.test.ts` for correction 2: absent optional Git produces existing null/empty provenance without swallowing unrelated failures. C2 reopens for this correction. The first smoke assertion also mistakenly expected a section from a page-title-only query; root corrected that probe to check the advertised page, without changing code.
+- 2026-10-16: A1 baseline trials depend only on C1 and the archived base, so run them while the independent I1 correction finishes. A1 current trials retain their C2 dependency. Each of the 12 trials is an isolated model subnode with no implementation/history context.
+- 2026-10-16: Initial A1 answers preserved correctness and knowledge-write boundaries, but current A09 regressed to 17 CLI calls/605678 stdout bytes (baseline 4/419678). It fetched a broad H1, raised budget twice beyond the host display limit, then paged the entire source. Return only D1 for correction 1: narrow by question/section before pagination, explain host display truncation, retain all initial evidence. Rerun the six current tasks with fresh fixtures/contexts and a frozen refined skill; no evaluator or expected-outcome changes.
+- 2026-10-16: All six refined trials pass answer/write-scope assessment. A09 improves to 2 calls/1126 bytes; small-task call counts are mixed, including A03 at7 versus baseline2. Preserve all18 trials and treat the rerun as development evidence, not held-out proof. Stage1 spec review independently verifies those artifacts and passes; release the three focused stage2 review nodes.
+- 2026-10-16: R1 transcript review confirms malformed role/block discriminators can be silently ignored with `degraded:false`. Return I1 for correction3, its last bounded attempt: add fixed mixed-valid/malformed integration tests and valid-ignore controls, root observes RED, then correct only decoder classification. Portability/DX review passes. Retrieval review independently reproduces leading-dash positional continuation failure; its final report follows before correction.
+- 2026-10-16: I1 correction3 accepted after root RED5pass/8fail and GREEN68pass; bounded re-review passes. Initial control assertions expected literal false in optional frontmatter, corrected before source edits to the existing absent-means-false contract; both RED logs retained.
+- 2026-10-16: R1 retrieval adds measured all-corpus allocation regression. Root confirms on64files/6,272,512bytes/64,000matches: baseline31,653,888bytes median peakRSS versus348,749,824 before correction. Return both retrieval findings to I2 correction1: typed argv positionals and lazy bounded result consumption. New generator-boundary tests and actual CLI replays precede production; initial recall replay fixture fit in one page and is strengthened before source edits. Profile script and both measurements are saved in evidence.
+- 2026-10-16: I2 correction1 passes 128 targeted tests and reduces measured median RSS to 32,620,544 bytes with complete continuation. Bounded re-review resolves both findings. All R1 reviews pass.
+- 2026-10-16: C3 passes TypeScript strict +469 tests, 20/20 frozen contracts, and 28 compiled empty-PATH calls on macOS arm64. Exact 201-line replay passes. Local implementation commits end at `def8139`; only evidence/planning artifacts change afterward. Save the reviewed graph template and final handoff. No publication or installation occurs.

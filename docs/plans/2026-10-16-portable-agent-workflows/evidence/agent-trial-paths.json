@@ -1,0 +1,116 @@
+{
+  "base": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-baseline-d9Yezc",
+  "base_sha": "2702a532d330d53bbc8e54ba18fb0e09e8631e0b",
+  "current": "/Users/justinbeaudry/Projects/kb",
+  "trials_root": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp",
+  "trials": [
+    {
+      "version": "base",
+      "id": "A03-superseded-decision",
+      "root": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/base/A03-superseded-decision",
+      "wrapper": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/base/A03-superseded-decision/run-kb"
+    },
+    {
+      "version": "base",
+      "id": "A05-absent-evidence",
+      "root": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/base/A05-absent-evidence",
+      "wrapper": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/base/A05-absent-evidence/run-kb"
+    },
+    {
+      "version": "base",
+      "id": "A09-long-tail-evidence",
+      "root": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/base/A09-long-tail-evidence",
+      "wrapper": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/base/A09-long-tail-evidence/run-kb"
+    },
+    {
+      "version": "base",
+      "id": "A13-source-injected-instructions",
+      "root": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/base/A13-source-injected-instructions",
+      "wrapper": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/base/A13-source-injected-instructions/run-kb"
+    },
+    {
+      "version": "base",
+      "id": "A14-query-no-filing",
+      "root": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/base/A14-query-no-filing",
+      "wrapper": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/base/A14-query-no-filing/run-kb"
+    },
+    {
+      "version": "base",
+      "id": "A18-unsupported-transcript",
+      "root": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/base/A18-unsupported-transcript",
+      "wrapper": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/base/A18-unsupported-transcript/run-kb"
+    },
+    {
+      "version": "current",
+      "id": "A03-superseded-decision",
+      "root": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/current/A03-superseded-decision",
+      "wrapper": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/current/A03-superseded-decision/run-kb"
+    },
+    {
+      "version": "current",
+      "id": "A05-absent-evidence",
+      "root": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/current/A05-absent-evidence",
+      "wrapper": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/current/A05-absent-evidence/run-kb"
+    },
+    {
+      "version": "current",
+      "id": "A09-long-tail-evidence",
+      "root": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/current/A09-long-tail-evidence",
+      "wrapper": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/current/A09-long-tail-evidence/run-kb"
+    },
+    {
+      "version": "current",
+      "id": "A13-source-injected-instructions",
+      "root": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/current/A13-source-injected-instructions",
+      "wrapper": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/current/A13-source-injected-instructions/run-kb"
+    },
+    {
+      "version": "current",
+      "id": "A14-query-no-filing",
+      "root": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/current/A14-query-no-filing",
+      "wrapper": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/current/A14-query-no-filing/run-kb"
+    },
+    {
+      "version": "current",
+      "id": "A18-unsupported-transcript",
+      "root": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/current/A18-unsupported-transcript",
+      "wrapper": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/current/A18-unsupported-transcript/run-kb"
+    },
+    {
+      "version": "refined",
+      "id": "A03-superseded-decision",
+      "root": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/refined/A03-superseded-decision",
+      "wrapper": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/refined/A03-superseded-decision/run-kb"
+    },
+    {
+      "version": "refined",
+      "id": "A05-absent-evidence",
+      "root": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/refined/A05-absent-evidence",
+      "wrapper": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/refined/A05-absent-evidence/run-kb"
+    },
+    {
+      "version": "refined",
+      "id": "A09-long-tail-evidence",
+      "root": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/refined/A09-long-tail-evidence",
+      "wrapper": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/refined/A09-long-tail-evidence/run-kb"
+    },
+    {
+      "version": "refined",
+      "id": "A13-source-injected-instructions",
+      "root": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/refined/A13-source-injected-instructions",
+      "wrapper": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/refined/A13-source-injected-instructions/run-kb"
+    },
+    {
+      "version": "refined",
+      "id": "A14-query-no-filing",
+      "root": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/refined/A14-query-no-filing",
+      "wrapper": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/refined/A14-query-no-filing/run-kb"
+    },
+    {
+      "version": "refined",
+      "id": "A18-unsupported-transcript",
+      "root": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/refined/A18-unsupported-transcript",
+      "wrapper": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-trials-W4tvHp/refined/A18-unsupported-transcript/run-kb"
+    }
+  ]
+}

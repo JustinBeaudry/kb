@@ -1,0 +1,18 @@
+# R1 stage 2: Portable workflow, evaluation and DX review
+
+**PASS. No concrete introduced portability, instruction-safety, evaluator-validity or DX defect found in the assigned scope.**
+
+Reviewed the tracked changes against `2702a532d330d53bbc8e54ba18fb0e09e8631e0b`, untracked operation references and evaluation source, `graph.md`, stage-1 acceptance, and D1/A1 reports. Applied the gstack pre-landing checklist to the assigned skill/docs/evaluation/CLI wording changes. This was a source review; no full suite or actual-agent trial was rerun, no production/test/evaluation file was edited, and no commit was created.
+
+## Evidence checked
+
+- **Portable first success:** `skills/kb/SKILL.md:16-22` and `README.md:19-64` distinguish the compiled CLI from Bun source execution, describe vault discovery, retain relative operation references and make hooks/MCP/qmd/model choice optional. The CLI description and init guidance agree with that workflow. Capture's environment-only vault selection is explicitly called out in README and the session guide.
+- **Evidence and mutation boundaries:** `skills/kb/SKILL.md:28-61`, all command routers, the query guide and `templates/KB.md:40-50` use map/select/get-node, source/line citations and read-only questions. The guides treat curated and raw text as evidence, require authorized sensitive-source access, preserve archived originals, compare duplicate knowledge and limit maintenance writes to the requested scope. Continuation is described as structured argv, not source-controlled shell text.
+- **Recovery matches implementation:** The query guide's budget precedence, absolute source-line pagination, offsets, map tiers and empty-stdout failure guidance agree with the retrieval interfaces. `skills/kb/references/sessions.md:53-94` matches explicit provider argv, per-invocation deadlines, required output sections, failed-cache preservation and incomplete-extraction handling. The raw/session hard caps are acknowledged; the guide leaves unresolved candidates pending instead of claiming complete processing.
+- **Evaluation validity:** `evals/run.ts:42-55` validates wire framing independently of production parsing. Its checks exercise the real CLI with explicit fixture environment and measure bytes before path normalization. `evals/run.ts:243-273` refuses baseline comparisons with different frozen evaluator hashes. `evals/prepare.ts:28-42` separates scenario preparation from agent execution and instructs the orchestrator to withhold expected outcomes. The strengthened standalone replay compares every returned source position and exact line against its fixture, and records the POSIX-provider limitation.
+- **Claims match the evidence level:** `evals/README.md:12-28`, `:51-66` and `reports/A1.md` distinguish 20 deterministic contracts from the six scenarios actually run in three conditions. A1 preserves the initial efficiency regression and mixed refined results; it does not claim cross-harness, held-out, token-cost or general speed superiority. Documentation text checks are described as drift checks, not behavioral proof.
+- **Change hygiene:** Package metadata adds no runtime dependency, and the TypeScript gate now includes evaluation code. Focused `git diff --check` across assigned tracked paths completed with exit 0.
+
+## Limits and remaining work
+
+This pass does not replace C3's final execution evidence, including the newly strengthened standalone replay gate. Native adapters, a full 20-scenario multi-harness benchmark, real-provider summary quality and broad efficiency claims remain explicitly deferred scope, not review failures. The single-host A1 results support only their recorded conditions.

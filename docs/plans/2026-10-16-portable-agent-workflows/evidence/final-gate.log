@@ -1,0 +1,566 @@
+$ bunx tsc --noEmit
+$ bun test
+bun test v1.4.3 (c6da4a4d3)
+
+tests/retrieval-page.test.ts:
+(pass) lazy retrieval pages > consumes only the skipped offset 0, a bounded page, and its lookahead [0.44ms]
+(pass) lazy retrieval pages > consumes only the skipped offset 40, a bounded page, and its lookahead [0.06ms]
+(pass) lazy retrieval pages > returns a complete small result even when continuation metadata would not fit [0.08ms]
+(pass) lazy retrieval pages > returns the final ordered result without a continuation [0.04ms]
+(pass) lazy retrieval pages > returns an empty final page when offset equals the 0 available results [0.03ms]
+(pass) lazy retrieval pages > returns an empty final page when offset equals the 2 available results
+(pass) lazy retrieval pages > reports the available count when an offset exceeds a finite producer [0.02ms]
+(pass) lazy retrieval pages > rejects an impossible budget for an empty producer [0.04ms]
+(pass) lazy retrieval pages > gives a usable budget remedy for an oversized whole result [0.15ms]
+
+tests/summarize.test.ts:
+(pass) kb summarize > writes a cached summary and short-circuits when manifest_hash matches [301.10ms]
+(pass) kb summarize > emits one-line JSON when --json is set [204.58ms]
+(pass) kb summarize > keeps cached truncated turn diagnostics in JSON output [39.02ms]
+(pass) kb summarize > resolves by full path, sessions-relative path, and session id prefix [298.50ms]
+(pass) kb summarize > falls back to manifest excerpt when the transcript hash no longer matches [234.11ms]
+(pass) kb summarize > chunks oversized transcripts under the configured threshold [431.13ms]
+(pass) kb summarize > skips legacy session markdown when summarizing all manifests [248.08ms]
+(pass) kb summarize > preserves user-edited summaries unless --force is used, then trashes first [314.16ms]
+(pass) kb summarize > --vault-path overrides KB_VAULT and the flag value is never mistaken for the session [295.14ms]
+(pass) kb summarize > inline-equals flag forms are stripped from the positional stream [275.70ms]
+(pass) kb summarize > a valueless trailing -p falls back to KB_VAULT instead of an empty vault path [236.47ms]
+(pass) kb summarize > exits non-zero without writing a summary when the summarizer command fails [232.83ms]
+(pass) kb summaries pin > sets and clears user_edited on the cached summary [304.79ms]
+(pass) kb summaries pin > --vault-path overrides KB_VAULT without disturbing the action/session positionals [318.97ms]
+
+tests/manifest.test.ts:
+(pass) shortSessionId > returns the first 8 hex chars of a UUID [0.02ms]
+(pass) shortSessionId > returns the first 8 hex chars for an unhyphenated uuid
+(pass) shortSessionId > is deterministic
+(pass) shortSessionId > rejects session ids shorter than 8 hex chars [0.04ms]
+(pass) readManifest / writeManifest > round-trips a full manifest with all required fields [0.91ms]
+(pass) readManifest / writeManifest > preserves optional fields (entire_checkpoint, excerpt_incomplete, manifest_hash) [0.75ms]
+(pass) readManifest / writeManifest > preserves pass-through legacy keys (extracted, decisions, tags) [0.84ms]
+(pass) readManifest / writeManifest > permits null transcript fields for migrated-legacy manifests [0.85ms]
+(pass) readManifest / writeManifest > writes an empty body so manifests are pointer-only [0.34ms]
+(pass) validateManifest > accepts a complete manifest [0.01ms]
+(pass) validateManifest > rejects when a required key is missing [0.02ms]
+(pass) validateManifest > rejects when files_changed is not an array [0.03ms]
+(pass) validateManifest > rejects when excerpt lacks head and tail [0.02ms]
+(pass) readSummaryFrontmatter / writeSummaryFrontmatter > round-trips a summary with all optional fields [0.39ms]
+(pass) readSummaryFrontmatter / writeSummaryFrontmatter > round-trips a minimal summary (no optional flags) [0.32ms]
+
+tests/docs-contract.test.ts:
+(pass) portable workflow documentation contract > uses one retrieval path with evidence and read-only query boundaries [0.13ms]
+(pass) portable workflow documentation contract > documents whole-wire limits, continuation and map compatibility [0.07ms]
+(pass) portable workflow documentation contract > keeps source access ask-gated and retrieved text non-authoritative [0.03ms]
+(pass) portable workflow documentation contract > documents generic executable arguments, deadline and output shape [0.07ms]
+(pass) portable workflow documentation contract > does not restore page quotas or an alternate qmd-first query workflow [0.13ms]
+(pass) portable workflow documentation contract > explains portable runtime requirements and optional integration scope [0.03ms]
+
+tests/transcript-portability.test.ts:
+(pass) portable transcript excerpts > preserves ordered user and assistant text from legacy human and assistant messages [3.67ms]
+(pass) portable transcript excerpts > preserves ordered user and assistant text from Claude user messages with text blocks [0.49ms]
+(pass) portable transcript excerpts > preserves ordered user and assistant text from Codex response_item messages [0.41ms]
+(pass) portable transcript excerpts > preserves ordered user and assistant text from generic role/content messages [0.41ms]
+(pass) portable transcript excerpts > ignores metadata, tools, and Codex event duplicates [0.53ms]
+(pass) portable transcript excerpts > keeps conversational text while excluding non-text content blocks [0.38ms]
+(pass) portable transcript excerpts > preserves Unicode codepoints at the excerpt boundaries for generic messages [0.77ms]
+
+tests/inject-modes.test.ts:
+(pass) inject hook — mode: off > produces empty additionalContext when KB_INJECT_MODE=off [34.89ms]
+(pass) inject hook — mode: lazy (pointer payload) > produces a pointer payload under 500 bytes [36.35ms]
+(pass) inject hook — mode: lazy (pointer payload) > includes a recall hint in the pointer payload [35.62ms]
+(pass) inject hook — mode: lazy (pointer payload) > steers retrieval to kb map first, recall as fallback [36.12ms]
+(pass) inject hook — mode: lazy (pointer payload) > advertises top-N index headings when index.md present [35.59ms]
+(pass) inject hook — mode: lazy (pointer payload) > produces a pointer payload with no categories when index.md missing [34.63ms]
+(pass) inject hook — mode: lazy (pointer payload) > stays under budget even with many index headings [36.00ms]
+(pass) inject hook — mode: lazy (pointer payload) > does not embed raw session or wiki contents [34.47ms]
+(pass) inject hook — default and explicit eager > uses a lazy pointer when no mode is set [34.42ms]
+(pass) inject hook — default and explicit eager > respects KB_INJECT_MODE=eager explicitly [35.30ms]
+(pass) inject hook — mode precedence > env overrides config.json [33.32ms]
+(pass) inject hook — mode precedence > config.json used when env not set [37.91ms]
+(pass) inject hook — mode precedence > invalid config.json falls through to default (lazy) [40.28ms]
+(pass) inject hook — logging > appends a minimized JSONL line to inject-log.jsonl [36.95ms]
+(pass) inject hook — logging > does not embed query or content strings in log entries [35.78ms]
+(pass) inject hook — logging > multiple inject calls append, do not overwrite [106.64ms]
+(pass) inject hook — event name > reports the event name supplied on stdin [35.74ms]
+(pass) inject hook — event name > falls back to SessionStart on garbled or absent stdin [69.07ms]
+(pass) inject hook — event name > bash fallback echoes the stdin event name when bun is unavailable [15.36ms]
+(pass) inject hook — autoExtractNudge > lazy mode surfaces the unprocessed count when enabled [39.40ms]
+(pass) inject hook — autoExtractNudge > lazy mode stays under the pointer budget with the nudge present [41.83ms]
+(pass) inject hook — autoExtractNudge > eager mode appends the nudge after content [42.82ms]
+(pass) inject hook — autoExtractNudge > eager mode reserves the nudge when the budget is nearly full [40.67ms]
+(pass) inject hook — autoExtractNudge > no nudge when all manifests are extracted [39.53ms]
+(pass) inject hook — autoExtractNudge > no nudge when the flag is false or not a strict boolean [107.51ms]
+(pass) inject hook — autoExtractNudge > corrupt state.json silently skips the nudge [36.94ms]
+(pass) inject hook — autoExtractNudge > malformed manifest frontmatter does not crash the scan; nudge stays one line [41.33ms]
+(pass) inject hook — autoExtractNudge > symlinked sessions dir skips the nudge and exits 0 [38.81ms]
+(pass) inject hook — autoExtractNudge > mode off emits nothing even with the nudge enabled [35.44ms]
+(pass) inject hook — concurrency > concurrent invocations produce valid JSONL (one entry per call) [146.08ms]
+
+tests/wiki-read.test.ts:
+(pass) walkWiki > returns only .md files, recursing subdirectories [1.18ms]
+(pass) walkWiki > excludes symlinked files and symlinked directories [1.01ms]
+(pass) walkWiki > skips dotfiles and dot-directories [0.85ms]
+(pass) readWikiFileNoFollow > reads a regular file's contents [0.41ms]
+(pass) readWikiFileNoFollow > returns null for symlinks (O_NOFOLLOW) [0.41ms]
+(pass) readWikiFileNoFollow > returns null for files over MAX_FILE_BYTES [0.41ms]
+(pass) readWikiFileNoFollow > returns null for missing files [0.26ms]
+
+tests/sessions-list.test.ts:
+(pass) sessions --unprocessed > lists only unprocessed manifest names, nothing from subdirectories [37.24ms]
+(pass) sessions --unprocessed > lists all manifests without the flag, including unparseable ones [32.62ms]
+(pass) sessions --unprocessed > returns nothing and exits 0 for an empty sessions dir [26.49ms]
+(pass) sessions --unprocessed > returns nothing and exits 0 when the vault has no sessions directory [26.79ms]
+(pass) sessions --unprocessed > appends a hashed access-log entry [30.74ms]
+(pass) sessions --unprocessed > excludes files without frontmatter and unsafe filenames from --unprocessed [30.91ms]
+(pass) sessions --unprocessed > skips manifests with malformed frontmatter without crashing [31.08ms]
+(pass) sessions --unprocessed > refuses a symlinked sessions directory [27.04ms]
+
+tests/init.test.ts:
+(pass) kb init (integration) > should scaffold vault at custom path [20.25ms]
+(pass) kb init (integration) > should be idempotent on second run [37.27ms]
+(pass) kb init (integration) > should refuse occupied directory [17.84ms]
+
+tests/lockfile.test.ts:
+(pass) withExclusiveLock > runs the function and removes the lockfile on success [0.54ms]
+(pass) withExclusiveLock > removes the lockfile even when the function throws [0.24ms]
+(pass) withExclusiveLock > writes PID and createdAt JSON into the lockfile [1.91ms]
+(pass) withExclusiveLock > blocks a second concurrent acquirer until the first releases [51.98ms]
+(pass) withExclusiveLock > reclaims a stale lockfile whose createdAt is older than staleMs [0.50ms]
+(pass) withExclusiveLock > withLogLock acquires .kb/log.lock under the vault [0.47ms]
+(pass) withExclusiveLock > throws LockBusyError when retry budget is exhausted [17.30ms]
+
+tests/security-self-test.test.ts:
+(pass) security-self-test hook > exits 0 on success [17.50ms]
+(pass) security-self-test hook > creates sentinel files in raw/, sessions/, and .kb/ [16.42ms]
+(pass) security-self-test hook > writes unique sentinel tokens so agent can confirm read escape [15.67ms]
+(pass) security-self-test hook > output lists expected-deny probes for Read/Grep/Glob/Bash [16.21ms]
+(pass) security-self-test hook > output includes sentinel paths for verification [15.52ms]
+(pass) security-self-test hook > output marks itself as best-effort [15.35ms]
+(pass) plugin .claude/settings.json > ships deny rules for raw/, sessions/, and .kb/ logs [0.48ms]
+(pass) plugin .claude/settings.json > covers more than one Bash reader (cat, head, tail, less, grep, awk, sed, python at minimum) [0.20ms]
+(pass) plugin .claude/settings.json > bash denies cover both raw/ and sessions/ at minimum [0.06ms]
+
+tests/map-command.test.ts:
+(pass) map command > no query: returns page and section node summaries with tree_root [35.11ms]
+(pass) map command > query: surfaces the matching cluster first [35.49ms]
+(pass) map command > exact alias query resolves to its page first [33.96ms]
+(pass) map command > zero-result query sets no_results with a recall fallback hint [34.21ms]
+(pass) map command > empty wiki returns no_results [35.03ms]
+(pass) map command > degrades tier-by-tier under a tight budget and stays within it [39.83ms]
+(pass) map command > section-only candidates under tight budget fall back to parent pages, never a silent empty envelope [37.28ms]
+(pass) map command > section-only candidates whose parent pages fit return an exact tier-2 envelope [32.52ms]
+(pass) map command > mixed candidate set under tight budget represents section pages alongside the page chunk [39.59ms]
+(pass) map command > does not double-add a page that is both a page candidate and a section candidate's parent [38.73ms]
+(pass) map command > when fitting drops every chunk the envelope still signals truncation and suggestions [37.67ms]
+(pass) map command > a 50-page/150-section vault fits tier 1-2 within the 16 KiB default [38.00ms]
+(pass) map command > --budget flag overrides the KB_MAP_BUDGET env var [36.64ms]
+(pass) map command > degenerate KB_MAP_BUDGET values fall back to the default [95.99ms]
+(pass) map command > logs one hashed access-log line per invocation [34.89ms]
+(pass) map command > second call reuses the warm cache without rewriting tree.json [63.22ms]
+(pass) map command > missing vault exits non-zero with empty stdout [27.34ms]
+
+tests/uninstall.test.ts:
+(pass) kb uninstall (integration) > should preserve vault and exit cleanly [38.16ms]
+
+tests/markdown.test.ts:
+(pass) parseHeadings > returns headings with levels and 1-indexed lines [0.09ms]
+(pass) parseHeadings > returns empty array for empty body
+(pass) parseHeadings > picks up ATX headings inside fenced code blocks (documented v1 limitation) [0.03ms]
+(pass) parseSections > nests by level; last section's range ends at EOF [0.13ms]
+(pass) parseSections > body starting at H3 yields top-level sections at H3 [0.02ms]
+(pass) parseSections > empty body returns empty array
+(pass) parseSections > records wikilink targets within each section's range [0.03ms]
+(pass) parseWikilinks > captures bare targets
+(pass) parseWikilinks > captures display text
+(pass) parseWikilinks > captures heading anchors [0.01ms]
+(pass) parseWikilinks > captures block refs
+(pass) parseWikilinks > captures path-style targets verbatim
+(pass) parseWikilinks > captures traversal-shaped targets verbatim without resolving
+(pass) parseWikilinks > records the 1-indexed line of each link [0.01ms]
+(pass) slugify > lowercases and kebab-cases [0.03ms]
+(pass) slugify > strips markdown formatting characters
+(pass) slugify > collapses repeated dashes and trims edges
+(pass) slugify > returns identical slugs for duplicate headings (caller disambiguates)
+(pass) slugify > strips non-ASCII to remain stable
+
+tests/qmd.test.ts:
+(pass) parseQmdOutput > extracts wiki-prefixed page IDs [0.12ms]
+(pass) parseQmdOutput > injects the wiki/ prefix for bare tokens and strips ./ [0.01ms]
+(pass) parseQmdOutput > slices wiki-relative IDs out of longer path tokens
+(pass) parseQmdOutput > rejects paths that escape wiki/ scope
+(pass) parseQmdOutput > caps at topK and dedupes [0.01ms]
+(pass) parseQmdOutput > returns empty for garbage or empty output
+(pass) parseQmdCollectionList > extracts names from the block format and skips the header and detail lines [0.05ms]
+(pass) parseQmdCollectionList > extracts names from a flat 'name path' format [0.01ms]
+(pass) parseQmdCollectionList > returns empty for empty or comment-only output
+(pass) parseQmdCollectionShow > extracts the filesystem path from the Path: line [0.02ms]
+(pass) parseQmdCollectionShow > returns null when no Path line is present
+(pass) isVaultRegistered > matches a vault whose path appears in qmd collection show [242.64ms]
+(pass) isVaultRegistered > does not match a collection registered over a different path, even with the expected name [219.18ms]
+(pass) isVaultRegistered > returns false when qmd is absent from PATH [17.84ms]
+(pass) qmdSearchHints > parses hints from a fast fake qmd [213.78ms]
+(pass) qmdSearchHints > a fast qmd success does not leave the deadline timer pending (process exits promptly) [178.64ms]
+(pass) qmdSearchHints > returns null when qmd hangs past the deadline [2524.68ms]
+(pass) qmdSearchHints > returns null when qmd emits large output then hangs (pipe backpressure) [2528.29ms]
+(pass) qmdSearchHints > a qmd that traps SIGTERM cannot keep the CLI alive past the deadline [2528.46ms]
+(pass) qmdSearchHints > returns null when qmd exits non-zero [239.37ms]
+(pass) qmdSearchHints > returns null when qmd is absent from PATH [19.01ms]
+
+tests/init-config.test.ts:
+(pass) init — fresh-install config.json > writes .kb/config.json with inject_mode=lazy [2.08ms]
+(pass) init — fresh-install config.json > does not overwrite an existing config.json [1.49ms]
+
+tests/retrieval-budgets.test.ts:
+(pass) curated retrieval wire budgets > get bounds the complete default response including JSON escaping and Unicode [39.86ms]
+(pass) curated retrieval wire budgets > get counts the complete wire against an explicit smaller budget [33.20ms]
+(pass) curated retrieval wire budgets > get rejects invalid and impossible explicit budgets without emitting stdout [98.86ms]
+(pass) curated retrieval wire budgets > get-node page bounds the complete default response including JSON escaping and Unicode [43.92ms]
+(pass) curated retrieval wire budgets > get-node page counts the complete wire against an explicit smaller budget [44.20ms]
+(pass) curated retrieval wire budgets > get-node page rejects invalid and impossible explicit budgets without emitting stdout [146.03ms]
+(pass) curated retrieval wire budgets > get-node section bounds the complete default response including JSON escaping and Unicode [46.71ms]
+(pass) curated retrieval wire budgets > get-node section counts the complete wire against an explicit smaller budget [47.37ms]
+(pass) curated retrieval wire budgets > get-node section rejects invalid and impossible explicit budgets without emitting stdout [161.25ms]
+(pass) curated retrieval wire budgets > recall bounds the complete default response including JSON escaping and Unicode [34.88ms]
+(pass) curated retrieval wire budgets > recall counts the complete wire against an explicit smaller budget [33.49ms]
+(pass) curated retrieval wire budgets > recall rejects invalid and impossible explicit budgets without emitting stdout [112.59ms]
+(pass) curated retrieval wire budgets > list-topics bounds the complete default response including JSON escaping and Unicode [34.50ms]
+(pass) curated retrieval wire budgets > list-topics counts the complete wire against an explicit smaller budget [31.54ms]
+(pass) curated retrieval wire budgets > list-topics rejects invalid and impossible explicit budgets without emitting stdout [105.88ms]
+(pass) curated retrieval wire budgets > map bounds the complete default response including JSON escaping and Unicode [48.55ms]
+(pass) curated retrieval wire budgets > map counts the complete wire against an explicit smaller budget [48.67ms]
+(pass) curated retrieval wire budgets > map rejects invalid and impossible explicit budgets without emitting stdout [163.88ms]
+(pass) curated retrieval wire budgets > uses KB_RETRIEVAL_BUDGET and allows an explicit flag to override it [50.51ms]
+(pass) curated retrieval wire budgets > rejects an impossible budget on an empty map and a no-results recall [48.91ms]
+(pass) curated retrieval wire budgets > keeps an explicit increase-budget remedy when a map item cannot fit at 420 bytes [28.22ms]
+(pass) retrieval continuation and provenance > replays get continuations for a leading-dash page passed after -- [59.72ms]
+(pass) retrieval continuation and provenance > replays a leading-dash recall query in exact path and line order [42.65ms]
+(pass) retrieval continuation and provenance > get returns every original line through executable continuations [60.86ms]
+(pass) retrieval continuation and provenance > get-node returns every original line through executable continuations [120.31ms]
+(pass) retrieval continuation and provenance > keeps section continuations inside the requested section using absolute source lines [91.40ms]
+(pass) retrieval continuation and provenance > get gives an honest larger-budget remedy for a single indivisible line [19.90ms]
+(pass) retrieval continuation and provenance > get-node gives an honest larger-budget remedy for a single indivisible line [32.18ms]
+(pass) retrieval continuation and provenance > gives primary section evidence priority over optional neighbors in the same budget [36.98ms]
+(pass) retrieval continuation and provenance > keeps optional wikilink previews inside the same wire budget [31.14ms]
+(pass) retrieval continuation and provenance > recall continues to remaining ordered results without repeating or skipping them [82.12ms]
+(pass) retrieval continuation and provenance > list-topics continues to remaining ordered results without repeating or skipping them [56.40ms]
+(pass) retrieval continuation and provenance > preserves small response text, metadata, and line provenance without a truncation marker [81.17ms]
+
+tests/logging.test.ts:
+(pass) access log — minimized entries > recall appends a single JSONL entry with hash + len, never plaintext query [19.14ms]
+(pass) access log — minimized entries > get appends an access log entry [19.47ms]
+(pass) access log — minimized entries > list-topics appends an access log entry [19.11ms]
+(pass) access log — concurrency > parallel recalls produce one valid JSONL line each [332.91ms]
+(pass) log rotation > rotates access-log.jsonl when size cap exceeded [36.32ms]
+(pass) log rotation > rotation preserves an older archive (overwrites existing .1) [23.61ms]
+
+tests/skill-contract.test.ts:
+(pass) portable skill documentation contract > uses a harness-neutral trigger and relative operation references [0.87ms]
+(pass) portable skill documentation contract > keeps every relative guide link resolvable from its containing file [0.43ms]
+(pass) portable skill documentation contract > routes optional slash commands to the shared operation guides [0.08ms]
+(pass) portable skill documentation contract > documents the sanctioned session pipeline in the on-demand guide [0.06ms]
+(pass) portable skill documentation contract > leaves schema conventions and session layout in the vault template [0.04ms]
+
+tests/vault.test.ts:
+(pass) resolveVaultPath > should use KB_VAULT env var when set [0.04ms]
+(pass) resolveVaultPath > should use .kb file in project root when present [0.30ms]
+(pass) resolveVaultPath > should fall back to ~/kb [0.01ms]
+(pass) checkVaultState > should return 'empty' for non-existent path [0.03ms]
+(pass) checkVaultState > should return 'kb' when .kb/state.json exists [0.30ms]
+(pass) checkVaultState > should return 'obsidian' when .obsidian/ exists [0.19ms]
+(pass) checkVaultState > should return 'occupied' when directory has other content [0.23ms]
+(pass) scaffoldVault > should create all directories and files [1.39ms]
+(pass) scaffoldVault > should skip existing files on second run [1.30ms]
+(pass) scaffoldVault > should write state.json with version [1.33ms]
+(pass) scaffoldVault > should create context.md [1.29ms]
+
+tests/hash.test.ts:
+(pass) sha256File > returns the sha256 digest of a small file as a hex string [0.55ms]
+(pass) sha256File > returns null for a missing file rather than throwing [0.32ms]
+(pass) sha256File > returns a stable digest on a large streamed file [2.81ms]
+(pass) sha256File > handles an empty file [0.33ms]
+
+tests/frontmatter.test.ts:
+(pass) parseFrontmatter > parses frontmatter and body from a well-formed document [0.22ms]
+(pass) parseFrontmatter > returns empty data and the whole content when no frontmatter is present [0.01ms]
+(pass) parseFrontmatter > returns empty data and empty body on an empty string
+(pass) parseFrontmatter > treats a document with only frontmatter and no body as having an empty body [0.05ms]
+(pass) parseFrontmatter > throws with a readable message on malformed YAML [0.30ms]
+(pass) parseFrontmatter > preserves unknown fields on round-trip [0.23ms]
+(pass) serializeFrontmatter > emits standard --- delimiters and a trailing newline [0.05ms]
+(pass) serializeFrontmatter > emits only the body when data is empty
+(pass) serializeFrontmatter > round-trips null and boolean values [0.09ms]
+
+tests/doctor-trust-boundary.test.ts:
+(pass) doctor — trust boundary > warns when the vault path does not match the default deny globs [27.37ms]
+(pass) doctor — trust boundary > does not warn when the vault path contains a 'kb' segment [24.80ms]
+
+tests/mark-extracted.test.ts:
+(pass) mark-extracted > flips extracted to true and preserves other fields and body [29.39ms]
+(pass) mark-extracted > is idempotent on already-extracted manifests [28.71ms]
+(pass) mark-extracted > fails with a clear message on a missing manifest and audits the failure [24.57ms]
+(pass) mark-extracted > rejects non-markdown filenames [24.34ms]
+(pass) mark-extracted > refuses a symlinked manifest file [25.98ms]
+(pass) mark-extracted > refuses files without parseable frontmatter instead of corrupting them [49.61ms]
+(pass) mark-extracted > rejects traversal and subpath targets [47.55ms]
+(pass) mark-extracted > exits nonzero on malformed YAML without modifying the file [28.21ms]
+(pass) mark-extracted > appends a write-audit access-log entry with hashed target [30.59ms]
+
+tests/read-session.test.ts:
+(pass) read-session > returns a session-excerpt chunk when approved [20.28ms]
+(pass) read-session > fails closed without approval [18.54ms]
+(pass) read-session > rejects escape to raw/ [18.22ms]
+
+tests/path-safety.test.ts:
+(pass) isWithin > returns true for same path [0.02ms]
+(pass) isWithin > returns true for nested paths
+(pass) isWithin > returns false for parent
+(pass) isWithin > returns false for sibling with shared prefix
+(pass) isWithin > returns false for unrelated paths
+(pass) assertSafeFilename > accepts plain filenames [0.04ms]
+(pass) assertSafeFilename > accepts filenames containing '..' as a substring mid-segment
+(pass) assertSafeFilename > rejects absolute paths [0.02ms]
+(pass) assertSafeFilename > rejects '..' segment [0.01ms]
+(pass) assertSafeFilename > rejects backslash-separated traversal
+(pass) assertSafeFilename > rejects null byte
+(pass) assertGenuineScopeDir > accepts a real directory inside the vault [0.25ms]
+(pass) assertGenuineScopeDir > rejects a symlinked scope directory [0.26ms]
+(pass) assertGenuineScopeDir > rejects a missing scope directory [0.10ms]
+(pass) assertGenuineScopeDir > rejects a scope path that is a regular file [0.21ms]
+
+tests/list-topics.test.ts:
+(pass) list-topics command > returns one envelope chunk per heading with accurate line numbers [17.91ms]
+(pass) list-topics command > missing index.md returns envelope with empty chunks, not an error [17.39ms]
+(pass) list-topics command > missing vault exits non-zero without leaking content [15.97ms]
+
+tests/git.test.ts:
+(pass) headCommit > returns the HEAD SHA after a commit [55.30ms]
+(pass) headCommit > returns null in a non-git directory [5.28ms]
+(pass) headCommit > returns null in a git repo with no commits [29.55ms]
+(pass) headCommit > does not hide a missing working directory as unavailable Git [0.32ms]
+(pass) optional Git provenance > returns null and empty provenance when the Git executable is absent [10.26ms]
+(pass) currentBranch > returns the current branch name [47.68ms]
+(pass) currentBranch > returns null in a non-git directory [4.76ms]
+(pass) filesChangedSince > returns committed changes between a commit SHA and HEAD [70.06ms]
+(pass) filesChangedSince > reports deletions [70.13ms]
+(pass) filesChangedSince > returns empty array in non-git dir [5.68ms]
+(pass) filesChangedSince > returns empty array when nothing changed between two refs [54.32ms]
+(pass) uncommittedChanges > reports untracked, modified, and staged files [55.80ms]
+(pass) uncommittedChanges > returns empty array on clean repo [48.04ms]
+(pass) uncommittedChanges > returns empty array in non-git dir [4.54ms]
+
+tests/entire.test.ts:
+(pass) entire detection > isEntireOnPath > should return true when entire CLI is installed [0.55ms]
+
+tests/map-cache.test.ts:
+(pass) loadOrBuildTree > cold start builds, persists, and returns the tree [2.03ms]
+(pass) loadOrBuildTree > warm load with no changes does not rewrite the cache file [1.13ms]
+(pass) loadOrBuildTree > reparses only changed pages and recomputes backlinks [1.43ms]
+(pass) loadOrBuildTree > detects added and removed pages [1.52ms]
+(pass) loadOrBuildTree > rebuilds from scratch on corrupted cache JSON [1.42ms]
+(pass) loadOrBuildTree > rebuilds from scratch on unknown cache schema_version [1.56ms]
+(pass) loadOrBuildTree > pre-upgrade v1 caches trigger a clean rebuild that carries preamble links [1.97ms]
+(pass) loadOrBuildTree > ignores leftover tmp files from interrupted writes [1.06ms]
+(pass) loadOrBuildTree > concurrent cold loads both return valid trees and leave a valid file [1.12ms]
+(pass) loadOrBuildTree > same-size touch-back edits are missed by design (documented limitation) [1.83ms]
+
+tests/candidates.test.ts:
+(pass) selectCandidates > exact title match is the top candidate [1.42ms]
+(pass) selectCandidates > exact alias match is case-insensitive [0.91ms]
+(pass) selectCandidates > tag match returns tagged pages [0.83ms]
+(pass) selectCandidates > heading substring match returns section node IDs [0.90ms]
+(pass) selectCandidates > wikilink neighborhood includes pages linked from matches [0.86ms]
+(pass) selectCandidates > backlink bucket includes pages linking to matches [0.90ms]
+(pass) selectCandidates > lexical fallback finds body-only matches [0.86ms]
+(pass) selectCandidates > query matching nothing returns all-empty buckets [0.86ms]
+(pass) selectCandidates > caps total candidates at the limit, filling by priority [6.41ms]
+(pass) selectCandidates > qmd hints land in their own bucket and never duplicate earlier buckets [0.84ms]
+(pass) selectCandidates > absent qmd hints leave the bucket undefined [0.84ms]
+(pass) selectCandidates > is deterministic for the same query and tree [0.79ms]
+
+tests/get.test.ts:
+(pass) get command > returns one chunk for an existing wiki page [19.32ms]
+(pass) get command > accepts .md suffix [18.45ms]
+(pass) get command > refuses to read raw/ pages via get [17.39ms]
+(pass) get command > refuses absolute paths [17.05ms]
+(pass) get command > missing page returns structured error (non-zero exit) [17.29ms]
+
+tests/capture-session.test.ts:
+(pass) kb capture-session > writes a manifest with all R2 fields on happy path [635.14ms]
+(pass) kb capture-session > filename matches <ISO-timestamp>-<8hex>.md scheme [632.59ms]
+(pass) kb capture-session > is idempotent on the same session_id [671.12ms]
+(pass) kb capture-session > handles an empty transcript (no user/assistant turns) with empty excerpt [635.49ms]
+(pass) kb capture-session > fits full extracted text into head when the transcript is tiny [635.21ms]
+(pass) kb capture-session > truncates head/tail on UTF-8 codepoint boundaries (no split surrogate pairs) [638.83ms]
+(pass) kb capture-session > appends exactly one line to log.md per successful capture [1225.44ms]
+(pass) kb capture-session > writes a manifest with null git fields when cwd is not a git repo [636.74ms]
+(pass) kb capture-session > uses abbreviated Entire checkpoints to report committed changes [662.92ms]
+(pass) kb capture-session > still writes a manifest when transcript_path is missing, with null transcript fields [103.91ms]
+(pass) kb capture-session > logs to .kb/capture-errors.log and exits non-zero on non-JSON stdin [71.32ms]
+(pass) kb capture-session > no manifest is written when capture fails before idempotency lock [71.08ms]
+
+tests/summarizer-portability.test.ts:
+(pass) portable session summarization > sends legacy user and assistant text to the summarizer [283.67ms]
+(pass) portable session summarization > sends complete Claude user conversation text without duplicates [227.74ms]
+(pass) portable session summarization > sends complete Codex response_item conversation text without duplicates [208.24ms]
+(pass) portable session summarization > sends complete generic role/content conversation text without duplicates [211.26ms]
+(pass) portable session summarization > uses the excerpt as an explicitly degraded fallback for an unsupported nonempty transcript [214.35ms]
+(pass) portable session summarization > rejects an unsupported nonempty transcript without usable fallback before calling the provider [37.20ms]
+(pass) portable session summarization > reports degraded input when a recognized malformed message accompanies valid conversation text [213.40ms]
+(pass) portable session summarization > reports degraded input for a Codex message with a missing role while preserving usable text [229.85ms]
+(pass) portable session summarization > reports degraded input for a Codex message with a non-string role while preserving usable text [240.29ms]
+(pass) portable session summarization > reports degraded input for a generic message with a missing role while preserving usable text [232.50ms]
+(pass) portable session summarization > reports degraded input for a generic message with a non-string role while preserving usable text [237.58ms]
+(pass) portable session summarization > reports degraded input for a Claude content block with a missing type while preserving usable text [238.29ms]
+(pass) portable session summarization > reports degraded input for a Codex content block with a non-string type while preserving usable text [237.46ms]
+(pass) portable session summarization > reports degraded input for a generic content block with a missing type while preserving usable text [232.51ms]
+(pass) portable session summarization > reports degraded input for a generic content block with a non-string type while preserving usable text [239.42ms]
+(pass) portable session summarization > keeps complete-source status when ignoring Codex system, developer, and tool roles [240.57ms]
+(pass) portable session summarization > keeps complete-source status when ignoring generic system, developer, and tool roles [312.06ms]
+(pass) portable session summarization > keeps complete-source status when ignoring typed non-text content blocks [246.28ms]
+(pass) portable session summarization > keeps complete-source status when ignoring unrelated metadata and tool records [232.33ms]
+(pass) portable session summarization > keeps complete-source status when ignoring mirrored Codex event records [237.73ms]
+(pass) portable session summarization > invokes a custom summarizer executable without implicit vendor flags [235.13ms]
+(pass) portable session summarization > passes KB_SUMMARIZE_ARGS as literal JSON string-array arguments [230.69ms]
+(pass) portable session summarization > rejects invalid KB_SUMMARIZE_ARGS before invoking the provider: not json [44.60ms]
+(pass) portable session summarization > rejects invalid KB_SUMMARIZE_ARGS before invoking the provider: {"mode":"text"} [37.46ms]
+(pass) portable session summarization > rejects invalid KB_SUMMARIZE_ARGS before invoking the provider: ["valid",42] [35.18ms]
+(pass) portable session summarization > preserves the usable cached summary when a forced refresh returns empty output [252.46ms]
+(pass) portable session summarization > preserves the usable cached summary when a forced refresh returns unstructured output [237.21ms]
+(pass) portable session summarization > preserves the usable cached summary when a forced refresh returns empty sections output [233.36ms]
+(pass) portable session summarization > preserves the usable cached summary when a forced refresh returns frontmatter only output [235.68ms]
+(pass) portable session summarization > does not cache empty output on the first generation [227.21ms]
+(pass) portable session summarization > ends a timed-out provider promptly without replacing a usable cached summary [1059.82ms]
+
+tests/recall.test.ts:
+(pass) recall command > returns chunks matching the query, each with provenance [35.71ms]
+(pass) recall command > does not return results from sessions/ or raw/ [22.94ms]
+(pass) recall command > empty result returns envelope with no_results policy flag and a hint [20.21ms]
+(pass) recall command > missing vault exits non-zero without leaking content [17.12ms]
+(pass) recall command > missing wiki directory returns structured error [17.32ms]
+(pass) recall command > does not follow symlinks inside wiki/ that point at sessions/ or raw/ [18.17ms]
+(pass) recall command > does not follow symlinks inside wiki/ that point outside the vault [18.01ms]
+(pass) recall command > rejects when wiki/ is itself a symlink [17.07ms]
+
+tests/doctor.test.ts:
+(pass) kb doctor session health > reports manifest, summary, and trash counts [33.71ms]
+(pass) kb doctor session health > warns on recent capture errors and ignores old ones [33.92ms]
+(pass) kb doctor session health > warns on legacy session files and malformed manifests [33.72ms]
+(pass) kb doctor session health > warns when context.md + index.md exceed the inject budget [35.15ms]
+(pass) kb doctor session health > warns when core vault content fills 80%+ of the inject budget [33.82ms]
+(pass) kb doctor session health > reports inject budget headroom on a small vault [33.22ms]
+(pass) kb doctor session health > deletes stale session lockfiles [33.92ms]
+(pass) kb doctor newest wiki page staleness > warns on a stale wiki even when a fresh session manifest exists [33.94ms]
+(pass) kb doctor newest wiki page staleness > reports ok when the newest wiki page is fresh [29.42ms]
+(pass) kb doctor newest wiki page staleness > checks wiki staleness even when sessions/ is absent [28.97ms]
+
+tests/envelope.test.ts:
+(pass) envelope — buildEnvelope > produces a schema_version, nonce, policy, and chunks [0.03ms]
+(pass) envelope — buildEnvelope > unique nonce per call [0.02ms]
+(pass) envelope — buildEnvelope > passes chunks through with provenance [0.02ms]
+(pass) envelope — writeEnvelope / parseEnvelope roundtrip > length-prefixed output parses back to equal envelope [0.04ms]
+(pass) envelope — writeEnvelope / parseEnvelope roundtrip > first line of wire format is decimal byte count of the JSON body [0.02ms]
+(pass) envelope — writeEnvelope / parseEnvelope roundtrip > parse rejects malformed prefix [0.01ms]
+(pass) envelope — writeEnvelope / parseEnvelope roundtrip > parse rejects mismatched length [0.02ms]
+(pass) envelope — writeEnvelope / parseEnvelope roundtrip > parse rejects schema_version 1 [0.04ms]
+(pass) envelope — writeEnvelope / parseEnvelope roundtrip > parse rejects schema_version 3 [0.02ms]
+(pass) envelope — writeEnvelope / parseEnvelope roundtrip > parse rejects missing nonce [0.02ms]
+(pass) envelope — writeEnvelope / parseEnvelope roundtrip > parse rejects non-hex nonce [0.01ms]
+(pass) envelope — writeEnvelope / parseEnvelope roundtrip > parse rejects chunks with invalid curation [0.02ms]
+(pass) envelope — writeEnvelope / parseEnvelope roundtrip > parse rejects non-object policy [0.01ms]
+(pass) envelope v2 — structural extensions > accepts curation heading-section [0.01ms]
+(pass) envelope v2 — structural extensions > still accepts curation session-excerpt
+(pass) envelope v2 — structural extensions > accepts chunks with node_id, heading_path, and node_kind [0.02ms]
+(pass) envelope v2 — structural extensions > accepts chunks without the optional structural fields
+(pass) envelope v2 — structural extensions > rejects non-string node_id [0.02ms]
+(pass) envelope v2 — structural extensions > rejects heading_path containing non-strings [0.03ms]
+(pass) envelope v2 — structural extensions > rejects node_kind outside page|section [0.02ms]
+(pass) envelope v2 — structural extensions > accepts policy with tree_root and nav_trace [0.02ms]
+
+tests/map-builder.test.ts:
+(pass) buildTree > builds pages with node IDs, resolved wikilinks, and backlinks [1.42ms]
+(pass) buildTree > section line ranges are file-absolute (frontmatter offset applied) [0.89ms]
+(pass) buildTree > populates by_alias and by_tag indexes with sorted keys [0.94ms]
+(pass) buildTree > page with no frontmatter gets filename title and empty tags/aliases [0.57ms]
+(pass) buildTree > title falls back to first H1 when frontmatter has no title [0.61ms]
+(pass) buildTree > duplicate headings get ordinal-suffixed section IDs [0.58ms]
+(pass) buildTree > ordinal suffix never collides with a natural '-2' slug [0.60ms]
+(pass) buildTree > natural '-2' slug arriving first still yields unique IDs [0.61ms]
+(pass) buildTree > positional fallback never collides with a literal section-N heading [0.62ms]
+(pass) buildTree > heading that slugifies to empty falls back to positional ID [0.51ms]
+warning: malformed frontmatter in wiki/bad.md; skipping page body
+(pass) buildTree > malformed frontmatter records page as malformed without throwing [0.88ms]
+(pass) buildTree > symlinks inside wiki/ are excluded [1.21ms]
+(pass) buildTree > buildPage on a file deleted mid-scan returns null instead of throwing [0.30ms]
+warning: skipping body of wiki/big.md: exceeds 262144 bytes
+(pass) buildTree > buildPage records a present-but-unreadable (oversize) file as an empty page [0.56ms]
+(pass) buildTree > buildPage returns null when the file is gone at read time (statSync ok, read null, not present) [0.63ms]
+(pass) buildTree > empty wiki returns empty tree [0.33ms]
+(pass) buildTree > traversal-shaped and absolute wikilink targets stay unresolved [0.46ms]
+(pass) buildTree > heading-free pages contribute their wikilinks to the graph [0.58ms]
+(pass) buildTree > preamble wikilinks before the first heading resolve without duplicating section links [0.57ms]
+warning: duplicate alias "Shared" on wiki/b.md; keeping wiki/a.md
+(pass) buildTree > duplicate alias across pages: first page in path order wins [0.59ms]
+(pass) buildTree > is deterministic: same vault builds JSON-equal output [1.02ms]
+(pass) node-id grammar > accepts page IDs and section IDs [0.04ms]
+(pass) node-id grammar > rejects traversal, absolute paths, and non-wiki scopes [0.02ms]
+(pass) node-id grammar > parses page and section parts [0.02ms]
+
+tests/get-node.test.ts:
+(pass) get-node command > page ID returns the full file as one curated chunk [29.18ms]
+(pass) get-node command > section ID returns only that section with its file-absolute line range [26.86ms]
+(pass) get-node command > deep nested section resolves to its own range, not the parent's [26.82ms]
+(pass) get-node command > --neighbors adds previous and next siblings at the same level [26.91ms]
+(pass) get-node command > --neighbors on a sole section returns only the main chunk [27.97ms]
+(pass) get-node command > --follow-wikilinks fetches resolved targets only, in nav_trace order [27.61ms]
+(pass) get-node command > wikilink cycles cannot expand: follows are one hop and capped [26.87ms]
+(pass) get-node command > unknown node ID exits 1 with stderr and empty stdout [26.97ms]
+(pass) get-node command > traversal-shaped IDs are rejected before any read [94.31ms]
+(pass) get-node command > oversize page in the tree gets a distinct unreadable-content error [26.78ms]
+(pass) get-node command > cached ID whose file was deleted errors after one rebuild attempt [52.76ms]
+(pass) get-node command > logs one hashed access-log line [27.24ms]
+
+tests/inject-startup.test.ts:
+(pass) optional startup context > uses a bounded lazy pointer when configuration is absent [34.66ms]
+(pass) optional startup context > uses a bounded lazy pointer when configuration is malformed [34.08ms]
+(pass) optional startup context > uses a bounded lazy pointer when configuration is invalid [34.13ms]
+(pass) optional startup context > falls back to lazy mode for an invalid environment setting [33.87ms]
+(pass) optional startup context > explicit eager mode from environment includes curated context and excludes all session manifests and summaries [34.15ms]
+(pass) optional startup context > explicit eager mode from configuration includes curated context and excludes all session manifests and summaries [34.85ms]
+
+tests/session-summary.test.ts:
+(pass) session-summary hook > forwards Stop input to kb capture-session and exits 0 [590.97ms]
+(pass) session-summary hook > exits 0 even when capture-session reports malformed stdin [39.00ms]
+(pass) session-summary hook > forwards missing transcript paths as partial manifests [59.41ms]
+(pass) session-summary hook > does not contain the old jq and claude summarization path [0.56ms]
+
+tests/read-raw.test.ts:
+(pass) read-raw — approval gate > --approve flag allows non-interactive read [19.50ms]
+(pass) read-raw — approval gate > headless without --approve fails closed [18.30ms]
+(pass) read-raw — approval gate > KB_APPROVE=1 is treated as non-interactive override [19.18ms]
+(pass) read-raw — bounds > defaults produce a bounded excerpt, not whole file [19.46ms]
+(pass) read-raw — bounds > --lines N clamps to hard max [20.71ms]
+(pass) read-raw — bounds > --lines smaller than default honored [20.57ms]
+(pass) read-raw — path safety > rejects ../ traversal [18.35ms]
+(pass) read-raw — path safety > rejects absolute paths [18.27ms]
+(pass) read-raw — path safety > rejects symlinks that escape raw/ [18.43ms]
+(pass) read-raw — path safety > rejects directories [18.24ms]
+(pass) read-raw — path safety > missing file returns not-found without stdout content [18.52ms]
+(pass) read-raw — path safety > rejects when raw/ scope dir is itself a symlink [18.57ms]
+(pass) read-raw — strict numeric bounds > rejects --lines=-1 [18.43ms]
+(pass) read-raw — strict numeric bounds > rejects --lines=0 [17.92ms]
+(pass) read-raw — strict numeric bounds > rejects --lines=abc [18.70ms]
+(pass) read-raw — strict numeric bounds > rejects --lines=1.5 [18.18ms]
+(pass) read-raw — strict numeric bounds > rejects --bytes=-1 [18.23ms]
+(pass) read-raw — strict numeric bounds > --bytes clamp truncates mid-file and sets policy.clamped [19.09ms]
+(pass) read-raw — access log > appends a read-raw entry with filename hashed, never plaintext [18.96ms]
+
+tests/inject.test.ts:
+(pass) inject hook > should output curated eager context as valid JSON [34.32ms]
+(pass) inject hook > should exit 0 with empty context when vault missing [33.96ms]
+(pass) inject hook > should respect configured budget [33.45ms]
+(pass) inject hook > should inject context.md before index.md [34.09ms]
+(pass) inject hook > should exclude cached session summaries and manifest bodies in eager mode [33.61ms]
+
+ 469 pass
+ 0 fail
+ 3324 expect() calls
+Ran 469 tests across 43 files. [35.07s]

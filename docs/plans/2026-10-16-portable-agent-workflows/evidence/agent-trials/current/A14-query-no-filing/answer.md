@@ -1,0 +1,1 @@
+Consider a daily check for deliveries that exhausted their three retries, confirming their audit trail is available for investigation within the 45-day retention window. This is my suggestion, based on [[delivery-policy|Delivery Policy]], lines 12–16.

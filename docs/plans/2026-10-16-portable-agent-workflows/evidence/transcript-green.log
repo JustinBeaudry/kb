@@ -1,0 +1,86 @@
+bun test v1.4.3 (c6da4a4d3)
+
+tests/summarize.test.ts:
+(pass) kb summarize > writes a cached summary and short-circuits when manifest_hash matches [455.66ms]
+(pass) kb summarize > emits one-line JSON when --json is set [247.82ms]
+(pass) kb summarize > keeps cached truncated turn diagnostics in JSON output [45.82ms]
+(pass) kb summarize > resolves by full path, sessions-relative path, and session id prefix [327.93ms]
+(pass) kb summarize > falls back to manifest excerpt when the transcript hash no longer matches [259.15ms]
+(pass) kb summarize > chunks oversized transcripts under the configured threshold [292.88ms]
+(pass) kb summarize > skips legacy session markdown when summarizing all manifests [217.34ms]
+(pass) kb summarize > preserves user-edited summaries unless --force is used, then trashes first [302.72ms]
+(pass) kb summarize > --vault-path overrides KB_VAULT and the flag value is never mistaken for the session [272.88ms]
+(pass) kb summarize > inline-equals flag forms are stripped from the positional stream [250.96ms]
+(pass) kb summarize > a valueless trailing -p falls back to KB_VAULT instead of an empty vault path [237.38ms]
+(pass) kb summarize > exits non-zero without writing a summary when the summarizer command fails [231.09ms]
+(pass) kb summaries pin > sets and clears user_edited on the cached summary [308.51ms]
+(pass) kb summaries pin > --vault-path overrides KB_VAULT without disturbing the action/session positionals [322.72ms]
+
+tests/transcript-portability.test.ts:
+(pass) portable transcript excerpts > preserves ordered user and assistant text from legacy human and assistant messages [3.87ms]
+(pass) portable transcript excerpts > preserves ordered user and assistant text from Claude user messages with text blocks [0.47ms]
+(pass) portable transcript excerpts > preserves ordered user and assistant text from Codex response_item messages [0.41ms]
+(pass) portable transcript excerpts > preserves ordered user and assistant text from generic role/content messages [0.39ms]
+(pass) portable transcript excerpts > ignores metadata, tools, and Codex event duplicates [0.55ms]
+(pass) portable transcript excerpts > keeps conversational text while excluding non-text content blocks [0.38ms]
+(pass) portable transcript excerpts > preserves Unicode codepoints at the excerpt boundaries for generic messages [0.81ms]
+
+tests/capture-session.test.ts:
+(pass) kb capture-session > writes a manifest with all R2 fields on happy path [657.97ms]
+(pass) kb capture-session > filename matches <ISO-timestamp>-<8hex>.md scheme [637.88ms]
+(pass) kb capture-session > is idempotent on the same session_id [702.50ms]
+(pass) kb capture-session > handles an empty transcript (no user/assistant turns) with empty excerpt [654.29ms]
+(pass) kb capture-session > fits full extracted text into head when the transcript is tiny [641.86ms]
+(pass) kb capture-session > truncates head/tail on UTF-8 codepoint boundaries (no split surrogate pairs) [658.88ms]
+(pass) kb capture-session > appends exactly one line to log.md per successful capture [1265.02ms]
+(pass) kb capture-session > writes a manifest with null git fields when cwd is not a git repo [653.03ms]
+(pass) kb capture-session > uses abbreviated Entire checkpoints to report committed changes [678.84ms]
+(pass) kb capture-session > still writes a manifest when transcript_path is missing, with null transcript fields [99.07ms]
+(pass) kb capture-session > logs to .kb/capture-errors.log and exits non-zero on non-JSON stdin [71.93ms]
+(pass) kb capture-session > no manifest is written when capture fails before idempotency lock [73.80ms]
+
+tests/summarizer-portability.test.ts:
+(pass) portable session summarization > sends legacy user and assistant text to the summarizer [303.09ms]
+(pass) portable session summarization > sends complete Claude user conversation text without duplicates [258.33ms]
+(pass) portable session summarization > sends complete Codex response_item conversation text without duplicates [252.97ms]
+(pass) portable session summarization > sends complete generic role/content conversation text without duplicates [245.52ms]
+(pass) portable session summarization > uses the excerpt as an explicitly degraded fallback for an unsupported nonempty transcript [243.15ms]
+(pass) portable session summarization > rejects an unsupported nonempty transcript without usable fallback before calling the provider [38.46ms]
+(pass) portable session summarization > reports degraded input when a recognized malformed message accompanies valid conversation text [207.25ms]
+(pass) portable session summarization > invokes a custom summarizer executable without implicit vendor flags [227.77ms]
+(pass) portable session summarization > passes KB_SUMMARIZE_ARGS as literal JSON string-array arguments [225.51ms]
+(pass) portable session summarization > rejects invalid KB_SUMMARIZE_ARGS before invoking the provider: not json [38.81ms]
+(pass) portable session summarization > rejects invalid KB_SUMMARIZE_ARGS before invoking the provider: {"mode":"text"} [36.99ms]
+(pass) portable session summarization > rejects invalid KB_SUMMARIZE_ARGS before invoking the provider: ["valid",42] [38.02ms]
+(pass) portable session summarization > preserves the usable cached summary when a forced refresh returns empty output [254.85ms]
+(pass) portable session summarization > preserves the usable cached summary when a forced refresh returns unstructured output [236.76ms]
+(pass) portable session summarization > preserves the usable cached summary when a forced refresh returns empty sections output [243.60ms]
+(pass) portable session summarization > preserves the usable cached summary when a forced refresh returns frontmatter only output [457.17ms]
+(pass) portable session summarization > does not cache empty output on the first generation [250.65ms]
+309 |     expect(result.stderr).toMatch(/timed out|timeout|deadline/i);
+310 |     expect(result.stderr).toContain("KB_SUMMARIZE_TIMEOUT_MS");
+311 |     expect(Date.now() - started).toBeLessThan(1200);
+312 |     expect(existsSync(env.providerCompleted)).toBe(false);
+313 |     const provider = readProviderCalls(env.providerLog)[0];
+314 |     expect(provider).toBeDefined();
+                           ^
+error: expect(received).toBeDefined()
+
+Received: undefined
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/summarizer-portability.test.ts:314:22)
+(fail) portable session summarization > ends a timed-out provider promptly without replacing a usable cached summary [153.42ms]
+
+tests/session-summary.test.ts:
+(pass) session-summary hook > forwards Stop input to kb capture-session and exits 0 [613.47ms]
+(pass) session-summary hook > exits 0 even when capture-session reports malformed stdin [38.44ms]
+(pass) session-summary hook > forwards missing transcript paths as partial manifests [58.92ms]
+(pass) session-summary hook > does not contain the old jq and claude summarization path [0.65ms]
+
+1 tests failed:
+(fail) portable session summarization > ends a timed-out provider promptly without replacing a usable cached summary [153.42ms]
+
+ 54 pass
+ 1 fail
+ 1802 expect() calls
+Ran 55 tests across 5 files. [15.02s]

@@ -1,0 +1,22 @@
+bun test v1.4.3 (c6da4a4d3)
+
+tests/summarizer-portability.test.ts:
+305 |       // A fresh executable can take hundreds of milliseconds to start on the
+306 |       // host. Allow initialization, then time out well before its 3-second work.
+307 |       env: { KB_SUMMARIZE_TIMEOUT_MS: "1000", SUMMARY_FIXTURE_DELAY_MS: "3000" },
+308 |     });
+309 |
+310 |     expect(result.exitCode).not.toBe(0);
+                                      ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/private/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-baseline-d9Yezc/tests/summarizer-portability.test.ts:310:33)
+(fail) portable session summarization > ends a timed-out provider promptly without replacing a usable cached summary [3376.52ms]
+
+ 0 pass
+ 17 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [3.40s]

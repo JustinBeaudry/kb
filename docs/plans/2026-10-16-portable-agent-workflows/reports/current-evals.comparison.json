@@ -1,0 +1,107 @@
+{
+  "baseline": "docs/plans/2026-10-16-portable-agent-workflows/reports/baseline-evals.json",
+  "current": "/Users/justinbeaudry/Projects/kb/docs/plans/2026-10-16-portable-agent-workflows/reports/current-evals.json",
+  "evaluator_sha256": "9b6e6a6dc2480e718d7958d21f08c3ad3a2d1b2f83f2e0d592ead24df9866af3",
+  "changes": [
+    {
+      "id": "transcript-legacy",
+      "baseline": true,
+      "current": true
+    },
+    {
+      "id": "transcript-claude-user",
+      "baseline": false,
+      "current": true
+    },
+    {
+      "id": "transcript-codex",
+      "baseline": false,
+      "current": true
+    },
+    {
+      "id": "transcript-generic",
+      "baseline": false,
+      "current": true
+    },
+    {
+      "id": "unsupported-transcript-fallback",
+      "baseline": false,
+      "current": true
+    },
+    {
+      "id": "unsupported-transcript-empty",
+      "baseline": false,
+      "current": true
+    },
+    {
+      "id": "provider-no-vendor-args",
+      "baseline": false,
+      "current": true
+    },
+    {
+      "id": "provider-explicit-args",
+      "baseline": false,
+      "current": true
+    },
+    {
+      "id": "provider-reject-empty",
+      "baseline": false,
+      "current": true
+    },
+    {
+      "id": "provider-reject-invalid",
+      "baseline": false,
+      "current": true
+    },
+    {
+      "id": "bounded-get",
+      "baseline": false,
+      "current": true
+    },
+    {
+      "id": "bounded-get-node",
+      "baseline": false,
+      "current": true
+    },
+    {
+      "id": "bounded-recall",
+      "baseline": false,
+      "current": true
+    },
+    {
+      "id": "oversized-single-line",
+      "baseline": false,
+      "current": true
+    },
+    {
+      "id": "lazy-default-absent-config",
+      "baseline": false,
+      "current": true
+    },
+    {
+      "id": "lazy-default-invalid-config",
+      "baseline": false,
+      "current": true
+    },
+    {
+      "id": "canonical-retrieval-shell-only",
+      "baseline": true,
+      "current": true
+    },
+    {
+      "id": "absence-is-explicit",
+      "baseline": true,
+      "current": true
+    },
+    {
+      "id": "unicode-evidence",
+      "baseline": true,
+      "current": true
+    },
+    {
+      "id": "missing-provider-actionable",
+      "baseline": true,
+      "current": true
+    }
+  ]
+}

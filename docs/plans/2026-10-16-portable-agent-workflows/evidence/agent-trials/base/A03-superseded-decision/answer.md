@@ -1,0 +1,1 @@
+No. The pilot launch is now **October 29, 2026**. The decision changed on **October 15**, superseding the October 5 plan for an October 22 pilot. The public launch date remains undecided. [[release-plan|Release Plan]]

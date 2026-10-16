@@ -1,0 +1,18 @@
+{
+  "prompt": "Is the pilot launch still October 22? What is the current plan and when did it change?",
+  "root": "<fixture>",
+  "vault": "<fixture>/vault",
+  "cli": [
+    "/opt/homebrew/Cellar/bun/1.4.3/bin/bun",
+    "<current-source>/src/cli.ts"
+  ],
+  "environment": {
+    "PATH": "<fixture>/bin",
+    "LANG": "en_US.UTF-8",
+    "TERM": "dumb",
+    "KB_VAULT": "<fixture>/vault",
+    "KB_SUMMARIZE_COMMAND": "<fixture>/bin/fixture-provider",
+    "KB_EVAL_PROVIDER_LOG": "<fixture>/provider-calls.jsonl"
+  },
+  "skill_path": "<current-source>/docs/plans/2026-10-16-portable-agent-workflows/evidence/agent-instructions/current-refined/skills/kb/SKILL.md"
+}
