@@ -6,7 +6,7 @@ const main = defineCommand({
   meta: {
     name: "kb",
     version: VERSION,
-    description: "A persistent memory plugin for Claude Code",
+    description: "A portable Markdown knowledge base for agents with shell and file access",
   },
   subCommands: {
     init: () => import("./commands/init").then((m) => m.default),

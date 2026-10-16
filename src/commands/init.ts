@@ -42,9 +42,10 @@ export default defineCommand({
       for (const item of result.skipped) console.log(`  - ${item}`);
     }
     console.log("\nNext steps:");
-    console.log("  1. Add the marketplace: claude plugin marketplace add JustinBeaudry/kb");
-    console.log("  2. Install the plugin:  claude plugin install kb@kb");
-    console.log("  3. Drop a file in ~/kb/raw/ and ask Claude to ingest it.");
+    console.log(`  1. Set KB_VAULT to ${JSON.stringify(vaultPath)} in your agent's environment.`);
+    console.log("  2. Give your agent skills/kb/SKILL.md from this repository and read the vault's KB.md.");
+    console.log("  3. Use kb map to discover knowledge, then kb get-node to retrieve evidence.");
+    console.log("  Optional Claude Code integration: claude plugin marketplace add JustinBeaudry/kb; claude plugin install kb@kb");
 
     if (!isQmdOnPath()) {
       console.log("");

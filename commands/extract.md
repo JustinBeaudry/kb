@@ -1,24 +1,17 @@
 ---
 name: extract
-description: Extract wiki-worthy knowledge from unprocessed session manifests
+description: Extract approved knowledge from captured KB sessions
 argument-hint: "[on|off]"
 ---
 
-# Extract from Sessions
+# Extract session knowledge
 
-Invoke the `extract` skill.
+Use the [KB entry point](../skills/kb/SKILL.md) and the
+[session guide](../skills/kb/references/sessions.md).
 
-- `/kb:extract` — extract from unprocessed sessions now.
-- `/kb:extract on` — enable session-start nudge (reminds you when
-  unprocessed sessions exist).
-- `/kb:extract off` — disable session-start nudge.
+The shared pipeline is `kb sessions --unprocessed`, `kb summarize --json`,
+ask-gated `kb read-session`, approved ingestion, then `kb mark-extracted` after
+all candidates are accounted for. Surface failures and incomplete evidence.
 
-The skill handles the toggle path (writes `autoExtractNudge` to
-`.kb/state.json`) and the extraction path. It enumerates unprocessed
-manifests with `kb sessions --unprocessed` (names include the `.md`
-extension), runs `kb summarize --json sessions/<name>` lazily (requires the
-`claude` CLI or `KB_SUMMARIZE_COMMAND`), retrieves each cached summary with
-`kb read-session summaries/<name> --approve`, runs the ingest workflow on
-confirmed candidates, and finishes each manifest with `kb mark-extracted`.
-It surfaces degraded summaries and skipped summary-generation failures
-visibly, using `entire_checkpoint` for provenance when present.
+`on` or `off` changes only the optional injection-hook reminder described in the
+guide. This wrapper and native hooks are not required for extraction.

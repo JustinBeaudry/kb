@@ -1,20 +1,14 @@
 ---
 name: ingest
-description: Ingest a source (file, URL, or pasted text) into the KB vault
+description: File approved source knowledge with provenance and duplicate checks
 argument-hint: "[source-path-or-url]"
 ---
 
-# Ingest into KB Vault
+# Ingest into the vault
 
-The user wants to ingest a source into the vault. Invoke the `kb` skill and
-follow its Ingest workflow against the argument (file path, URL, or inline
-text). If no argument was provided, ask the user what to ingest.
+Use the [KB entry point](../skills/kb/SKILL.md) and
+[ingestion guide](../skills/kb/references/ingest.md) for the provided file, URL,
+pasted text or conversation facts. If no source is identified, ask for it.
 
-Expected behavior:
-
-1. Read `KB.md` in the vault root first if you haven't this session.
-2. Copy file sources to `raw/` for provenance.
-3. Present takeaways — entities, concepts, relationships, contradictions — and
-   confirm what to file before writing pages.
-4. Cascade updates to related existing pages.
-5. Update `index.md`, `context.md` (if relevant), and append to `log.md`.
+Compare existing coverage, preserve raw originals and file only supported facts
+within the user's authorized scope. Do not expand the change to meet quotas.
