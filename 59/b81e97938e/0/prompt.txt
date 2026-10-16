@@ -1,0 +1,11 @@
+How can we improve this skill for agent performance, and make it harness agnostic. Ideally this performs best-in-class.
+
+---
+
+<send_user_message_question_reply>
+[{"answer":"Any agent with shell and file access","question":"Which portability target matters most for this KB skill? I’ll use broad portability as the default while I inspect it.","questionItemId":"[\"request_user_input_async\",\"call_eda34e3b24b1417b8356273ff0b93fcb\",0]"}]
+</send_user_message_question_reply>
+
+---
+
+Use $task-graph for anything complex. Go.
