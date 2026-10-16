@@ -6,9 +6,8 @@ argument-hint: "<question>"
 
 # Query the vault
 
-Use the [KB entry point](../skills/kb/SKILL.md) and the shared
-[query guide](../skills/kb/references/query.md) for the user's question.
-If no question was supplied, ask for it.
+Load the registered `kb` skill, then read `references/query.md` from that skill's
+directory for the user's question. If no question was supplied, ask for it.
 
 Follow `kb map` → select nodes → `kb get-node`, or direct `kb get` for a known
 page. Cite evidence, disclose uncertainty and leave knowledge unchanged.

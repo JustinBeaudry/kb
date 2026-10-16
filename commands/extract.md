@@ -6,8 +6,8 @@ argument-hint: "[on|off]"
 
 # Extract session knowledge
 
-Use the [KB entry point](../skills/kb/SKILL.md) and the
-[session guide](../skills/kb/references/sessions.md).
+Load the registered `kb` skill, then read `references/sessions.md` from that
+skill's directory.
 
 The shared pipeline is `kb sessions --unprocessed`, `kb summarize --json`,
 ask-gated `kb read-session`, approved ingestion, then `kb mark-extracted` after

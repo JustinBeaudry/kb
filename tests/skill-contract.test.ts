@@ -1,6 +1,7 @@
 import { describe, it, expect } from "bun:test";
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, relative, resolve } from "node:path";
 import { parseFrontmatter } from "../src/lib/frontmatter";
 
 const read = (path: string): string => readFileSync(path, "utf8");
@@ -34,12 +35,38 @@ describe("portable skill documentation contract", () => {
     }
   });
 
-  it("routes optional slash commands to the shared operation guides", () => {
-    const routes = {
-      query: "query", ingest: "ingest", lint: "maintenance", refine: "maintenance", extract: "sessions",
-    };
-    for (const [command, guide] of Object.entries(routes)) {
-      expect(read(`commands/${command}.md`)).toContain(`../skills/kb/references/${guide}.md`);
+  it("keeps local command links resolvable after Codex 0.163.0 relocation", () => {
+    const plugin = mkdtempSync(join(tmpdir(), "kb-command-relocation-"));
+    try {
+      cpSync("skills", join(plugin, "skills"), { recursive: true });
+      const missing: { command: string; target: string; resolved: string }[] = [];
+
+      for (const command of ["query", "ingest", "lint", "refine", "extract"]) {
+        const { data, body } = parseFrontmatter<Record<string, unknown>>(read(`commands/${command}.md`));
+        expect(data.name).toBe(command);
+        expect(data.description).toMatch(/\S/);
+
+        // Codex rust-v0.163.0 preserves the plugin command body at this new path.
+        // It supplies no original-directory metadata and does not rewrite links:
+        // https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/core-plugins/src/command_migration.rs#L398
+        const migrated = join(plugin, ".codex-plugin", "migrated-command-skills", `source-command-${command}`, "SKILL.md");
+        mkdirSync(dirname(migrated), { recursive: true });
+        writeFileSync(migrated, body.trim() + "\n");
+
+        const links = [...read(migrated).matchAll(/\[[^\]]+\]\(([^)]+\.md)(?:#[^)]*)?\)/g)];
+        for (const match of links) {
+          const target = match[1]!;
+          if (/^https?:/.test(target)) continue;
+          const resolved = resolve(dirname(migrated), target);
+          if (!existsSync(resolved)) missing.push({ command, target, resolved: relative(plugin, resolved) });
+        }
+      }
+
+      // This is a filesystem-link gate only. Named skill dispatch requires a
+      // separate consuming-agent smoke; a wrapper with no links cannot prove it.
+      expect(missing).toEqual([]);
+    } finally {
+      rmSync(plugin, { recursive: true, force: true });
     }
   });
 
