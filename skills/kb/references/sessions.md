@@ -36,6 +36,14 @@ degraded. A nonempty unsupported transcript must not become a complete empty
 summary: usable manifest excerpts are explicitly degraded, otherwise
 summarization fails with guidance. Preserve that limitation in your answer.
 
+Captures are immutable: repeating a `session_id` leaves its existing manifest
+unchanged, even after the transcript file is repaired. When the no-evidence
+error supplies recovery JSON, repair or replace its `transcript_path` and pass
+that JSON on stdin to `kb capture-session`. It contains a fresh session ID.
+Then summarize the **new manifest path printed by capture**, using
+`kb summarize --json <new-manifest-path>`. The original manifest remains intact;
+`--force` on that old manifest does not repair its transcript hash or excerpts.
+
 ## Configure a summarizer
 
 Only generating a new summary needs a provider. Queries and valid cached
@@ -53,6 +61,12 @@ kb summarize --json sessions/2026-10-15T12-00-00-123e4567.md
 Without a custom command, the convenience fallback is `claude -p --model haiku`.
 Setting `KB_SUMMARIZE_ARGS` replaces the argument list for either executable.
 `KB_SUMMARIZE_TIMEOUT_MS` bounds each provider invocation (default `120000`).
+On timeout, KB terminates the invocation's foreground process tree, including
+ordinary wrappers that wait for a child, and allows up to one extra second for
+cleanup. POSIX uses an owned process group; Windows uses `taskkill /T /F`.
+POSIX SIGINT and SIGTERM also cancel provider work before ending the caller.
+Providers must keep local work in that invocation; independently detached
+processes and remote requests already accepted by a service can outlive it.
 An absent executable, deadline, nonzero exit or invalid output is a failure;
 report it and the required configuration instead of switching providers or
 claiming completion.

@@ -4,6 +4,7 @@ import {
   readdirSync,
   readFileSync,
 } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { basename, isAbsolute, join, resolve } from "node:path";
 import { writeTextAtomic } from "./atomic-write";
 import { parseFrontmatter, serializeFrontmatter } from "./frontmatter";
@@ -43,6 +44,7 @@ interface ChunkedText {
 
 const DEFAULT_CHUNK_BYTES = 60_000;
 const DEFAULT_SUMMARIZE_TIMEOUT_MS = 120_000;
+const SUMMARIZER_CLEANUP_TIMEOUT_MS = 1_000;
 const TRUNCATION_MARKER = "[... oversized turn truncated ...]";
 
 export async function summarizeSession(
@@ -216,8 +218,16 @@ async function loadSourceText(manifest: SessionManifest): Promise<SourceText> {
     .filter((part) => part.trim().length > 0)
     .join("\n\n...\n\n");
   if (text.trim().length === 0) {
+    const recoveryInput = JSON.stringify({
+      session_id: randomUUID(),
+      transcript_path: manifest.transcript_path ?? "/absolute/path/to/repaired-transcript.jsonl",
+    });
     throw new Error(
-      "No supported conversation text or usable excerpt is available. Supply a supported JSONL transcript and recapture the session before summarizing."
+      "No supported conversation text or usable excerpt is available. " +
+      "Repair or supply a supported JSONL transcript, then capture it under a NEW session_id; existing captures are immutable. " +
+      "Run kb capture-session with this JSON on stdin (replace transcript_path if needed):\n" +
+      `${recoveryInput}\n` +
+      "Then use the manifest path printed by capture: kb summarize --json <new-manifest-path>."
     );
   }
   return { text, degraded: true };
@@ -316,11 +326,35 @@ async function reduceSummaries(partials: string[], threshold: number): Promise<s
 
 async function runSummarizer(prompt: string): Promise<string> {
   const { command, args, timeoutMs } = summarizerSettings();
-  const proc = Bun.spawn([command, ...args], {
-    stdin: new Response(prompt),
-    stdout: "pipe",
-    stderr: "pipe",
-  });
+  type InterruptSignal = "SIGINT" | "SIGTERM";
+  const interruption = Promise.withResolvers<InterruptSignal>();
+  let interruptedBy: InterruptSignal | null = null;
+  const onInterrupt = () => {
+    interruptedBy ??= "SIGINT";
+    interruption.resolve(interruptedBy);
+  };
+  const onTerminate = () => {
+    interruptedBy ??= "SIGTERM";
+    interruption.resolve(interruptedBy);
+  };
+  process.on("SIGINT", onInterrupt);
+  process.on("SIGTERM", onTerminate);
+
+  let proc: Bun.Subprocess<Response, "pipe", "pipe">;
+  try {
+    proc = Bun.spawn([command, ...args], {
+      // Bun creates a new POSIX session/process group. Only this invocation and
+      // its ordinary descendants receive our group signal, never the caller.
+      detached: process.platform !== "win32",
+      stdin: new Response(prompt),
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+  } catch (error) {
+    process.off("SIGINT", onInterrupt);
+    process.off("SIGTERM", onTerminate);
+    throw error;
+  }
   // Own the readers so a deadline can close our ends even if a descendant
   // inherited the provider's stdout or stderr pipe.
   const stdoutReader = proc.stdout.getReader();
@@ -337,7 +371,10 @@ async function runSummarizer(prompt: string): Promise<string> {
   let completed = false;
 
   try {
-    const result = await Promise.race([completion, deadline]);
+    const result = await Promise.race([completion, deadline, interruption.promise]);
+    if (typeof result === "string") {
+      throw new Error(`Summarizer interrupted by ${result}.`);
+    }
     if (result === null) {
       throw new Error(
         `Summarizer timed out after ${timeoutMs} ms. Check the executable or increase KB_SUMMARIZE_TIMEOUT_MS and retry.`
@@ -351,17 +388,78 @@ async function runSummarizer(prompt: string): Promise<string> {
     return validateSummary(stdout);
   } finally {
     clearTimeout(timer);
-    if (!completed) {
-      // The provider may already have exited while a descendant holds a pipe.
-      try {
-        proc.kill("SIGKILL");
-      } catch {
-        // Cancellation still closes both streams when the process has exited.
+    try {
+      if (!completed) {
+        let cleanupTimer: ReturnType<typeof setTimeout> | undefined;
+        try {
+          const cleanup = Promise.allSettled([
+            terminateSummarizerTree(proc),
+            stdoutReader.cancel(),
+            stderrReader.cancel(),
+            proc.exited,
+          ]);
+          const settled = await Promise.race([
+            cleanup,
+            new Promise<null>((resolve) => {
+              cleanupTimer = setTimeout(() => resolve(null), SUMMARIZER_CLEANUP_TIMEOUT_MS);
+            }),
+          ]);
+          if (settled === null) {
+            throw new Error("Summarizer cancellation did not finish within 1000 ms; provider work may still be running.");
+          }
+          if (settled[0]!.status === "rejected") {
+            throw new Error("Could not terminate the summarizer process tree; provider work may still be running.", {
+              cause: settled[0]!.reason,
+            });
+          }
+        } finally {
+          clearTimeout(cleanupTimer);
+          proc.unref();
+        }
       }
-      await Promise.allSettled([stdoutReader.cancel(), stderrReader.cancel(), proc.exited]);
+    } finally {
+      process.off("SIGINT", onInterrupt);
+      process.off("SIGTERM", onTerminate);
+      stdoutReader.releaseLock();
+      stderrReader.releaseLock();
+      // The owned group no longer receives terminal signals automatically.
+      // Restore the caller's normal signal behavior after bounded cleanup.
+      if (interruptedBy !== null) process.kill(process.pid, interruptedBy);
     }
-    stdoutReader.releaseLock();
-    stderrReader.releaseLock();
+  }
+}
+
+async function terminateSummarizerTree(proc: Bun.Subprocess): Promise<void> {
+  if (process.platform !== "win32") {
+    try {
+      // The leader may have exited while its descendants still hold pipes.
+      process.kill(-proc.pid, "SIGKILL");
+    } catch (error) {
+      if (error !== null && typeof error === "object" && "code" in error && error.code === "ESRCH") return;
+      throw error;
+    }
+    return;
+  }
+
+  // Windows has no POSIX group signal. Keep the wrapper alive until taskkill
+  // has located its tree; killing only the wrapper first loses that ancestry.
+  try {
+    // A custom provider may have an intentionally restricted PATH.
+    const systemRoot = process.env.SystemRoot || process.env.WINDIR || "C:\\Windows";
+    const killer = Bun.spawn([join(systemRoot, "System32", "taskkill.exe"), "/PID", String(proc.pid), "/T", "/F"], {
+      stdin: "ignore", stdout: "ignore", stderr: "ignore",
+      windowsHide: true,
+      timeout: SUMMARIZER_CLEANUP_TIMEOUT_MS,
+      killSignal: "SIGKILL",
+    });
+    killer.unref();
+    if (await killer.exited !== 0) throw new Error("taskkill could not terminate the provider tree");
+  } finally {
+    try {
+      proc.kill("SIGKILL");
+    } catch {
+      // taskkill normally already terminated and reaped the immediate process.
+    }
   }
 }
 
