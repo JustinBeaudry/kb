@@ -119,7 +119,7 @@ async function main(): Promise<void> {
   try {
     mode = resolveInjectMode(vaultPath, process.env.KB_INJECT_MODE);
   } catch {
-    mode = "eager";
+    mode = "lazy";
   }
 
   let context = "";

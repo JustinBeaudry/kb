@@ -146,14 +146,14 @@ describe("inject hook — mode: lazy (pointer payload)", () => {
   });
 });
 
-describe("inject hook — mode: eager (default)", () => {
-  it("preserves current behavior when no mode is set", async () => {
+describe("inject hook — default and explicit eager", () => {
+  it("uses a lazy pointer when no mode is set", async () => {
     const vault = track(makeVault());
     const { exitCode, output } = await runHook(vault);
     expect(exitCode).toBe(0);
     const ctx: string = JSON.parse(output).hookSpecificOutput.additionalContext;
-    expect(ctx).toContain("Working Set");
-    expect(ctx).toContain("Vault Index");
+    expect(ctx).toContain("kb map");
+    expect(ctx).not.toContain("Working Set");
     expect(ctx).toContain("Architecture");
   });
 
@@ -186,13 +186,14 @@ describe("inject hook — mode precedence", () => {
     expect(ctx).toMatch(/kb recall/);
   });
 
-  it("invalid config.json falls through to default (eager)", async () => {
+  it("invalid config.json falls through to default (lazy)", async () => {
     const vault = track(makeVault());
     mkdirSync(join(vault, ".kb"), { recursive: true });
     writeFileSync(join(vault, ".kb", "config.json"), "{ not valid json");
     const { output } = await runHook(vault);
     const ctx: string = JSON.parse(output).hookSpecificOutput.additionalContext;
-    expect(ctx).toContain("Working Set");
+    expect(ctx).toContain("kb map");
+    expect(ctx).not.toContain("Working Set");
   });
 });
 

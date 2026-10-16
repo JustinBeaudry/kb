@@ -1,8 +1,16 @@
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { defineCommand } from "citty";
 import { resolveVaultPath } from "../lib/vault";
-import { buildEnvelope, writeEnvelope, type EnvelopeChunk } from "../lib/envelope";
+import type { EnvelopeChunk, EnvelopePolicy } from "../lib/envelope";
+import {
+  continuation,
+  fitLineChunk,
+  resolveRetrievalBudget,
+  resolveRetrievalOffset,
+  retrievalWire,
+  type RetrievalResult,
+} from "../lib/retrieval";
 import { appendAccessLog } from "../lib/access-log";
 import { byteLength } from "../lib/bytes";
 import { PathUnsafeError } from "../lib/path-safety";
@@ -14,7 +22,7 @@ import { findSectionById, pagesById, type SectionContext } from "../lib/map/trav
 import type { PageEntry, SectionEntry, TreeCache } from "../lib/map/types";
 
 const FOLLOW_CAP = 5;
-const FOLLOW_PREVIEW_CHARS = 200;
+const FOLLOW_PREVIEW_BYTES = 200;
 
 interface Located {
   tree: TreeCache;
@@ -48,9 +56,15 @@ export default defineCommand({
     vaultPath: { type: "string", description: "Path to the vault directory", alias: ["p"] },
     neighbors: { type: "boolean", description: "Include previous/next sibling sections" },
     "follow-wikilinks": { type: "string", description: `Also preview up to N wikilinked pages (max ${FOLLOW_CAP})` },
+    budget: { type: "string", description: "Complete output byte budget (overrides KB_RETRIEVAL_BUDGET)" },
+    "start-line": { type: "string", description: "First absolute source line within the selected page or section" },
   },
   async run({ args }) {
     const vaultPath = args.vaultPath ?? resolveVaultPath(process.cwd());
+    const budget = resolveRetrievalBudget(args.budget);
+    if ("error" in budget) fail(budget.error);
+    const requestedStart = resolveRetrievalOffset(args["start-line"], "start-line", 1);
+    if ("error" in requestedStart) fail(requestedStart.error);
 
     if (!existsSync(vaultPath)) {
       fail(`vault not found at ${vaultPath}`);
@@ -103,6 +117,7 @@ export default defineCommand({
 
     const chunks: EnvelopeChunk[] = [];
     const navTrace: string[] = [id];
+    const partialPreviews: string[] = [];
 
     let followSources: string[];
     if (hit === null) {
@@ -129,6 +144,14 @@ export default defineCommand({
       followSources = resolveSectionLinks(new Set(byId.keys()), tree.by_alias, page.id, section);
     }
 
+    const primary = chunks[0]!;
+    const firstLine = args["start-line"] === undefined ? primary.line_range[0] : requestedStart.value;
+    if (firstLine < primary.line_range[0] || firstLine > primary.line_range[1]) {
+      fail(`--start-line must be inside the node's source range ${primary.line_range.join("-")}`);
+    }
+    primary.text = lines.slice(firstLine - 1, primary.line_range[1]).join("\n");
+    primary.line_range = [firstLine, primary.line_range[1]];
+
     for (const target of followSources.slice(0, followMax)) {
       // nav_trace carries only grammar-valid IDs — never raw vault content.
       if (!isValidNodeId(target)) continue;
@@ -136,10 +159,22 @@ export default defineCommand({
       if (!targetPage) continue;
       const targetContent = readWikiFileNoFollow(join(vaultPath, target));
       if (targetContent === null) continue;
-      const preview = targetContent.slice(0, FOLLOW_PREVIEW_CHARS);
+      // Previews retain whole source lines, including Unicode and escapes.
+      // A long first line may be omitted by the shared output budget below.
+      const targetLines = targetContent.split("\n");
+      let previewEnd = 1;
+      let previewBytes = byteLength(targetLines[0]!);
+      while (previewEnd < targetLines.length) {
+        const nextBytes = previewBytes + 1 + byteLength(targetLines[previewEnd]!);
+        if (nextBytes > FOLLOW_PREVIEW_BYTES) break;
+        previewBytes = nextBytes;
+        previewEnd++;
+      }
+      const preview = targetLines.slice(0, previewEnd).join("\n");
+      if (previewEnd < targetLines.length) partialPreviews.push(target);
       chunks.push({
         source: target,
-        line_range: [1, preview.split("\n").length],
+        line_range: [1, previewEnd],
         curation: "curated",
         text: preview,
         node_id: target,
@@ -149,12 +184,53 @@ export default defineCommand({
       navTrace.push(target);
     }
 
-    const wire = writeEnvelope(
-      buildEnvelope({
-        policy: { trust: "curated", source_scope: "wiki", nav_trace: navTrace },
-        chunks,
-      })
-    );
+    const policyFor = (count: number): EnvelopePolicy => {
+      const includedIds = new Set(chunks.slice(0, count).map((chunk) => chunk.node_id));
+      const omittedIds = [...new Set([
+        ...partialPreviews,
+        ...chunks.slice(count).flatMap((chunk) => chunk.node_id ? [chunk.node_id] : []),
+      ])];
+      const policy: EnvelopePolicy = {
+        trust: "curated",
+        source_scope: "wiki",
+        nav_trace: navTrace.filter((nodeId) => includedIds.has(nodeId)),
+      };
+      if (omittedIds.length > 0) {
+        const quotedVault = `'${resolve(vaultPath).replaceAll("'", "'\\''")}'`;
+        policy.truncated = true;
+        policy.omitted_nodes = omittedIds;
+        policy.suggestions = [`Fetch omitted or partial nodes with: kb get-node <node-id> -p ${quotedVault}`];
+      }
+      return policy;
+    };
+
+    // At most two neighbors and five linked previews: try complete optional
+    // chunks in request order before spending any of the primary's lines.
+    let fitted: RetrievalResult | undefined;
+    for (let count = chunks.length; count >= 1; count--) {
+      const included = chunks.slice(0, count);
+      const wire = retrievalWire(included, policyFor(count));
+      if (byteLength(wire) <= budget.value) {
+        fitted = { wire, chunks: included };
+        break;
+      }
+    }
+    if (fitted === undefined) {
+      const optionalArgs: string[] = [];
+      if (args.neighbors) optionalArgs.push("--neighbors");
+      if (followMax > 0) optionalArgs.push("--follow-wikilinks", String(followMax));
+      fitted = fitLineChunk({
+        budget: budget.value,
+        policy: policyFor(1),
+        chunk: primary,
+        next: (line) => continuation("get-node", {
+          options: ["--start-line", String(line), ...optionalArgs],
+          positionals: [id],
+        }, vaultPath, budget.value),
+      });
+    }
+    if ("error" in fitted) fail(fitted.error);
+    const wire = fitted.wire;
     process.stdout.write(wire);
 
     try {
@@ -162,7 +238,7 @@ export default defineCommand({
         vaultPath,
         command: "get-node",
         query: id,
-        pages_returned: chunks.length,
+        pages_returned: fitted.chunks.length,
         bytes_returned: byteLength(wire),
         exit_code: 0,
       });
