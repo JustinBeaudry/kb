@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "be3761d5d672",
+  "session_id": "01a145f5-1fc7-7943-8d9a-8be25c845f06",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-16T19:35:16.133399Z",
+  "branch": "feat/portable-agent-workflows",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/lib/excerpt.ts",
+    "src/lib/git.ts",
+    "src/lib/summarizer.ts",
+    "src/lib/transcript.ts",
+    "tests/git.test.ts",
+    "tests/summarizer-portability.test.ts",
+    "tests/transcript-portability.test.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-6-astra",
+  "turn_id": "1c4aeb6da5cc",
+  "checkpoint_transcript_start": 274,
+  "transcript_lines_at_start": 274,
+  "compact_transcript_start": 31,
+  "token_usage": {
+    "input_tokens": 543709,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 20588032,
+    "output_tokens": 67430,
+    "api_call_count": 200
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-16T19:35:15.912601Z",
+    "agent_lines": 855,
+    "agent_removed": 108,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 855,
+    "total_lines_changed": 963,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}

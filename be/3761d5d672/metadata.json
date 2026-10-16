@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "be3761d5d672",
+  "strategy": "manual-commit",
+  "branch": "feat/portable-agent-workflows",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/lib/excerpt.ts",
+    "src/lib/git.ts",
+    "src/lib/summarizer.ts",
+    "src/lib/transcript.ts",
+    "tests/git.test.ts",
+    "tests/summarizer-portability.test.ts",
+    "tests/transcript-portability.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/be/3761d5d672/0/metadata.json",
+      "transcript": "/be/3761d5d672/0/full.jsonl",
+      "compact_transcript": "/be/3761d5d672/0/transcript.jsonl",
+      "content_hash": "/be/3761d5d672/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 543709,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 20588032,
+    "output_tokens": 67430,
+    "api_call_count": 200
+  }
+}
