@@ -9,6 +9,9 @@ async function runGit(
   args: string[],
   cwd: string
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  if (Bun.which("git") === null) {
+    return { stdout: "", stderr: "git executable is unavailable", exitCode: 127 };
+  }
   const proc = Bun.spawn(["git", ...args], {
     cwd,
     stdout: "pipe",
