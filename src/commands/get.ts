@@ -2,7 +2,7 @@ import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { defineCommand } from "citty";
 import { resolveVaultPath } from "../lib/vault";
-import { buildEnvelope, writeEnvelope } from "../lib/envelope";
+import { continuation, fitLineChunk, resolveRetrievalBudget, resolveRetrievalOffset } from "../lib/retrieval";
 import { appendAccessLog } from "../lib/access-log";
 import {
   assertGenuineScopeDir,
@@ -20,9 +20,21 @@ export default defineCommand({
   args: {
     page: { type: "positional", description: "Wiki page name (without path)", required: true },
     vaultPath: { type: "string", description: "Path to the vault directory", alias: ["p"] },
+    budget: { type: "string", description: "Complete output byte budget (overrides KB_RETRIEVAL_BUDGET)" },
+    "start-line": { type: "string", description: "First absolute source line to return (default 1)" },
   },
   async run({ args }) {
     const vaultPath = args.vaultPath ?? resolveVaultPath(process.cwd());
+    const budget = resolveRetrievalBudget(args.budget);
+    if ("error" in budget) {
+      process.stderr.write(`error: ${budget.error}\n`);
+      process.exit(1);
+    }
+    const start = resolveRetrievalOffset(args["start-line"], "start-line", 1);
+    if ("error" in start) {
+      process.stderr.write(`error: ${start.error}\n`);
+      process.exit(1);
+    }
 
     if (!existsSync(vaultPath)) {
       process.stderr.write(`error: vault not found at ${vaultPath}\n`);
@@ -68,19 +80,29 @@ export default defineCommand({
 
     const body = readFileSync(realTarget, "utf-8");
     const lines = body.split("\n");
-    const wire = writeEnvelope(
-      buildEnvelope({
-        policy: { trust: "curated", source_scope: "wiki" },
-        chunks: [
-          {
-            source: `wiki/${filename}`,
-            line_range: [1, lines.length],
-            curation: "curated",
-            text: body,
-          },
-        ],
-      })
-    );
+    if (start.value > lines.length) {
+      process.stderr.write(`error: --start-line exceeds the page's ${lines.length} source lines\n`);
+      process.exit(1);
+    }
+    const fitted = fitLineChunk({
+      budget: budget.value,
+      policy: { trust: "curated", source_scope: "wiki" },
+      chunk: {
+        source: `wiki/${filename}`,
+        line_range: [start.value, lines.length],
+        curation: "curated",
+        text: lines.slice(start.value - 1).join("\n"),
+      },
+      next: (line) => continuation("get", {
+        options: ["--start-line", String(line)],
+        positionals: [pageArg],
+      }, vaultPath, budget.value),
+    });
+    if ("error" in fitted) {
+      process.stderr.write(`error: ${fitted.error}\n`);
+      process.exit(1);
+    }
+    const wire = fitted.wire;
     process.stdout.write(wire);
 
     try {

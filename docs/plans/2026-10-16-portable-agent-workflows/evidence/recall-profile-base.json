@@ -1,0 +1,44 @@
+{
+  "label": "original-base",
+  "cliRoot": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-agent-baseline-d9Yezc",
+  "platform": "darwin",
+  "arch": "arm64",
+  "bunVersion": "1.4.3",
+  "conditions": {
+    "files": 64,
+    "sourceBytes": 6272512,
+    "matches": 64000,
+    "runs": 3,
+    "PATH": "empty directory",
+    "inheritedCredentials": false
+  },
+  "medians": {
+    "wallMs": 27.961875,
+    "peakRssBytes": 31653888,
+    "stdoutBytes": 14910,
+    "chunks": 20
+  },
+  "samples": [
+    {
+      "wallMs": 33.6545,
+      "peakRssBytes": 31703040,
+      "stdoutBytes": 14910,
+      "chunks": 20,
+      "stderr": "        0.03 real         0.01 user         0.01 sys\n            31703040  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                2083  page reclaims\n                  55  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   1  messages sent\n                   0  messages received\n                   0  signals received\n                  22  voluntary context switches\n                 196  involuntary context switches\n           272868830  instructions retired\n           117811952  cycles elapsed\n            17498760  peak memory footprint\n"
+    },
+    {
+      "wallMs": 27.961875,
+      "peakRssBytes": 31621120,
+      "stdoutBytes": 14910,
+      "chunks": 20,
+      "stderr": "        0.02 real         0.01 user         0.01 sys\n            31621120  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                2074  page reclaims\n                  55  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   1  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 157  involuntary context switches\n           264223938  instructions retired\n           100602214  cycles elapsed\n            17433200  peak memory footprint\n"
+    },
+    {
+      "wallMs": 26.070707999999996,
+      "peakRssBytes": 31653888,
+      "stdoutBytes": 14910,
+      "chunks": 20,
+      "stderr": "        0.02 real         0.01 user         0.00 sys\n            31653888  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                2076  page reclaims\n                  55  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   1  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 164  involuntary context switches\n           264572662  instructions retired\n            98539146  cycles elapsed\n            17482376  peak memory footprint\n"
+    }
+  ]
+}

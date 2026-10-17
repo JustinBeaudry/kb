@@ -193,7 +193,7 @@ export const QMD_INSTALL_HINT = `qmd is optional — install for hybrid BM25 + v
   qmd collection add <vault-path> --name kb --mask "**/*.md"
   qmd embed
 
-Then add the MCP server to your Claude Code config:
+Optionally add the MCP server to your agent's configuration if it supports MCP:
 
   { "mcpServers": { "qmd": { "command": "qmd", "args": ["mcp"] } } }
 

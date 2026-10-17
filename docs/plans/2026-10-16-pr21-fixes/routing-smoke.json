@@ -1,0 +1,57 @@
+{
+  "scope": "Synthetic instruction-navigation smoke using shell/file access only; no vault operation was performed.",
+  "commands": {
+    "query": {
+      "skill": "kb",
+      "guide": "query.md",
+      "section": "Retrieve only what the answer needs",
+      "first_action": "Run kb map <query> with concise topic or heading terms, then select a relevant section node_id. For a narrow fact or named subsection, search those terms first.",
+      "result": "pass"
+    },
+    "ingest": {
+      "skill": "kb",
+      "guide": "ingest.md",
+      "section": "Ingest approved knowledge",
+      "first_action": "Read the supplied source within the requested scope; use kb read-raw <filename> --approve for an archived source only when source access is authorized.",
+      "result": "pass"
+    },
+    "lint": {
+      "skill": "kb",
+      "guide": "maintenance.md",
+      "section": "Lint: report findings",
+      "first_action": "Check required frontmatter, valid page types, dead links, missing backlinks, duplicate coverage, conflicting claims and stale evidence.",
+      "result": "pass"
+    },
+    "refine": {
+      "skill": "kb",
+      "guide": "maintenance.md",
+      "section": "Refine: apply the agreed changes",
+      "first_action": "Establish findings and proposed scope, such as corrections, useful connections, duplicate pages, merge/split candidates or backlink repairs.",
+      "result": "pass"
+    },
+    "extract": {
+      "skill": "kb",
+      "guide": "sessions.md",
+      "section": "Extract with recoverable progress",
+      "first_action": "Run kb sessions --unprocessed and retain the returned full manifest filenames exactly.",
+      "result": "pass"
+    }
+  },
+  "observations": {
+    "status": "pass",
+    "commands_resolved": 5,
+    "commands_total": 5,
+    "observed_file_reads": 11,
+    "failed_path_attempt_count": 0,
+    "vault_operations_executed": 0,
+    "summary": "All five entrypoints named the available kb skill; the supplied registry path resolved all four required guide files. Each applicable first operation action was identified without executing it."
+  },
+  "wrapper_sha256": {
+    "query": "e6250bbfcb28844aca8e5a3681785597be63d09ce399a644908eed78dabe4e3f",
+    "ingest": "8f5afc8c9bcfc3edeefcd26d455ed8076377d090edd9cf70898fa75dffa07760",
+    "lint": "b3eb6c0263fab909c03ae80d8cbebf3eb0125d61416168f01fe2511d724cec50",
+    "refine": "2812829d549197ebd48d3f8f133e73b4e522781b25b212417303818ec98b829f",
+    "extract": "983741505af70bb5436bfc4f1697d4b2e1d39b778a94251501266fdef58e21c0"
+  },
+  "limits": "One agent host. Navigation only; no operation workflow or cross-harness performance claim."
+}

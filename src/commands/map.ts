@@ -4,6 +4,7 @@ import { resolveVaultPath } from "../lib/vault";
 import { buildEnvelope, writeEnvelope, type EnvelopeChunk, type EnvelopePolicy } from "../lib/envelope";
 import { appendAccessLog } from "../lib/access-log";
 import { byteLength } from "../lib/bytes";
+import { checkWireBudget, resolveRetrievalBudget } from "../lib/retrieval";
 import { PathUnsafeError } from "../lib/path-safety";
 import { loadOrBuildTree } from "../lib/map/cache";
 import { selectCandidates } from "../lib/map/candidates";
@@ -11,17 +12,6 @@ import { parseNodeId } from "../lib/map/node-id";
 import { findSectionById, pagesById, walkSections } from "../lib/map/traverse";
 import { qmdSearchHints } from "../lib/qmd";
 import type { PageEntry, SectionEntry, TreeCache } from "../lib/map/types";
-
-const DEFAULT_MAP_BUDGET = 16 * 1024;
-
-function resolveBudget(flag: string | undefined): number {
-  for (const raw of [flag, process.env.KB_MAP_BUDGET]) {
-    if (raw === undefined) continue;
-    const n = Number.parseInt(raw, 10);
-    if (Number.isFinite(n) && n > 0) return n;
-  }
-  return DEFAULT_MAP_BUDGET;
-}
 
 function fail(message: string): never {
   process.stderr.write(`error: ${message}\n`);
@@ -152,7 +142,7 @@ export default defineCommand({
   args: {
     query: { type: "positional", description: "Optional query to filter the map", required: false },
     vaultPath: { type: "string", description: "Path to the vault directory", alias: ["p"] },
-    budget: { type: "string", description: "Output byte budget (overrides KB_MAP_BUDGET)" },
+    budget: { type: "string", description: "Complete output byte budget (overrides KB_RETRIEVAL_BUDGET and KB_MAP_BUDGET)" },
   },
   async run({ args }) {
     const vaultPath = args.vaultPath ?? resolveVaultPath(process.cwd());
@@ -161,7 +151,8 @@ export default defineCommand({
       fail(`vault not found at ${vaultPath}`);
     }
 
-    const budget = resolveBudget(args.budget);
+    const budget = resolveRetrievalBudget(args.budget, process.env.KB_MAP_BUDGET);
+    if ("error" in budget) fail(budget.error);
     const query = (args.query ?? "").trim();
 
     let tree: TreeCache;
@@ -206,8 +197,10 @@ export default defineCommand({
             : ["Try a broader query, or: kb recall <query>"],
       });
     } else {
-      wire = fitToBudget(chunks, budget, basePolicy, tree);
+      wire = fitToBudget(chunks, budget.value, basePolicy, tree);
     }
+    const budgetError = checkWireBudget(wire, budget.value);
+    if (budgetError !== null) fail(budgetError);
     process.stdout.write(wire);
 
     try {

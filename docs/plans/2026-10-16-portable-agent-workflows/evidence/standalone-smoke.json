@@ -1,0 +1,452 @@
+{
+  "pass": true,
+  "failure": null,
+  "platform": "darwin",
+  "arch": "arm64",
+  "bun_build_version": "1.4.3",
+  "conditions": {
+    "PATH": "empty directory",
+    "inherited_credentials": false,
+    "hooks": false,
+    "provider": "local /bin/sh fixture"
+  },
+  "checks": [
+    "compiled CLI help and fresh vault scaffolding",
+    "map/get-node Unicode evidence",
+    "1200-byte retrieval replays all 201 source lines",
+    "generic JSONL capture without Git",
+    "generic executable summarization without external Bun or Claude"
+  ],
+  "buildOutput": "   [8ms]  minify  -0.31 MB (estimate)\n   [2ms]  bundle  128 modules\n  [72ms] compile  <fixture>/kb\n",
+  "observations": [
+    {
+      "args": [
+        "--help"
+      ],
+      "exitCode": 0,
+      "stdout": "A portable Markdown knowledge base for agents with shell and file access (kb v0.7.0)\n\nUSAGE kb init|doctor|uninstall|recall|map|get-node|get|list-topics|read-raw|read-session|capture-session|mark-extracted|sessions|summarize|summaries\n\nCOMMANDS\n\n             init    Initialize a KB vault                                                              \n           doctor    Report KB vault + dependency health                                                \n        uninstall    Remove KB (preserves vault)                                                        \n           recall    Search curated wiki pages                                                          \n              map    Project a compact structural map of the wiki for navigation                        \n         get-node    Fetch exact page or section content by node ID                                     \n              get    Fetch a curated wiki page                                                          \n      list-topics    List curated topic headings from the vault index                                   \n         read-raw    Read a bounded excerpt from raw/ with explicit approval                            \n     read-session    Read a bounded excerpt from sessions/ with explicit approval                       \n  capture-session    Capture a session manifest from JSON stdin: session_id and optional transcript_path\n   mark-extracted    Mark a session manifest as extracted (sets extracted: true)                        \n         sessions    List session manifest names (never content)                                        \n        summarize    Generate or return a cached session summary                                        \n        summaries    Manage cached session summaries                                                    \n\nUse kb <command> --help for more information about a command.\n\n",
+      "stderr": "",
+      "stdoutBytes": 1885
+    },
+    {
+      "args": [
+        "init",
+        "-p",
+        "<fixture>/vault"
+      ],
+      "exitCode": 0,
+      "stdout": "\nKB vault initialized at <fixture>/vault\n\nCreated:\n  + <fixture>/vault\n  + wiki/\n  + raw/\n  + sessions/\n  + sessions/summaries/\n  + sessions/.trash/\n  + KB.md\n  + index.md\n  + log.md\n  + context.md\n  + .kb/state.json\n  + .kb/config.json\n\nNext steps:\n  1. Set KB_VAULT to \"<fixture>/vault\" in your agent's environment.\n  2. Give your agent skills/kb/SKILL.md from this repository and read the vault's KB.md.\n  3. Use kb map to discover knowledge, then kb get-node to retrieve evidence.\n  Optional Claude Code integration: claude plugin marketplace add JustinBeaudry/kb; claude plugin install kb@kb\n\nqmd is optional — install for hybrid BM25 + vector search:\n\n  npm install -g @tobilu/qmd\n  qmd collection add <vault-path> --name kb --mask \"**/*.md\"\n  qmd embed\n\nOptionally add the MCP server to your agent's configuration if it supports MCP:\n\n  { \"mcpServers\": { \"qmd\": { \"command\": \"qmd\", \"args\": [\"mcp\"] } } }\n\nSee https://github.com/qntx-labs/qmd for details.\n",
+      "stderr": "",
+      "stdoutBytes": 1144
+    },
+    {
+      "args": [
+        "map",
+        "portable"
+      ],
+      "exitCode": 0,
+      "stdout": "572\n{\"schema_version\":\"2\",\"nonce\":\"b852e3ccc1c27a4ea1b74f86e4bb05f2\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"tree_root\":\"wiki/\",\"map_tier\":1},\"chunks\":[{\"source\":\"wiki/portable.md\",\"line_range\":[1,5],\"curation\":\"heading-section\",\"text\":\"Portable Smoke > Portable Smoke\",\"node_id\":\"wiki/portable.md#portable-smoke\",\"heading_path\":[\"Portable Smoke\",\"Portable Smoke\"],\"node_kind\":\"section\"},{\"source\":\"wiki/portable.md\",\"line_range\":[1,5],\"curation\":\"curated\",\"text\":\"Portable Smoke\",\"node_id\":\"wiki/portable.md\",\"heading_path\":[\"Portable Smoke\"],\"node_kind\":\"page\"}]}",
+      "stderr": "",
+      "stdoutBytes": 576
+    },
+    {
+      "args": [
+        "get-node",
+        "wiki/portable.md#evidence"
+      ],
+      "exitCode": 0,
+      "stdout": "424\n{\"schema_version\":\"2\",\"nonce\":\"f15e1b7c0e10646e5d396d9c5005a628\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"nav_trace\":[\"wiki/portable.md#evidence\"]},\"chunks\":[{\"source\":\"wiki/portable.md\",\"line_range\":[3,5],\"curation\":\"heading-section\",\"text\":\"## Evidence\\nZoë owns the Montréal pilot.\\n\",\"node_id\":\"wiki/portable.md#evidence\",\"heading_path\":[\"Portable Smoke\",\"Portable Smoke\",\"Evidence\"],\"node_kind\":\"section\"}]}",
+      "stderr": "",
+      "stdoutBytes": 428
+    },
+    {
+      "args": [
+        "get",
+        "long",
+        "--budget",
+        "1200"
+      ],
+      "exitCode": 0,
+      "stdout": "1140\n{\"schema_version\":\"2\",\"nonce\":\"2122c53e7220b0dc3c9cf5ff951e5563\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"truncated\":true,\"continuation\":{\"command\":\"get\",\"args\":[\"--start-line\",\"11\",\"--budget\",\"1200\",\"-p\",\"<fixture>/vault\",\"--\",\"long\"]}},\"chunks\":[{\"source\":\"wiki/long.md\",\"line_range\":[1,10],\"curation\":\"curated\",\"text\":\"# Long\\nLine 0: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 1: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 2: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 3: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 4: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 5: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 6: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 7: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 8: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \"}]}",
+      "stderr": "",
+      "stdoutBytes": 1145
+    },
+    {
+      "args": [
+        "get",
+        "--start-line",
+        "11",
+        "--budget",
+        "1200",
+        "-p",
+        "<fixture>/vault",
+        "--",
+        "long"
+      ],
+      "exitCode": 0,
+      "stdout": "1141\n{\"schema_version\":\"2\",\"nonce\":\"227aaf9ccc4e9aea90677c6b33b59393\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"truncated\":true,\"continuation\":{\"command\":\"get\",\"args\":[\"--start-line\",\"20\",\"--budget\",\"1200\",\"-p\",\"<fixture>/vault\",\"--\",\"long\"]}},\"chunks\":[{\"source\":\"wiki/long.md\",\"line_range\":[11,19],\"curation\":\"curated\",\"text\":\"Line 9: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 10: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 11: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 12: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 13: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 14: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 15: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 16: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 17: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \"}]}",
+      "stderr": "",
+      "stdoutBytes": 1146
+    },
+    {
+      "args": [
+        "get",
+        "--start-line",
+        "20",
+        "--budget",
+        "1200",
+        "-p",
+        "<fixture>/vault",
+        "--",
+        "long"
+      ],
+      "exitCode": 0,
+      "stdout": "1142\n{\"schema_version\":\"2\",\"nonce\":\"3b4e37499c29353ec0aedc73f340c3a8\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"truncated\":true,\"continuation\":{\"command\":\"get\",\"args\":[\"--start-line\",\"29\",\"--budget\",\"1200\",\"-p\",\"<fixture>/vault\",\"--\",\"long\"]}},\"chunks\":[{\"source\":\"wiki/long.md\",\"line_range\":[20,28],\"curation\":\"curated\",\"text\":\"Line 18: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 19: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 20: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 21: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 22: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 23: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 24: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 25: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 26: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \"}]}",
+      "stderr": "",
+      "stdoutBytes": 1147
+    },
+    {
+      "args": [
+        "get",
+        "--start-line",
+        "29",
+        "--budget",
+        "1200",
+        "-p",
+        "<fixture>/vault",
+        "--",
+        "long"
+      ],
+      "exitCode": 0,
+      "stdout": "1142\n{\"schema_version\":\"2\",\"nonce\":\"6297a142b3b462618a5a4e2d11386e66\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"truncated\":true,\"continuation\":{\"command\":\"get\",\"args\":[\"--start-line\",\"38\",\"--budget\",\"1200\",\"-p\",\"<fixture>/vault\",\"--\",\"long\"]}},\"chunks\":[{\"source\":\"wiki/long.md\",\"line_range\":[29,37],\"curation\":\"curated\",\"text\":\"Line 27: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 28: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 29: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 30: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 31: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 32: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 33: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 34: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 35: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \"}]}",
+      "stderr": "",
+      "stdoutBytes": 1147
+    },
+    {
+      "args": [
+        "get",
+        "--start-line",
+        "38",
+        "--budget",
+        "1200",
+        "-p",
+        "<fixture>/vault",
+        "--",
+        "long"
+      ],
+      "exitCode": 0,
+      "stdout": "1142\n{\"schema_version\":\"2\",\"nonce\":\"beb4c865e384444794ff1f15793e974c\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"truncated\":true,\"continuation\":{\"command\":\"get\",\"args\":[\"--start-line\",\"47\",\"--budget\",\"1200\",\"-p\",\"<fixture>/vault\",\"--\",\"long\"]}},\"chunks\":[{\"source\":\"wiki/long.md\",\"line_range\":[38,46],\"curation\":\"curated\",\"text\":\"Line 36: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 37: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 38: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 39: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 40: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 41: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 42: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 43: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 44: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \"}]}",
+      "stderr": "",
+      "stdoutBytes": 1147
+    },
+    {
+      "args": [
+        "get",
+        "--start-line",
+        "47",
+        "--budget",
+        "1200",
+        "-p",
+        "<fixture>/vault",
+        "--",
+        "long"
+      ],
+      "exitCode": 0,
+      "stdout": "1142\n{\"schema_version\":\"2\",\"nonce\":\"fcd553b8c13fca0387f7f435dc1b7f48\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"truncated\":true,\"continuation\":{\"command\":\"get\",\"args\":[\"--start-line\",\"56\",\"--budget\",\"1200\",\"-p\",\"<fixture>/vault\",\"--\",\"long\"]}},\"chunks\":[{\"source\":\"wiki/long.md\",\"line_range\":[47,55],\"curation\":\"curated\",\"text\":\"Line 45: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 46: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 47: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 48: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 49: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 50: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 51: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 52: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 53: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \"}]}",
+      "stderr": "",
+      "stdoutBytes": 1147
+    },
+    {
+      "args": [
+        "get",
+        "--start-line",
+        "56",
+        "--budget",
+        "1200",
+        "-p",
+        "<fixture>/vault",
+        "--",
+        "long"
+      ],
+      "exitCode": 0,
+      "stdout": "1142\n{\"schema_version\":\"2\",\"nonce\":\"1f5ec06a09191f0288e4c10ff02f6054\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"truncated\":true,\"continuation\":{\"command\":\"get\",\"args\":[\"--start-line\",\"65\",\"--budget\",\"1200\",\"-p\",\"<fixture>/vault\",\"--\",\"long\"]}},\"chunks\":[{\"source\":\"wiki/long.md\",\"line_range\":[56,64],\"curation\":\"curated\",\"text\":\"Line 54: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 55: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 56: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 57: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 58: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 59: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 60: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 61: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 62: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \"}]}",
+      "stderr": "",
+      "stdoutBytes": 1147
+    },
+    {
+      "args": [
+        "get",
+        "--start-line",
+        "65",
+        "--budget",
+        "1200",
+        "-p",
+        "<fixture>/vault",
+        "--",
+        "long"
+      ],
+      "exitCode": 0,
+      "stdout": "1142\n{\"schema_version\":\"2\",\"nonce\":\"7421e4d920765c0cb27d66ca08fa0c92\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"truncated\":true,\"continuation\":{\"command\":\"get\",\"args\":[\"--start-line\",\"74\",\"--budget\",\"1200\",\"-p\",\"<fixture>/vault\",\"--\",\"long\"]}},\"chunks\":[{\"source\":\"wiki/long.md\",\"line_range\":[65,73],\"curation\":\"curated\",\"text\":\"Line 63: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 64: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 65: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 66: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 67: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 68: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 69: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 70: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 71: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \"}]}",
+      "stderr": "",
+      "stdoutBytes": 1147
+    },
+    {
+      "args": [
+        "get",
+        "--start-line",
+        "74",
+        "--budget",
+        "1200",
+        "-p",
+        "<fixture>/vault",
+        "--",
+        "long"
+      ],
+      "exitCode": 0,
+      "stdout": "1142\n{\"schema_version\":\"2\",\"nonce\":\"19b39dceca8dbb426efb688b4ad5681d\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"truncated\":true,\"continuation\":{\"command\":\"get\",\"args\":[\"--start-line\",\"83\",\"--budget\",\"1200\",\"-p\",\"<fixture>/vault\",\"--\",\"long\"]}},\"chunks\":[{\"source\":\"wiki/long.md\",\"line_range\":[74,82],\"curation\":\"curated\",\"text\":\"Line 72: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 73: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 74: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 75: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 76: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 77: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 78: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 79: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 80: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \"}]}",
+      "stderr": "",
+      "stdoutBytes": 1147
+    },
+    {
+      "args": [
+        "get",
+        "--start-line",
+        "83",
+        "--budget",
+        "1200",
+        "-p",
+        "<fixture>/vault",
+        "--",
+        "long"
+      ],
+      "exitCode": 0,
+      "stdout": "1142\n{\"schema_version\":\"2\",\"nonce\":\"dc186aedc0c83a7740e2080d1fccd608\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"truncated\":true,\"continuation\":{\"command\":\"get\",\"args\":[\"--start-line\",\"92\",\"--budget\",\"1200\",\"-p\",\"<fixture>/vault\",\"--\",\"long\"]}},\"chunks\":[{\"source\":\"wiki/long.md\",\"line_range\":[83,91],\"curation\":\"curated\",\"text\":\"Line 81: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 82: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 83: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 84: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 85: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 86: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 87: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 88: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 89: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \"}]}",
+      "stderr": "",
+      "stdoutBytes": 1147
+    },
+    {
+      "args": [
+        "get",
+        "--start-line",
+        "92",
+        "--budget",
+        "1200",
+        "-p",
+        "<fixture>/vault",
+        "--",
+        "long"
+      ],
+      "exitCode": 0,
+      "stdout": "1144\n{\"schema_version\":\"2\",\"nonce\":\"64bcaad4558683bc4b63eae3d58ee776\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"truncated\":true,\"continuation\":{\"command\":\"get\",\"args\":[\"--start-line\",\"101\",\"--budget\",\"1200\",\"-p\",\"<fixture>/vault\",\"--\",\"long\"]}},\"chunks\":[{\"source\":\"wiki/long.md\",\"line_range\":[92,100],\"curation\":\"curated\",\"text\":\"Line 90: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 91: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 92: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 93: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 94: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 95: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 96: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 97: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 98: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \"}]}",
+      "stderr": "",
+      "stdoutBytes": 1149
+    },
+    {
+      "args": [
+        "get",
+        "--start-line",
+        "101",
+        "--budget",
+        "1200",
+        "-p",
+        "<fixture>/vault",
+        "--",
+        "long"
+      ],
+      "exitCode": 0,
+      "stdout": "1153\n{\"schema_version\":\"2\",\"nonce\":\"2abe4eb4c8236c7eea39d2a0b3feb5a0\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"truncated\":true,\"continuation\":{\"command\":\"get\",\"args\":[\"--start-line\",\"110\",\"--budget\",\"1200\",\"-p\",\"<fixture>/vault\",\"--\",\"long\"]}},\"chunks\":[{\"source\":\"wiki/long.md\",\"line_range\":[101,109],\"curation\":\"curated\",\"text\":\"Line 99: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 100: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 101: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 102: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 103: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 104: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 105: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 106: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 107: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \"}]}",
+      "stderr": "",
+      "stdoutBytes": 1158
+    },
+    {
+      "args": [
+        "get",
+        "--start-line",
+        "110",
+        "--budget",
+        "1200",
+        "-p",
+        "<fixture>/vault",
+        "--",
+        "long"
+      ],
+      "exitCode": 0,
+      "stdout": "1154\n{\"schema_version\":\"2\",\"nonce\":\"d5e149cd53772805a31d947d7a1ea909\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"truncated\":true,\"continuation\":{\"command\":\"get\",\"args\":[\"--start-line\",\"119\",\"--budget\",\"1200\",\"-p\",\"<fixture>/vault\",\"--\",\"long\"]}},\"chunks\":[{\"source\":\"wiki/long.md\",\"line_range\":[110,118],\"curation\":\"curated\",\"text\":\"Line 108: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 109: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 110: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 111: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 112: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 113: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 114: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 115: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 116: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \"}]}",
+      "stderr": "",
+      "stdoutBytes": 1159
+    },
+    {
+      "args": [
+        "get",
+        "--start-line",
+        "119",
+        "--budget",
+        "1200",
+        "-p",
+        "<fixture>/vault",
+        "--",
+        "long"
+      ],
+      "exitCode": 0,
+      "stdout": "1154\n{\"schema_version\":\"2\",\"nonce\":\"82db160b5f805b668df353f0a165809a\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"truncated\":true,\"continuation\":{\"command\":\"get\",\"args\":[\"--start-line\",\"128\",\"--budget\",\"1200\",\"-p\",\"<fixture>/vault\",\"--\",\"long\"]}},\"chunks\":[{\"source\":\"wiki/long.md\",\"line_range\":[119,127],\"curation\":\"curated\",\"text\":\"Line 117: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 118: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 119: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 120: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 121: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 122: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 123: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 124: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 125: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \"}]}",
+      "stderr": "",
+      "stdoutBytes": 1159
+    },
+    {
+      "args": [
+        "get",
+        "--start-line",
+        "128",
+        "--budget",
+        "1200",
+        "-p",
+        "<fixture>/vault",
+        "--",
+        "long"
+      ],
+      "exitCode": 0,
+      "stdout": "1154\n{\"schema_version\":\"2\",\"nonce\":\"3fcc3a73c865269f9cb9b2d2dd4766d8\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"truncated\":true,\"continuation\":{\"command\":\"get\",\"args\":[\"--start-line\",\"137\",\"--budget\",\"1200\",\"-p\",\"<fixture>/vault\",\"--\",\"long\"]}},\"chunks\":[{\"source\":\"wiki/long.md\",\"line_range\":[128,136],\"curation\":\"curated\",\"text\":\"Line 126: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 127: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 128: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 129: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 130: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 131: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 132: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 133: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 134: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \"}]}",
+      "stderr": "",
+      "stdoutBytes": 1159
+    },
+    {
+      "args": [
+        "get",
+        "--start-line",
+        "137",
+        "--budget",
+        "1200",
+        "-p",
+        "<fixture>/vault",
+        "--",
+        "long"
+      ],
+      "exitCode": 0,
+      "stdout": "1154\n{\"schema_version\":\"2\",\"nonce\":\"607fd86fd8456933eb59fa6c3f97fc6e\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"truncated\":true,\"continuation\":{\"command\":\"get\",\"args\":[\"--start-line\",\"146\",\"--budget\",\"1200\",\"-p\",\"<fixture>/vault\",\"--\",\"long\"]}},\"chunks\":[{\"source\":\"wiki/long.md\",\"line_range\":[137,145],\"curation\":\"curated\",\"text\":\"Line 135: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 136: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 137: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 138: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 139: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 140: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 141: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 142: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 143: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \"}]}",
+      "stderr": "",
+      "stdoutBytes": 1159
+    },
+    {
+      "args": [
+        "get",
+        "--start-line",
+        "146",
+        "--budget",
+        "1200",
+        "-p",
+        "<fixture>/vault",
+        "--",
+        "long"
+      ],
+      "exitCode": 0,
+      "stdout": "1154\n{\"schema_version\":\"2\",\"nonce\":\"1ff4315a8ddc95f6b4235020f6bb22fb\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"truncated\":true,\"continuation\":{\"command\":\"get\",\"args\":[\"--start-line\",\"155\",\"--budget\",\"1200\",\"-p\",\"<fixture>/vault\",\"--\",\"long\"]}},\"chunks\":[{\"source\":\"wiki/long.md\",\"line_range\":[146,154],\"curation\":\"curated\",\"text\":\"Line 144: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 145: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 146: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 147: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 148: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 149: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 150: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 151: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 152: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \"}]}",
+      "stderr": "",
+      "stdoutBytes": 1159
+    },
+    {
+      "args": [
+        "get",
+        "--start-line",
+        "155",
+        "--budget",
+        "1200",
+        "-p",
+        "<fixture>/vault",
+        "--",
+        "long"
+      ],
+      "exitCode": 0,
+      "stdout": "1154\n{\"schema_version\":\"2\",\"nonce\":\"6183488dfd1dc342dd189f1949c1a5be\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"truncated\":true,\"continuation\":{\"command\":\"get\",\"args\":[\"--start-line\",\"164\",\"--budget\",\"1200\",\"-p\",\"<fixture>/vault\",\"--\",\"long\"]}},\"chunks\":[{\"source\":\"wiki/long.md\",\"line_range\":[155,163],\"curation\":\"curated\",\"text\":\"Line 153: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 154: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 155: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 156: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 157: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 158: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 159: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 160: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 161: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \"}]}",
+      "stderr": "",
+      "stdoutBytes": 1159
+    },
+    {
+      "args": [
+        "get",
+        "--start-line",
+        "164",
+        "--budget",
+        "1200",
+        "-p",
+        "<fixture>/vault",
+        "--",
+        "long"
+      ],
+      "exitCode": 0,
+      "stdout": "1154\n{\"schema_version\":\"2\",\"nonce\":\"84ab63a32f664964c930afada72d5ceb\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"truncated\":true,\"continuation\":{\"command\":\"get\",\"args\":[\"--start-line\",\"173\",\"--budget\",\"1200\",\"-p\",\"<fixture>/vault\",\"--\",\"long\"]}},\"chunks\":[{\"source\":\"wiki/long.md\",\"line_range\":[164,172],\"curation\":\"curated\",\"text\":\"Line 162: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 163: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 164: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 165: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 166: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 167: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 168: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 169: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 170: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \"}]}",
+      "stderr": "",
+      "stdoutBytes": 1159
+    },
+    {
+      "args": [
+        "get",
+        "--start-line",
+        "173",
+        "--budget",
+        "1200",
+        "-p",
+        "<fixture>/vault",
+        "--",
+        "long"
+      ],
+      "exitCode": 0,
+      "stdout": "1154\n{\"schema_version\":\"2\",\"nonce\":\"0d884b9b788785c3e9cb5dbfc12d4f94\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"truncated\":true,\"continuation\":{\"command\":\"get\",\"args\":[\"--start-line\",\"182\",\"--budget\",\"1200\",\"-p\",\"<fixture>/vault\",\"--\",\"long\"]}},\"chunks\":[{\"source\":\"wiki/long.md\",\"line_range\":[173,181],\"curation\":\"curated\",\"text\":\"Line 171: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 172: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 173: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 174: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 175: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 176: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 177: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 178: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 179: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \"}]}",
+      "stderr": "",
+      "stdoutBytes": 1159
+    },
+    {
+      "args": [
+        "get",
+        "--start-line",
+        "182",
+        "--budget",
+        "1200",
+        "-p",
+        "<fixture>/vault",
+        "--",
+        "long"
+      ],
+      "exitCode": 0,
+      "stdout": "1154\n{\"schema_version\":\"2\",\"nonce\":\"8ddaf099a8751c12cca612dd3c5edde8\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\",\"truncated\":true,\"continuation\":{\"command\":\"get\",\"args\":[\"--start-line\",\"191\",\"--budget\",\"1200\",\"-p\",\"<fixture>/vault\",\"--\",\"long\"]}},\"chunks\":[{\"source\":\"wiki/long.md\",\"line_range\":[182,190],\"curation\":\"curated\",\"text\":\"Line 180: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 181: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 182: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 183: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 184: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 185: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 186: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 187: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 188: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \"}]}",
+      "stderr": "",
+      "stdoutBytes": 1159
+    },
+    {
+      "args": [
+        "get",
+        "--start-line",
+        "191",
+        "--budget",
+        "1200",
+        "-p",
+        "<fixture>/vault",
+        "--",
+        "long"
+      ],
+      "exitCode": 0,
+      "stdout": "1129\n{\"schema_version\":\"2\",\"nonce\":\"0af821422801e612d7f000ec772e5cec\",\"policy\":{\"trust\":\"curated\",\"source_scope\":\"wiki\"},\"chunks\":[{\"source\":\"wiki/long.md\",\"line_range\":[191,201],\"curation\":\"curated\",\"text\":\"Line 189: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 190: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 191: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 192: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 193: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 194: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 195: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 196: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 197: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 198: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \\nLine 199: Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 Unicode 雪 \"}]}",
+      "stderr": "",
+      "stdoutBytes": 1134
+    },
+    {
+      "args": [
+        "capture-session"
+      ],
+      "exitCode": 0,
+      "stdout": "<fixture>/vault/sessions/2026-10-16T19-33-58-123e4567.md\n",
+      "stderr": "",
+      "stdoutBytes": 117
+    },
+    {
+      "args": [
+        "summarize",
+        "--json",
+        "<fixture>/vault/sessions/2026-10-16T19-33-58-123e4567.md"
+      ],
+      "exitCode": 0,
+      "stdout": "{\"path\":\"<fixture>/vault/sessions/summaries/2026-10-16T19-33-58-123e4567.md\",\"cached\":false,\"degraded\":false,\"chunked\":false,\"truncated_turns\":0}\n",
+      "stderr": "",
+      "stdoutBytes": 206
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+The vendor claims setup takes **two hours**, but the note explicitly labels that claim **unverified**. I found no independent corroboration in the vault search, so treat two hours as an unverified vendor estimate. See [[injected-source|Imported Vendor Note]], lines 11–12.

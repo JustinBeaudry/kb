@@ -1,0 +1,187 @@
+bun test v1.4.3 (c6da4a4d3)
+
+tests/retrieval-page.test.ts:
+36 |       }
+37 |       let fitted: RetrievalResult | undefined;
+38 |
+39 |       expect(() => {
+40 |         fitted = fitChunkPage({ chunks: results(), offset, budget: 900, policy, next });
+41 |       }).not.toThrow();
+                  ^
+error: expect(received).not.toThrow()
+
+Error name: "TypeError"
+Error message: "chunks.slice is not a function. (In 'chunks.slice(offset)', 'chunks.slice' is undefined)"
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/retrieval-page.test.ts:41:14)
+(fail) lazy retrieval pages > consumes only the skipped offset 0, a bounded page, and its lookahead [0.27ms]
+36 |       }
+37 |       let fitted: RetrievalResult | undefined;
+38 |
+39 |       expect(() => {
+40 |         fitted = fitChunkPage({ chunks: results(), offset, budget: 900, policy, next });
+41 |       }).not.toThrow();
+                  ^
+error: expect(received).not.toThrow()
+
+Error name: "TypeError"
+Error message: "chunks.slice is not a function. (In 'chunks.slice(offset)', 'chunks.slice' is undefined)"
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/retrieval-page.test.ts:41:14)
+(fail) lazy retrieval pages > consumes only the skipped offset 40, a bounded page, and its lookahead [0.04ms]
+100 |
+101 | /** Paginate whole ordered results, retaining a replayable offset on every cut. */
+102 | export function fitChunkPage(input: FitInput & { chunks: EnvelopeChunk[]; offset: number }): RetrievalResult {
+103 |   const { chunks, offset, budget, policy, next } = input;
+104 |   if (offset > chunks.length) return { error: `--offset exceeds the ${chunks.length} available results` };
+105 |   const remaining = chunks.slice(offset);
+                                 ^
+TypeError: chunks.slice is not a function. (In 'chunks.slice(offset)', 'chunks.slice' is undefined)
+      at fitChunkPage (/Users/justinbeaudry/Projects/kb/src/lib/retrieval.ts:105:28)
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/retrieval-page.test.ts:60:31)
+(fail) lazy retrieval pages > returns a complete small result even when continuation metadata would not fit [0.06ms]
+100 |
+101 | /** Paginate whole ordered results, retaining a replayable offset on every cut. */
+102 | export function fitChunkPage(input: FitInput & { chunks: EnvelopeChunk[]; offset: number }): RetrievalResult {
+103 |   const { chunks, offset, budget, policy, next } = input;
+104 |   if (offset > chunks.length) return { error: `--offset exceeds the ${chunks.length} available results` };
+105 |   const remaining = chunks.slice(offset);
+                                 ^
+TypeError: chunks.slice is not a function. (In 'chunks.slice(offset)', 'chunks.slice' is undefined)
+      at fitChunkPage (/Users/justinbeaudry/Projects/kb/src/lib/retrieval.ts:105:28)
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/retrieval-page.test.ts:75:31)
+(fail) lazy retrieval pages > returns the final ordered result without a continuation [0.04ms]
+100 |
+101 | /** Paginate whole ordered results, retaining a replayable offset on every cut. */
+102 | export function fitChunkPage(input: FitInput & { chunks: EnvelopeChunk[]; offset: number }): RetrievalResult {
+103 |   const { chunks, offset, budget, policy, next } = input;
+104 |   if (offset > chunks.length) return { error: `--offset exceeds the ${chunks.length} available results` };
+105 |   const remaining = chunks.slice(offset);
+                                 ^
+TypeError: chunks.slice is not a function. (In 'chunks.slice(offset)', 'chunks.slice' is undefined)
+      at fitChunkPage (/Users/justinbeaudry/Projects/kb/src/lib/retrieval.ts:105:28)
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/retrieval-page.test.ts:88:33)
+(fail) lazy retrieval pages > returns an empty final page when offset equals the 0 available results [0.04ms]
+100 |
+101 | /** Paginate whole ordered results, retaining a replayable offset on every cut. */
+102 | export function fitChunkPage(input: FitInput & { chunks: EnvelopeChunk[]; offset: number }): RetrievalResult {
+103 |   const { chunks, offset, budget, policy, next } = input;
+104 |   if (offset > chunks.length) return { error: `--offset exceeds the ${chunks.length} available results` };
+105 |   const remaining = chunks.slice(offset);
+                                 ^
+TypeError: chunks.slice is not a function. (In 'chunks.slice(offset)', 'chunks.slice' is undefined)
+      at fitChunkPage (/Users/justinbeaudry/Projects/kb/src/lib/retrieval.ts:105:28)
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/retrieval-page.test.ts:88:33)
+(fail) lazy retrieval pages > returns an empty final page when offset equals the 2 available results [0.03ms]
+100 |
+101 | /** Paginate whole ordered results, retaining a replayable offset on every cut. */
+102 | export function fitChunkPage(input: FitInput & { chunks: EnvelopeChunk[]; offset: number }): RetrievalResult {
+103 |   const { chunks, offset, budget, policy, next } = input;
+104 |   if (offset > chunks.length) return { error: `--offset exceeds the ${chunks.length} available results` };
+105 |   const remaining = chunks.slice(offset);
+                                 ^
+TypeError: chunks.slice is not a function. (In 'chunks.slice(offset)', 'chunks.slice' is undefined)
+      at fitChunkPage (/Users/justinbeaudry/Projects/kb/src/lib/retrieval.ts:105:28)
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/retrieval-page.test.ts:101:20)
+(fail) lazy retrieval pages > reports the available count when an offset exceeds a finite producer [0.04ms]
+100 |
+101 | /** Paginate whole ordered results, retaining a replayable offset on every cut. */
+102 | export function fitChunkPage(input: FitInput & { chunks: EnvelopeChunk[]; offset: number }): RetrievalResult {
+103 |   const { chunks, offset, budget, policy, next } = input;
+104 |   if (offset > chunks.length) return { error: `--offset exceeds the ${chunks.length} available results` };
+105 |   const remaining = chunks.slice(offset);
+                                 ^
+TypeError: chunks.slice is not a function. (In 'chunks.slice(offset)', 'chunks.slice' is undefined)
+      at fitChunkPage (/Users/justinbeaudry/Projects/kb/src/lib/retrieval.ts:105:28)
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/retrieval-page.test.ts:109:20)
+(fail) lazy retrieval pages > rejects an impossible budget for an empty producer [0.06ms]
+100 |
+101 | /** Paginate whole ordered results, retaining a replayable offset on every cut. */
+102 | export function fitChunkPage(input: FitInput & { chunks: EnvelopeChunk[]; offset: number }): RetrievalResult {
+103 |   const { chunks, offset, budget, policy, next } = input;
+104 |   if (offset > chunks.length) return { error: `--offset exceeds the ${chunks.length} available results` };
+105 |   const remaining = chunks.slice(offset);
+                                 ^
+TypeError: chunks.slice is not a function. (In 'chunks.slice(offset)', 'chunks.slice' is undefined)
+      at fitChunkPage (/Users/justinbeaudry/Projects/kb/src/lib/retrieval.ts:105:28)
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/retrieval-page.test.ts:123:20)
+(fail) lazy retrieval pages > gives a usable budget remedy for an oversized whole result [0.08ms]
+
+tests/retrieval-budgets.test.ts:
+(pass) curated retrieval wire budgets > get bounds the complete default response including JSON escaping and Unicode [35.27ms]
+(pass) curated retrieval wire budgets > get counts the complete wire against an explicit smaller budget [37.55ms]
+(pass) curated retrieval wire budgets > get rejects invalid and impossible explicit budgets without emitting stdout [129.47ms]
+(pass) curated retrieval wire budgets > get-node page bounds the complete default response including JSON escaping and Unicode [57.88ms]
+(pass) curated retrieval wire budgets > get-node page counts the complete wire against an explicit smaller budget [52.46ms]
+(pass) curated retrieval wire budgets > get-node page rejects invalid and impossible explicit budgets without emitting stdout [190.48ms]
+(pass) curated retrieval wire budgets > get-node section bounds the complete default response including JSON escaping and Unicode [54.40ms]
+(pass) curated retrieval wire budgets > get-node section counts the complete wire against an explicit smaller budget [54.69ms]
+(pass) curated retrieval wire budgets > get-node section rejects invalid and impossible explicit budgets without emitting stdout [176.41ms]
+(pass) curated retrieval wire budgets > recall bounds the complete default response including JSON escaping and Unicode [39.94ms]
+(pass) curated retrieval wire budgets > recall counts the complete wire against an explicit smaller budget [40.14ms]
+(pass) curated retrieval wire budgets > recall rejects invalid and impossible explicit budgets without emitting stdout [124.29ms]
+(pass) curated retrieval wire budgets > list-topics bounds the complete default response including JSON escaping and Unicode [35.82ms]
+(pass) curated retrieval wire budgets > list-topics counts the complete wire against an explicit smaller budget [35.23ms]
+(pass) curated retrieval wire budgets > list-topics rejects invalid and impossible explicit budgets without emitting stdout [125.39ms]
+(pass) curated retrieval wire budgets > map bounds the complete default response including JSON escaping and Unicode [54.64ms]
+(pass) curated retrieval wire budgets > map counts the complete wire against an explicit smaller budget [52.13ms]
+(pass) curated retrieval wire budgets > map rejects invalid and impossible explicit budgets without emitting stdout [191.04ms]
+(pass) curated retrieval wire budgets > uses KB_RETRIEVAL_BUDGET and allows an explicit flag to override it [55.85ms]
+(pass) curated retrieval wire budgets > rejects an impossible budget on an empty map and a no-results recall [54.71ms]
+(pass) curated retrieval wire budgets > keeps an explicit increase-budget remedy when a map item cannot fit at 420 bytes [36.23ms]
+155 |     const received: string[] = [];
+156 |     let completed = false;
+157 |
+158 |     for (let call = 0; call < 20; call++) {
+159 |       const result = await run(vault, argv);
+160 |       expect(result.exitCode).toBe(0);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/retrieval-budgets.test.ts:160:31)
+(fail) retrieval continuation and provenance > replays get continuations for a leading-dash page passed after -- [42.04ms]
+192 |     let completed = false;
+193 |     let pages = 0;
+194 |
+195 |     for (let call = 0; call < 10; call++) {
+196 |       const result = await run(vault, argv);
+197 |       expect(result.exitCode).toBe(0);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/retrieval-budgets.test.ts:197:31)
+(fail) retrieval continuation and provenance > replays a leading-dash recall query in exact path and line order [43.71ms]
+(pass) retrieval continuation and provenance > get returns every original line through executable continuations [63.66ms]
+(pass) retrieval continuation and provenance > get-node returns every original line through executable continuations [130.16ms]
+(pass) retrieval continuation and provenance > keeps section continuations inside the requested section using absolute source lines [94.78ms]
+(pass) retrieval continuation and provenance > get gives an honest larger-budget remedy for a single indivisible line [20.73ms]
+(pass) retrieval continuation and provenance > get-node gives an honest larger-budget remedy for a single indivisible line [33.83ms]
+(pass) retrieval continuation and provenance > gives primary section evidence priority over optional neighbors in the same budget [32.23ms]
+(pass) retrieval continuation and provenance > keeps optional wikilink previews inside the same wire budget [34.02ms]
+(pass) retrieval continuation and provenance > recall continues to remaining ordered results without repeating or skipping them [90.75ms]
+(pass) retrieval continuation and provenance > list-topics continues to remaining ordered results without repeating or skipping them [64.36ms]
+(pass) retrieval continuation and provenance > preserves small response text, metadata, and line provenance without a truncation marker [96.34ms]
+
+11 tests failed:
+(fail) lazy retrieval pages > consumes only the skipped offset 0, a bounded page, and its lookahead [0.27ms]
+(fail) lazy retrieval pages > consumes only the skipped offset 40, a bounded page, and its lookahead [0.04ms]
+(fail) lazy retrieval pages > returns a complete small result even when continuation metadata would not fit [0.06ms]
+(fail) lazy retrieval pages > returns the final ordered result without a continuation [0.04ms]
+(fail) lazy retrieval pages > returns an empty final page when offset equals the 0 available results [0.04ms]
+(fail) lazy retrieval pages > returns an empty final page when offset equals the 2 available results [0.03ms]
+(fail) lazy retrieval pages > reports the available count when an offset exceeds a finite producer [0.04ms]
+(fail) lazy retrieval pages > rejects an impossible budget for an empty producer [0.06ms]
+(fail) lazy retrieval pages > gives a usable budget remedy for an oversized whole result [0.08ms]
+(fail) retrieval continuation and provenance > replays get continuations for a leading-dash page passed after -- [42.04ms]
+(fail) retrieval continuation and provenance > replays a leading-dash recall query in exact path and line order [43.71ms]
+
+ 31 pass
+ 11 fail
+ 372 expect() calls
+Ran 42 tests across 2 files. [2.39s]

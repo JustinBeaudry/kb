@@ -1,4 +1,5 @@
 import { createReadStream } from "node:fs";
+import { decodeTranscriptLine } from "./transcript";
 
 export interface Excerpt {
   head: string;
@@ -7,39 +8,9 @@ export interface Excerpt {
 
 const CODEPOINT_LIMIT = 1024;
 
-interface ExtractedTurn {
-  text: string;
-}
-
-function extractTurnsFromLine(line: string): ExtractedTurn[] {
-  try {
-    const obj = JSON.parse(line) as {
-      type?: string;
-      message?: { content?: unknown };
-    };
-    if (obj.type !== "human" && obj.type !== "assistant") return [];
-    const content = obj.message?.content;
-    if (typeof content === "string") {
-      return content.length > 0 ? [{ text: content }] : [];
-    }
-    if (Array.isArray(content)) {
-      const parts = content
-        .filter((c): c is { type: string; text: string } =>
-          typeof c === "object" && c !== null && (c as { type: string }).type === "text"
-        )
-        .map((c) => c.text)
-        .filter((t) => typeof t === "string" && t.length > 0);
-      return parts.length > 0 ? [{ text: parts.join("\n") }] : [];
-    }
-    return [];
-  } catch {
-    return [];
-  }
-}
-
 /**
  * Extracts head (first ~1024 codepoints) and tail (last ~1024 codepoints)
- * of user/assistant text from a Claude Code JSONL transcript. Streaming —
+ * of user/assistant text from a supported JSONL transcript. Streaming —
  * memory-bounded regardless of transcript size.
  */
 export async function extractExcerpt(path: string): Promise<Excerpt> {
@@ -54,8 +25,8 @@ export async function extractExcerpt(path: string): Promise<Excerpt> {
   let buffer = "";
 
   try {
-    for await (const chunk of stream as unknown as AsyncIterable<string>) {
-      buffer += chunk;
+    for await (const chunk of stream) {
+      buffer += typeof chunk === "string" ? chunk : chunk.toString("utf-8");
       let newlineIdx: number;
       while ((newlineIdx = buffer.indexOf("\n")) !== -1) {
         const line = buffer.slice(0, newlineIdx);
@@ -83,8 +54,9 @@ export async function extractExcerpt(path: string): Promise<Excerpt> {
         }));
     }
   } catch (err) {
-    const code = (err as NodeJS.ErrnoException).code;
-    if (code === "ENOENT") return { head: "", tail: "" };
+    if (err instanceof Error && "code" in err && err.code === "ENOENT") {
+      return { head: "", tail: "" };
+    }
     throw err;
   }
 
@@ -108,12 +80,8 @@ interface ExcerptState {
 }
 
 function processLine(line: string, state: ExcerptState): ExcerptState {
-  if (line.length === 0) return state;
-  const turns = extractTurnsFromLine(line);
-  for (const turn of turns) {
-    state = appendTurn(state, turn.text);
-  }
-  return state;
+  const { turn } = decodeTranscriptLine(line);
+  return turn ? appendTurn(state, turn.text) : state;
 }
 
 function appendTurn(state: ExcerptState, text: string): ExcerptState {

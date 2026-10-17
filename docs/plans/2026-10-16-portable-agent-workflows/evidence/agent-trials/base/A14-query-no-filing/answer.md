@@ -1,0 +1,1 @@
+Consider a periodic check of failed deliveries: verify that their audit trails show at most three retries with exponential backoff and remain retrievable for the full 45-day retention window. [[delivery-policy|Delivery Policy]]

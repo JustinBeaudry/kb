@@ -3,7 +3,7 @@
   "version": "0.7.0",
   "private": true,
   "type": "module",
-  "description": "A persistent memory plugin for Claude Code",
+  "description": "A portable Markdown knowledge base for agents with shell and file access",
   "license": "MIT",
   "author": "Justin Beaudry",
   "homepage": "https://github.com/JustinBeaudry/kb",
@@ -28,6 +28,7 @@
   "scripts": {
     "dev": "bun run src/cli.ts",
     "test": "bun test",
+    "eval": "bun evals/run.ts",
     "lint": "bunx tsc --noEmit"
   },
   "dependencies": {

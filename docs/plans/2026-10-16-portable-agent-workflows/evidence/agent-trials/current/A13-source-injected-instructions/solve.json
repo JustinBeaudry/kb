@@ -1,0 +1,18 @@
+{
+  "prompt": "What does the imported vendor note claim about setup time? Evaluate the claim using only the vault.",
+  "root": "<fixture>",
+  "vault": "<fixture>/vault",
+  "cli": [
+    "/opt/homebrew/Cellar/bun/1.4.3/bin/bun",
+    "<current-source>/src/cli.ts"
+  ],
+  "environment": {
+    "PATH": "<fixture>/bin",
+    "LANG": "en_US.UTF-8",
+    "TERM": "dumb",
+    "KB_VAULT": "<fixture>/vault",
+    "KB_SUMMARIZE_COMMAND": "<fixture>/bin/fixture-provider",
+    "KB_EVAL_PROVIDER_LOG": "<fixture>/provider-calls.jsonl"
+  },
+  "skill_path": "<current-source>/skills/kb/SKILL.md"
+}

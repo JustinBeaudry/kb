@@ -28,7 +28,7 @@ const TRANSCRIPT_STABLE_MS = 500;
 export default defineCommand({
   meta: {
     name: "capture-session",
-    description: "Capture a Claude Code Stop event as a KB session manifest",
+    description: "Capture a session manifest from JSON stdin: session_id and optional transcript_path",
   },
   async run() {
     const vaultPath = resolveVaultPath(process.cwd());

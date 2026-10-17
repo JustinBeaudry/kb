@@ -1,0 +1,1 @@
+I found no evidence in this vault identifying the SOC 2 auditor or their contract value. The retrieved compliance note only discusses unresolved review dates and names neither an auditor nor a fee. ([[meeting-note|Meeting Note]], lines 11–12)

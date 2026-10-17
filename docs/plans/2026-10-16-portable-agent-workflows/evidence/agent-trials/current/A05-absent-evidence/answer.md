@@ -1,0 +1,1 @@
+I couldn’t verify the SOC 2 auditor or their contract value from this vault. Searches for SOC, auditor, and contract returned no matches. The retrieved compliance note only discusses unresolved review dates ([[meeting-note]], lines 11–12).

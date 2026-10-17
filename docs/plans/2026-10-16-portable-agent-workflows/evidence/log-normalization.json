@@ -1,0 +1,41 @@
+{
+  "reason": "Remove trailing console display whitespace for repository formatting; exact original output retained in gzip companions. Test outcomes, line numbers, command-record JSON and measured bytes are unchanged.",
+  "files": [
+    {
+      "file": "timeout-correction-red.log",
+      "original_gzip": "timeout-correction-red.log.gz",
+      "original_sha256": "ea19f8ce18733395030c4a573a77cd0eefbbf16a1bba1c188bd7e6290f16f465",
+      "display_sha256": "582536cf99d8b76a08755d464111e5d9bf7332ec7704b9dc0236612337c1bf0e"
+    },
+    {
+      "file": "retrieval-review-red-corrected.log",
+      "original_gzip": "retrieval-review-red-corrected.log.gz",
+      "original_sha256": "2a9b03242583a16e644dc126041d950b7e9cbf408d8434533464e9ec910f2b05",
+      "display_sha256": "f2d8f62a0aa876b00b533839a7042622ddd81c4b007ef1f403b0fb1c6a1835a0"
+    },
+    {
+      "file": "transcript-red.log",
+      "original_gzip": "transcript-red.log.gz",
+      "original_sha256": "06bbf722af48afa4a6fa6f6f53f9fb3deb1cb92a9263122100566eb641ee645f",
+      "display_sha256": "9139b88be591c39abe4b55de4abcf18eb1684866fe46ba8119d48b248f813faf"
+    },
+    {
+      "file": "retrieval-review-red.log",
+      "original_gzip": "retrieval-review-red.log.gz",
+      "original_sha256": "488f7109a723862afa8c30c07bdaedad10594d46550479cfbbd736f42854df31",
+      "display_sha256": "bfc0f68ddef1a4534a1f36fbcdb73a7473d840167271e197539c57871d13db4a"
+    },
+    {
+      "file": "retrieval-red.log",
+      "original_gzip": "retrieval-red.log.gz",
+      "original_sha256": "60344ca5a9a44221f87c0b15029e52b8a2e024e10bfe84ff3089f94e6df71614",
+      "display_sha256": "0084bd10c5f18e958a06c4ee934669c71fd528f100b3ac5ea2964eefd4abf512"
+    },
+    {
+      "file": "git-optional-red.log",
+      "original_gzip": "git-optional-red.log.gz",
+      "original_sha256": "60b5ba00f24101629bf61a85f890e34b0ae7cb5020af05b39e6d708d2cdb4d04",
+      "display_sha256": "120ba4e03ae5db7c8477ced18b02fad19054551f4bec75152d4045c02adb8069"
+    }
+  ]
+}

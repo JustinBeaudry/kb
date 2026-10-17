@@ -1,296 +1,261 @@
 # KB
 
-KB creates a local, Markdown knowledge base and index for Claude Code and for
-you. The vault is human-readable because it is just Obsidian-compatible
-Markdown: open it in Obsidian to browse pages, wikilinks, backlinks, the graph,
-and the categorized index. It is machine-readable because agents retrieve the
-same knowledge through bounded CLI commands that return structured JSON
-envelopes with source attribution, node IDs, and line ranges.
+KB is a local Markdown knowledge vault for people and agents. Read and edit it
+in Obsidian or a text editor; retrieve the same knowledge through a CLI that
+returns source paths, line ranges and bounded evidence. Shell and file access
+are enough for the core workflow. Native hooks and MCP are optional integrations.
 
 Based on [Karpathy's LLM Wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
 
-## What it does
+## Install and initialize
 
-- **Markdown vault** scaffolds `KB.md`, `context.md`, `index.md`, `log.md`,
-  `wiki/`, `raw/`, and `sessions/` as a local knowledge base you can inspect
-  directly
-- **Human-readable index** keeps curated wiki pages connected through
-  Obsidian-style wikilinks, frontmatter, backlinks, and a categorized
-  `index.md`
-- **Machine-readable index** exposes `kb map` and `kb get-node` for
-  budget-bounded tree navigation over pages and sections
-- **SessionStart hook** injects vault context: a compact pointer by default
-  (lazy mode), or the working set, index, and recent session summaries in
-  eager mode
-- **Stop hook** writes a small session manifest when you finish working
-- **PostCompact hook** re-injects vault context after compaction
-- **Trust boundary** separates curated knowledge (`wiki/`) from untrusted
-  content (`raw/`, `sessions/`), with sanctioned CLI commands for each tier
-- **KB.md template** teaches Claude to ingest sources, answer queries, and lint your vault
+Install the standalone binary for your platform:
 
-## Install
-
-Download the prebuilt `kb` binary for your platform, verify its checksum, and
-put it on your PATH — one command:
-
-```bash
+```sh
 curl -fsSL https://raw.githubusercontent.com/JustinBeaudry/kb/main/install.sh | sh
-```
-
-Installs to `/usr/local/bin` (falling back to `~/.local/bin` if that isn't
-writable). Pin a version or change the location with env vars:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/JustinBeaudry/kb/main/install.sh \
-  | KB_VERSION=0.7.0 KB_INSTALL_DIR="$HOME/bin" sh
-```
-
-Prefer not to pipe to a shell? Download the archive for your OS/arch from the
-[Releases page](https://github.com/JustinBeaudry/kb/releases), verify it
-against `checksums.txt`, extract the `kb` binary, and move it onto your PATH.
-(Windows: grab the `.zip`.)
-
-Then scaffold a new vault:
-
-```bash
 kb init
 ```
 
-Scaffolds `~/kb` with the vault structure. You can open this folder directly
-as an Obsidian vault; KB does not require Obsidian, but the files are designed
-to read well there. `init` does not touch Claude Code configuration — hooks
-ship with the KB plugin:
+The installer verifies the release checksum and installs to `/usr/local/bin`,
+falling back to `~/.local/bin` when needed. Alternatively, download an archive
+from [Releases](https://github.com/JustinBeaudry/kb/releases), verify it against
+`checksums.txt`, and put the extracted binary on your PATH. The standalone
+binary does not require Bun.
 
-```bash
+Pin a release or select an install directory with `KB_VERSION` and
+`KB_INSTALL_DIR`. A source checkout instead requires [Bun](https://bun.sh) and
+the repository dependencies:
+
+```sh
+bun install
+bun run src/cli.ts init
+bun run src/cli.ts map "delivery policy"
+```
+
+Use `bun run /path/to/kb/src/cli.ts` in place of `kb` when using source. The
+repository's `bin/kb.mjs` entry point also requires Bun; it is not the compiled
+standalone binary.
+
+`kb init` scaffolds `~/kb` and is safe to rerun. It preserves existing files and
+does not configure an agent harness. Open the new folder in Obsidian if desired;
+Obsidian is optional. Initialization refuses an existing Obsidian vault, so
+create a separate KB vault first.
+
+```sh
+kb init --vault-path /path/to/vault
+```
+
+Vault lookup uses an explicit `--vault-path <dir>` (`-p`) when the command
+supports it, then `KB_VAULT`, then a `.kb` text file in the working directory,
+then `~/kb`. That project `.kb` file contains the vault path. `capture-session`
+uses environment/project/default lookup; select its vault with `KB_VAULT`.
+
+## Give an agent the skill
+
+Expose [skills/kb/SKILL.md](skills/kb/SKILL.md) through your agent's skill loader,
+keeping its relative `references/` directory intact. An agent without a skill
+loader can read that file on request and use the CLI. The entry point routes
+to detailed guides only for the requested operation. `KB.md` in the vault holds
+local schema and writing conventions.
+
+No particular model, slash command, startup hook, qmd installation or MCP server
+is required to query the vault. Generating session summaries additionally
+requires a configured summarizer executable. This repository does not install
+native adapters for every harness.
+
+## Use the vault
+
+**Ask a question:** “What is our current retry policy?” The agent runs
+`kb map <query>`, selects relevant node IDs, then reads evidence with
+`kb get-node <id>`. A known page can be read directly with `kb get <page>`.
+`kb recall` is a lexical fallback when useful. Answers cite sources and disclose
+conflicts or missing evidence. Queries do not file answers or edit knowledge.
+
+**Ingest a source:** “File the approved decisions from this note.” The agent
+compares existing coverage, preserves the source, and writes supported changes
+within the approved scope. Duplicates do not need new pages. Useful links and
+affected pages determine the work; there are no page or link quotas.
+
+**Lint or refine:** Lint reports schema, link and evidence issues. Refinement
+applies authorized changes and verifies the result. Stale dates and sparse
+links are review signals rather than automatic reasons to rewrite pages.
+
+**Extract sessions:** The agent lists unprocessed manifests, generates or reuses
+summaries, reads them through the source gate, and files approved candidates.
+It checks already filed facts after interruptions and marks a session extracted
+only after its candidates are accounted for. Failures and partial evidence stay
+visible. See the [session guide](skills/kb/references/sessions.md).
+
+## CLI reference
+
+| Command | Purpose |
+|---|---|
+| `kb init` | Scaffold a vault without registering hooks |
+| `kb doctor` | Inspect vault health and optional hook wiring |
+| `kb uninstall` | Print native-plugin removal instructions; preserve the vault |
+| `kb map [query]` | Compact map of curated page and section nodes |
+| `kb get-node <id>` | Exact page/section evidence; optional `--neighbors` and `--follow-wikilinks <n>` |
+| `kb get <page>` | Evidence for a known wiki filename, with or without `.md` |
+| `kb recall <query>` | Lexical search over curated pages |
+| `kb list-topics` | Categories from the curated index |
+| `kb read-raw <file>` | Ask-gated excerpt from `raw/` |
+| `kb read-session <file>` | Ask-gated excerpt from `sessions/`, including `summaries/` |
+| `kb sessions [--unprocessed]` | Manifest filenames without content |
+| `kb capture-session` | Capture JSON stdin containing `session_id` and `transcript_path` |
+| `kb summarize [--json] <manifest>` | Generate or reuse a cached summary |
+| `kb summaries pin\|unpin <session>` | Preserve or unpin a user-edited summary |
+| `kb mark-extracted <file>` | Mark a fully processed manifest extracted |
+
+Retrieval and session-management commands accept `--vault-path <dir>` / `-p`.
+`capture-session` uses `KB_VAULT` instead of that flag. Commands report failures
+with a nonzero exit and diagnostic stderr; do not treat failure as no evidence.
+
+## Bounded retrieval
+
+Curated retrieval emits a length-prefixed schema-v2 JSON envelope. The first
+line gives the UTF-8 byte count of the JSON body. Chunks contain `source`,
+`line_range`, `curation` and `text`; tree navigation also includes `node_id`,
+`heading_path` and `node_kind`. Map chunks describe navigation targets; fetch
+the target before using it as factual evidence.
+
+The default response budget is **16384 bytes of complete stdout**, including
+the length prefix and JSON escaping. For `map`, `get-node`, `get`, `recall` and
+`list-topics`, `--budget` takes precedence over `KB_RETRIEVAL_BUDGET`. `map`
+also accepts legacy `KB_MAP_BUDGET` when the shared setting is absent or invalid.
+Invalid explicit flags fail; invalid environment values fall through.
+
+Truncated evidence responses provide `policy.truncated` and
+`policy.continuation = {command, args}`. Use its structured command/argument
+list to continue; it includes the vault and budget. `get` and `get-node` use
+absolute `--start-line`, while `recall` and `list-topics` use `--offset`.
+
+`map` retains its three compacting tiers: full node summaries, page summaries,
+then titles. Check `policy.map_tier`, `policy.truncated` and `policy.suggestions`;
+narrow the query or raise `--budget` when needed. An indivisible source line
+that cannot fit, or a budget too small for the envelope, can fail with empty
+stdout and an explicit budget remedy. Small complete results retain their
+normal source content and envelope.
+
+See the [query guide](skills/kb/references/query.md) for evidence and uncertainty
+handling. Raw/session excerpts have separate `--lines` and `--bytes` caps;
+their limits are not the curated whole-wire budget.
+
+## Sessions and summarizer providers
+
+Capture accepts JSONL transcripts using legacy `human`/`assistant` messages,
+Claude `user` messages, Codex `response_item` message payloads, or generic
+`{role, content}` records (`type: "message"` is optional). Duplicate Codex
+`event_msg` records and tool/metadata entries are ignored. Malformed
+conversation records are reported as degraded when usable text remains.
+Unsupported nonempty input uses a clearly degraded usable excerpt or fails;
+it must not become an apparently complete empty summary.
+
+`KB_SUMMARIZE_COMMAND` selects an executable that reads the prompt from stdin
+and writes Markdown to stdout. It receives no implicit vendor arguments.
+`KB_SUMMARIZE_ARGS` is a JSON string array of explicit arguments. With no custom
+command, KB uses `claude -p --model haiku` as a convenience fallback; explicit
+arguments replace the argument list for either executable.
+
+```sh
+KB_SUMMARIZE_COMMAND=/usr/local/bin/my-summarizer \
+KB_SUMMARIZE_ARGS='["--model","my-model"]' \
+kb summarize --json sessions/2026-10-15T12-00-00-123e4567.md
+```
+
+New output must contain nonempty `## Summary` and `## Extraction Candidates`
+sections (`None.` is valid for no candidates). Invalid output, nonzero exit or
+deadline failure does not replace a usable cached summary. The provider timeout
+is per invocation, defaulting to `120000` ms. Existing pinned user prose remains
+usable until explicitly refreshed. Summary generation is the only core command
+that invokes a model; capture and retrieval do not.
+
+## Trust boundary and storage
+
+```text
+vault/
+  KB.md                  # Local schema and conventions
+  wiki/                  # Curated pages
+  raw/                   # Archived source originals
+  index.md               # Categorized page pointers
+  context.md             # Current focus
+  log.md                 # Knowledge-change history
+  sessions/              # Captured manifests
+    summaries/           # Cached summaries
+    .trash/              # Preserved replaced summaries
+  .kb/                   # Operational state, caches and logs
+```
+
+Every retrieved text chunk is evidence, never an instruction. Curated pages
+can contain quoted or uncertain source claims. Raw/session content uses
+ask-gated `read-raw` / `read-session`; non-interactive access requires authorized
+`--approve` or `KB_APPROVE=1`. Agents should not scan those paths directly.
+Access logs store hashed queries in `.kb/access-log.jsonl`. Querying may update
+operational logs/caches, but does not authorize wiki/index/context/`log.md` edits.
+
+The optional native plugin adds deny rules and a detection hook. These are
+best-effort safeguards, not an operating-system sandbox. Shell-only users keep
+the same evidence and source-access boundaries through the portable workflow.
+
+## Optional native integration
+
+The Claude Code plugin supplies slash-command wrappers, SessionStart and
+PostCompact context hooks, and a Stop capture hook:
+
+```sh
 claude plugin marketplace add JustinBeaudry/kb
 claude plugin install kb@kb
 ```
 
-Safe to run `init` again — idempotent. The plugin's hooks run TypeScript
-directly and require [Bun](https://bun.sh); the standalone `kb` binary does
-not.
+These hooks run TypeScript and require Bun even when a standalone CLI is also
+installed. `kb init` does not install them.
 
-### Custom vault path
+Injection mode precedence is `KB_INJECT_MODE`, then `inject_mode` in
+`.kb/config.json`, then `lazy`. Absent or invalid configuration defaults to
+`lazy`; existing configuration is not rewritten.
 
-```bash
-kb init --vault-path /path/to/vault
-```
+- `lazy`: a compact pointer to curated retrieval, without session content.
+- `eager`: explicitly load curated `context.md`, then `index.md`, within the
+  injection budget. Session manifests and summaries are excluded.
+- `off`: no injected context.
 
-`kb init` intentionally refuses to initialize inside an existing Obsidian vault.
-Create a new KB vault, then open that folder in Obsidian if you want a human UI
-over the same files.
+The extraction reminder is optional; `/kb:extract on` or `off` changes its
+state for installed injection hooks. It does not run extraction automatically.
 
-### Per-project vault
+qmd is also optional. If its CLI is available, `kb map` can use bounded search
+hints in addition to built-in matching. Missing or failed qmd leaves built-in
+navigation available. No MCP search path is required.
 
-Create a `.kb` file in your project root containing the vault path:
-
-```
-/path/to/project/vault
-```
-
-## Knowledge model
-
-KB has two audiences for the same data:
-
-- **Humans** read and edit Markdown. `wiki/` contains typed knowledge pages,
-  `index.md` is the browsable topic index, `context.md` is the active working
-  set, and wikilinks/backlinks make the vault useful in Obsidian.
-- **Agents and tools** read bounded envelopes. `kb map` builds a structural map
-  of the wiki, `kb get-node` fetches exact page or section evidence by node ID,
-  and `kb recall`/`kb get` provide plain-text fallback retrieval.
-
-## Usage
-
-### Ingest
-Give Claude any source — file path, URL, pasted text, or conversation context:
-
-> "Ingest this article on dependency injection"
-
-Claude reads source, copies files to `raw/` for provenance, presents
-takeaways for confirmation, writes wiki pages, cascades updates to related
-pages, updates index and log. Single ingest typically touches 5-15 pages.
-
-### Query
-Ask Claude anything your vault might know:
-
-> "What decisions did we make about the auth system?"
-
-Claude checks index, follows wikilinks, answers with citations. Novel
-insights get filed as new wiki pages automatically.
-
-### Lint
-Ask Claude to check vault health:
-
-> "Lint the vault"
-
-Reports orphan pages, dead links, missing frontmatter, stale content,
-missing types, and contradictions.
-
-### Refine
-Ask Claude to improve vault structure:
-
-> "Refine the vault"
-
-Finds stale pages, under-connected pages, merge/split candidates, and
-backlink gaps. Presents findings for approval, then applies changes.
-Shows vault health before and after.
-
-### Extract
-Extract knowledge from session manifests into wiki pages:
-
-> "Extract from sessions"
-
-Sessions are sources. Claude enumerates unprocessed manifests with
-`kb sessions --unprocessed`, generates cached summaries with `kb summarize`,
-retrieves them through the ask-gated `kb read-session`, runs the standard
-ingest workflow on confirmed items, and marks finished manifests with
-`kb mark-extracted`. Summaries require the `claude` CLI (or a
-`KB_SUMMARIZE_COMMAND` equivalent) — without one, `kb summarize` exits
-nonzero and extraction cannot proceed.
-
-Toggle session-start nudge: `/kb:extract on` or `/kb:extract off`.
-
-## CLI reference
-
-| Command | What it does |
-|---------|--------------|
-| `kb init` | Scaffold the vault (does not register hooks) |
-| `kb doctor` | Check vault health, hook wiring, and inject-budget pressure |
-| `kb uninstall` | Print plugin-removal instructions; vault is preserved |
-| `kb map [query]` | Budget-bounded structural map of the wiki — node summaries for navigation |
-| `kb get-node <id>` | Fetch a page or section by node ID (`--neighbors`, `--follow-wikilinks <n>`) |
-| `kb recall <query>` | Search curated pages, return evidence envelope |
-| `kb get <page>` | Fetch a curated page by name |
-| `kb list-topics` | List index topics |
-| `kb read-raw <file>` | Ask-gated bounded read from `raw/` |
-| `kb read-session <file>` | Ask-gated bounded read from `sessions/` (incl. `summaries/`) |
-| `kb sessions [--unprocessed]` | List session manifest names — never content |
-| `kb mark-extracted <file>` | Mark a manifest as extracted |
-| `kb capture-session` | Write a session manifest (used by the Stop hook) |
-| `kb summarize <manifest>` | Generate or reuse a cached session summary |
-| `kb summaries pin\|unpin` | Pin or unpin a cached summary |
-
-All commands accept `--vault-path <dir>` (alias `-p <dir>`) to target a vault explicitly, overriding `KB_VAULT` and per-project `.kb` files.
-
-## Trust boundary
-
-Vault content is two-tier:
-
-- **Curated** (`wiki/`, `index.md`, `context.md`) — trusted, retrieved via
-  `kb recall`, `kb get`, `kb list-topics`.
-- **Untrusted** (`raw/`, `sessions/`) — provenance and machine-generated
-  content, readable only through the ask-gated `kb read-raw` /
-  `kb read-session` (bounded excerpts, explicit `--approve` or `KB_APPROVE=1`
-  in non-interactive use).
-
-All retrieval commands emit a length-prefixed JSON envelope with source
-attribution. Tree-navigation commands also include `node_id`, `heading_path`,
-and `node_kind` fields so agents can move from a compact map to exact
-evidence. Access is recorded in `.kb/access-log.jsonl` with hashed queries —
-never plaintext. The plugin ships deny rules that block direct Read/Grep of
-`raw/` and `sessions/`, plus a `security-self-test` hook that detects when
-those rules regress.
-
-## Page types
-
-Every wiki page has a `type` in frontmatter:
-
-| Type | Purpose |
-|------|---------|
-| `concept` | Ideas, techniques, patterns |
-| `entity` | People, orgs, tools, projects |
-| `source-summary` | Digest of a `raw/` document |
-| `comparison` | X vs Y trade-off analysis |
-| `overview` | Guided index of a topic area |
-
-Each type has a structural template defined in KB.md with recommended sections.
-
-## Vault structure
-
-```
-~/kb/
-  KB.md           # Schema — conventions, workflows, rules
-  context.md      # Working set — current focus areas
-  index.md        # Categorized pointer index, grouped by topic
-  log.md          # Chronological operation log (heading-level entries)
-  wiki/           # Knowledge pages (agent-maintained, typed)
-  raw/            # Source documents (immutable, provenance)
-  sessions/       # Session manifests (auto-generated)
-    summaries/    # Cached summaries from manifests
-    .trash/       # Non-destructive quarantine for replaced summaries
-  .kb/            # Operational state (not knowledge)
-    index/         # Cached machine-readable tree for kb map/get-node
-    state.json    #   toggles (e.g. autoExtractNudge)
-    config.json   #   inject_mode and other settings
-    *.jsonl       #   access and inject logs, hashed queries only
-```
-
-## Context injection
-
-The inject hook has three modes, resolved in priority order:
-`KB_INJECT_MODE` env var → `inject_mode` in `.kb/config.json` → `eager`.
-
-- **`lazy`** — the default written to `.kb/config.json` on fresh installs. Injects
-  a ~500-byte pointer (vault location, topic headings, retrieval commands);
-  the agent pulls content on demand via `kb map`, `kb get-node`, `kb recall`,
-  and `kb get`.
-- **`eager`** — the fallback for vaults without a config. Injects content
-  directly under a 32KB budget (configurable via `KB_BUDGET`), in priority
-  order:
-  1. **`context.md`** — working set, always first
-  2. **`index.md`** — categorized page index
-  3. **Recent sessions** — cached summaries first, then manifests as fallback
-- **`off`** — no injection.
-
-`kb doctor` warns when the eager budget is under pressure.
-
-## Environment variables
+## Key environment variables
 
 | Variable | Effect |
-|----------|--------|
-| `KB_VAULT` | Vault location (overrides `~/kb` and per-project `.kb` files) |
-| `KB_INJECT_MODE` | `lazy` \| `eager` \| `off` — overrides `.kb/config.json` |
-| `KB_BUDGET` | Eager-mode injection budget in bytes (default 32768) |
-| `KB_MAP_BUDGET` | `kb map` output budget in bytes (default 16384); `--budget` overrides |
-| `KB_SUMMARIZE_COMMAND` | Summarizer command (default `claude -p --model haiku`) |
-| `KB_APPROVE` | `1` approves ask-gated reads non-interactively |
+|---|---|
+| `KB_VAULT` | Vault path |
+| `KB_RETRIEVAL_BUDGET` | Curated complete-wire response budget; default 16384 |
+| `KB_MAP_BUDGET` | Legacy map-only fallback below the shared budget setting |
+| `KB_INJECT_MODE` | Optional hook mode: `lazy`, `eager` or `off` |
+| `KB_BUDGET` | Eager context budget in bytes; default 32768 |
+| `KB_SUMMARIZE_COMMAND` | Summarizer executable; default `claude` |
+| `KB_SUMMARIZE_ARGS` | JSON array replacing the provider's argument list |
+| `KB_SUMMARIZE_TIMEOUT_MS` | Positive integer provider deadline in ms; default 120000 |
+| `KB_APPROVE` | `1` supplies approval to source-read commands |
 
-## Search (optional)
+## Verification
 
-For larger vaults, [qmd](https://github.com/qntx-labs/qmd) provides
-BM25 + vector hybrid search over markdown files.
-
-```bash
-# Install
-npm install -g @tobilu/qmd
-
-# Register vault
-qmd collection add ~/kb --name kb --mask "**/*.md"
-qmd embed
-
-# Add MCP server to Claude Code
-# In your Claude Code MCP config:
-# { "mcpServers": { "qmd": { "command": "qmd", "args": ["mcp"] } } }
+```sh
+bun run lint
+bun run test
+bun run eval
 ```
 
-When qmd MCP tools are available, Query and Refine workflows use
-`qmd_deep_search` before falling back to manual index reading.
-
-## Model choice
-
-Stop hooks do not call an LLM. Summaries are generated on demand by
-`kb summarize`, which calls `claude -p --model haiku` by default. For tests
-or custom integrations, set `KB_SUMMARIZE_COMMAND` to a compatible command.
+[Evaluations](evals/README.md) distinguish deterministic CLI contracts from
+actual agent task trials. They use synthetic temporary vaults and a local
+fixture provider; passing those contracts is not a model-quality benchmark.
 
 ## Uninstall
 
-```bash
-kb uninstall
-```
-
-Prints the plugin-removal command (`claude plugin remove kb`). Your vault is
-preserved either way. To remove the binary itself, delete it from wherever
-the installer placed it (`/usr/local/bin/kb` or `~/.local/bin/kb`).
+`kb uninstall` prints optional plugin-removal instructions and preserves the
+vault. Remove the binary separately from its install location when no longer
+needed. Keep or archive the Markdown vault as ordinary user files.
 
 ## License
 

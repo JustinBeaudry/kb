@@ -2,16 +2,29 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { defineCommand } from "citty";
 import { resolveVaultPath } from "../lib/vault";
-import { buildEnvelope, writeEnvelope, type EnvelopeChunk } from "../lib/envelope";
+import type { EnvelopeChunk } from "../lib/envelope";
+import { continuation, fitChunkPage, resolveRetrievalBudget, resolveRetrievalOffset } from "../lib/retrieval";
 import { appendAccessLog } from "../lib/access-log";
 
 export default defineCommand({
   meta: { name: "list-topics", description: "List curated topic headings from the vault index" },
   args: {
     vaultPath: { type: "string", description: "Path to the vault directory", alias: ["p"] },
+    budget: { type: "string", description: "Complete output byte budget (overrides KB_RETRIEVAL_BUDGET)" },
+    offset: { type: "string", description: "Skip this many topic results (default 0)" },
   },
   async run({ args }) {
     const vaultPath = args.vaultPath ?? resolveVaultPath(process.cwd());
+    const budget = resolveRetrievalBudget(args.budget);
+    if ("error" in budget) {
+      process.stderr.write(`error: ${budget.error}\n`);
+      process.exit(1);
+    }
+    const offset = resolveRetrievalOffset(args.offset, "offset", 0);
+    if ("error" in offset) {
+      process.stderr.write(`error: ${offset.error}\n`);
+      process.exit(1);
+    }
 
     if (!existsSync(vaultPath)) {
       process.stderr.write(`error: vault not found at ${vaultPath}\n`);
@@ -39,12 +52,21 @@ export default defineCommand({
       }
     }
 
-    const wire = writeEnvelope(
-      buildEnvelope({
-        policy: { trust: "curated", source_scope: "wiki" },
-        chunks,
-      })
-    );
+    const fitted = fitChunkPage({
+      budget: budget.value,
+      offset: offset.value,
+      policy: { trust: "curated", source_scope: "wiki" },
+      chunks,
+      next: (position) => continuation("list-topics", {
+        options: ["--offset", String(position)],
+        positionals: [],
+      }, vaultPath, budget.value),
+    });
+    if ("error" in fitted) {
+      process.stderr.write(`error: ${fitted.error}\n`);
+      process.exit(1);
+    }
+    const wire = fitted.wire;
     process.stdout.write(wire);
 
     try {
@@ -52,7 +74,7 @@ export default defineCommand({
         vaultPath,
         command: "list-topics",
         query: "",
-        pages_returned: chunks.length,
+        pages_returned: fitted.chunks.length,
         bytes_returned: new TextEncoder().encode(wire).length,
         exit_code: 0,
       });

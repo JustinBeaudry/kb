@@ -1,0 +1,395 @@
+bun test v1.4.3 (c6da4a4d3)
+
+tests/transcript-portability.test.ts:
+(pass) portable transcript excerpts > preserves ordered user and assistant text from legacy human and assistant messages [7.10ms]
+67 |       const path = join(root, "transcript.jsonl");
+68 |       writeFileSync(path, fixture.records.map((record) => JSON.stringify(record)).join("\n"));
+69 |
+70 |       const excerpt = await extractExcerpt(path);
+71 |
+72 |       expect(excerpt).toEqual({ head: fixture.expected, tail: "" });
+                           ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "head":
+- "CLAUDE_USER
+- CLAUDE_ASSISTANT"
+- ,
++   "head": "CLAUDE_ASSISTANT",
+    "tail": "",
+  }
+
+- Expected  - 4
++ Received  + 1
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/transcript-portability.test.ts:72:23)
+(fail) portable transcript excerpts > preserves ordered user and assistant text from Claude user messages with text blocks [0.96ms]
+67 |       const path = join(root, "transcript.jsonl");
+68 |       writeFileSync(path, fixture.records.map((record) => JSON.stringify(record)).join("\n"));
+69 |
+70 |       const excerpt = await extractExcerpt(path);
+71 |
+72 |       expect(excerpt).toEqual({ head: fixture.expected, tail: "" });
+                           ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "head":
+- "CODEX_USER
+- CODEX_ASSISTANT"
+- ,
++   "head": "",
+    "tail": "",
+  }
+
+- Expected  - 4
++ Received  + 1
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/transcript-portability.test.ts:72:23)
+(fail) portable transcript excerpts > preserves ordered user and assistant text from Codex response_item messages [0.57ms]
+67 |       const path = join(root, "transcript.jsonl");
+68 |       writeFileSync(path, fixture.records.map((record) => JSON.stringify(record)).join("\n"));
+69 |
+70 |       const excerpt = await extractExcerpt(path);
+71 |
+72 |       expect(excerpt).toEqual({ head: fixture.expected, tail: "" });
+                           ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "head":
+- "GENERIC_USER
+- GENERIC_ASSISTANT"
+- ,
++   "head": "",
+    "tail": "",
+  }
+
+- Expected  - 4
++ Received  + 1
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/transcript-portability.test.ts:72:23)
+(fail) portable transcript excerpts > preserves ordered user and assistant text from generic role/content messages [0.50ms]
+94 |     ];
+95 |     writeFileSync(path, records.map((record) => JSON.stringify(record)).join("\n") + "\n");
+96 |
+97 |     const excerpt = await extractExcerpt(path);
+98 |
+99 |     expect(excerpt).toEqual({ head: "USER_ONCE\nASSISTANT_ONCE", tail: "" });
+                         ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "head":
+- "USER_ONCE
+- ASSISTANT_ONCE"
+- ,
++   "head": "",
+    "tail": "",
+  }
+
+- Expected  - 4
++ Received  + 1
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/transcript-portability.test.ts:99:21)
+(fail) portable transcript excerpts > ignores metadata, tools, and Codex event duplicates [0.55ms]
+113 |       },
+114 |     }));
+115 |
+116 |     const excerpt = await extractExcerpt(path);
+117 |
+118 |     expect(excerpt).toEqual({ head: "BEFORE_TOOL\nAFTER_TOOL", tail: "" });
+                          ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "head":
+- "BEFORE_TOOL
+- AFTER_TOOL"
+- ,
++   "head": "",
+    "tail": "",
+  }
+
+- Expected  - 4
++ Received  + 1
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/transcript-portability.test.ts:118:21)
+(fail) portable transcript excerpts > keeps conversational text while excluding non-text content blocks [0.50ms]
+125 |       JSON.stringify({ role: "assistant", content: "🪷".repeat(1100) }),
+126 |     ].join("\n"));
+127 |
+128 |     const excerpt = await extractExcerpt(path);
+129 |
+130 |     expect(excerpt.head).toBe("🌊".repeat(1024));
+                               ^
+error: expect(received).toBe(expected)
+
+Expected: "🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊... (3904 bytes truncated) ...🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊🌊"
+Received: ""
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/transcript-portability.test.ts:130:26)
+(fail) portable transcript excerpts > preserves Unicode codepoints at the excerpt boundaries for generic messages [0.65ms]
+
+tests/summarizer-portability.test.ts:
+(pass) portable session summarization > sends legacy user and assistant text to the summarizer [410.08ms]
+188 |
+189 |       const result = await runSummarize(env);
+190 |
+191 |       expect(result.exitCode).toBe(0);
+192 |       const prompt = readProviderCalls(env.providerLog)[0]?.prompt ?? "";
+193 |       expect(prompt).toContain("## User\nUSER_FACT");
+                           ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "## User\nUSER_FACT"
+Received: "You are the KB session summarizer. Return markdown with \"## Summary\" and \"## Extraction Candidates\" sections. Do not wrap the output in a code fence.\n\nSESSION TRANSCRIPT:\n\n## Assistant\nASSISTANT_FACT\n"
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/summarizer-portability.test.ts:193:22)
+(fail) portable session summarization > sends complete Claude user conversation text without duplicates [260.72ms]
+188 |
+189 |       const result = await runSummarize(env);
+190 |
+191 |       expect(result.exitCode).toBe(0);
+192 |       const prompt = readProviderCalls(env.providerLog)[0]?.prompt ?? "";
+193 |       expect(prompt).toContain("## User\nUSER_FACT");
+                           ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "## User\nUSER_FACT"
+Received: "You are the KB session summarizer. Return markdown with \"## Summary\" and \"## Extraction Candidates\" sections. Do not wrap the output in a code fence.\n\nSESSION TRANSCRIPT:\n\n\n"
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/summarizer-portability.test.ts:193:22)
+(fail) portable session summarization > sends complete Codex response_item conversation text without duplicates [250.32ms]
+188 |
+189 |       const result = await runSummarize(env);
+190 |
+191 |       expect(result.exitCode).toBe(0);
+192 |       const prompt = readProviderCalls(env.providerLog)[0]?.prompt ?? "";
+193 |       expect(prompt).toContain("## User\nUSER_FACT");
+                           ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "## User\nUSER_FACT"
+Received: "You are the KB session summarizer. Return markdown with \"## Summary\" and \"## Extraction Candidates\" sections. Do not wrap the output in a code fence.\n\nSESSION TRANSCRIPT:\n\n\n"
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/summarizer-portability.test.ts:193:22)
+(fail) portable session summarization > sends complete generic role/content conversation text without duplicates [240.72ms]
+204 |     writeSession(env, [{ kind: "unknown-format", text: "UNSUPPORTED_CONTENT" }]);
+205 |
+206 |     const result = await runSummarize(env);
+207 |
+208 |     expect(result.exitCode).toBe(0);
+209 |     expect(readProviderCalls(env.providerLog)[0]?.prompt).toContain("FALLBACK_HEAD");
+                                                                ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "FALLBACK_HEAD"
+Received: "You are the KB session summarizer. Return markdown with \"## Summary\" and \"## Extraction Candidates\" sections. Do not wrap the output in a code fence.\n\nSESSION TRANSCRIPT:\n\n\n"
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/summarizer-portability.test.ts:209:59)
+(fail) portable session summarization > uses the excerpt as an explicitly degraded fallback for an unsupported nonempty transcript [241.49ms]
+215 |   it("rejects an unsupported nonempty transcript without usable fallback before calling the provider", async () => {
+216 |     writeSession(env, [{ kind: "unknown-format", text: "UNSUPPORTED_CONTENT" }], { head: "", tail: "" });
+217 |
+218 |     const result = await runSummarize(env);
+219 |
+220 |     expect(result.exitCode).not.toBe(0);
+                                      ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/summarizer-portability.test.ts:220:33)
+(fail) portable session summarization > rejects an unsupported nonempty transcript without usable fallback before calling the provider [249.41ms]
+232 |
+233 |     const result = await runSummarize(env);
+234 |
+235 |     expect(result.exitCode).toBe(0);
+236 |     expect(readProviderCalls(env.providerLog)[0]?.prompt).toContain("VALID_RETAINED_TURN");
+237 |     expect(JSON.parse(result.stdout)).toMatchObject({ degraded: true });
+                                            ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "degraded": true,
++   "cached": false,
++   "chunked": false,
++   "degraded": false,
++   "path": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-summarizer-portability-wHdv00/vault/sessions/summaries/2026-10-16T12-00-00-123e4567.md",
++   "truncated_turns": 0,
+  }
+
+- Expected  - 1
++ Received  + 5
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/summarizer-portability.test.ts:237:39)
+(fail) portable session summarization > reports degraded input when a recognized malformed message accompanies valid conversation text [249.07ms]
+240 |
+241 |   it("invokes a custom summarizer executable without implicit vendor flags", async () => {
+242 |     const result = await runSummarize(env);
+243 |
+244 |     expect(result.exitCode).toBe(0);
+245 |     expect(readProviderCalls(env.providerLog)[0]?.args).toEqual([]);
+                                                              ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "-p",
++   "--model",
++   "haiku",
++ ]
+
+- Expected  - 1
++ Received  + 5
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/summarizer-portability.test.ts:245:57)
+(fail) portable session summarization > invokes a custom summarizer executable without implicit vendor flags [254.35ms]
+249 |     const result = await runSummarize(env, {
+250 |       env: { KB_SUMMARIZE_ARGS: '["--mode","plain text","$HOME","; touch should-not-exist"]' },
+251 |     });
+252 |
+253 |     expect(result.exitCode).toBe(0);
+254 |     expect(readProviderCalls(env.providerLog)[0]?.args).toEqual([
+                                                              ^
+error: expect(received).toEqual(expected)
+
+  [
+-   "--mode",
+-   "plain text",
+-   "$HOME",
+-   "; touch should-not-exist",
++   "-p",
++   "--model",
++   "haiku",
+  ]
+
+- Expected  - 4
++ Received  + 3
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/summarizer-portability.test.ts:254:57)
+(fail) portable session summarization > passes KB_SUMMARIZE_ARGS as literal JSON string-array arguments [253.76ms]
+259 |
+260 |   for (const args of ["not json", '{"mode":"text"}', '["valid",42]']) {
+261 |     it(`rejects invalid KB_SUMMARIZE_ARGS before invoking the provider: ${args}`, async () => {
+262 |       const result = await runSummarize(env, { env: { KB_SUMMARIZE_ARGS: args } });
+263 |
+264 |       expect(result.exitCode).not.toBe(0);
+                                        ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/summarizer-portability.test.ts:264:35)
+(fail) portable session summarization > rejects invalid KB_SUMMARIZE_ARGS before invoking the provider: not json [250.73ms]
+259 |
+260 |   for (const args of ["not json", '{"mode":"text"}', '["valid",42]']) {
+261 |     it(`rejects invalid KB_SUMMARIZE_ARGS before invoking the provider: ${args}`, async () => {
+262 |       const result = await runSummarize(env, { env: { KB_SUMMARIZE_ARGS: args } });
+263 |
+264 |       expect(result.exitCode).not.toBe(0);
+                                        ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/summarizer-portability.test.ts:264:35)
+(fail) portable session summarization > rejects invalid KB_SUMMARIZE_ARGS before invoking the provider: {"mode":"text"} [238.38ms]
+259 |
+260 |   for (const args of ["not json", '{"mode":"text"}', '["valid",42]']) {
+261 |     it(`rejects invalid KB_SUMMARIZE_ARGS before invoking the provider: ${args}`, async () => {
+262 |       const result = await runSummarize(env, { env: { KB_SUMMARIZE_ARGS: args } });
+263 |
+264 |       expect(result.exitCode).not.toBe(0);
+                                        ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/summarizer-portability.test.ts:264:35)
+(fail) portable session summarization > rejects invalid KB_SUMMARIZE_ARGS before invoking the provider: ["valid",42] [235.39ms]
+280 |       const result = await runSummarize(env, {
+281 |         args: ["--force"],
+282 |         env: { SUMMARY_FIXTURE_OUTPUT: fixture.output },
+283 |       });
+284 |
+285 |       expect(result.exitCode).not.toBe(0);
+                                        ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/summarizer-portability.test.ts:285:35)
+(fail) portable session summarization > preserves the usable cached summary when a forced refresh returns empty output [235.17ms]
+280 |       const result = await runSummarize(env, {
+281 |         args: ["--force"],
+282 |         env: { SUMMARY_FIXTURE_OUTPUT: fixture.output },
+283 |       });
+284 |
+285 |       expect(result.exitCode).not.toBe(0);
+                                        ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/summarizer-portability.test.ts:285:35)
+(fail) portable session summarization > preserves the usable cached summary when a forced refresh returns unstructured output [258.03ms]
+280 |       const result = await runSummarize(env, {
+281 |         args: ["--force"],
+282 |         env: { SUMMARY_FIXTURE_OUTPUT: fixture.output },
+283 |       });
+284 |
+285 |       expect(result.exitCode).not.toBe(0);
+                                        ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/summarizer-portability.test.ts:285:35)
+(fail) portable session summarization > preserves the usable cached summary when a forced refresh returns empty sections output [254.49ms]
+280 |       const result = await runSummarize(env, {
+281 |         args: ["--force"],
+282 |         env: { SUMMARY_FIXTURE_OUTPUT: fixture.output },
+283 |       });
+284 |
+285 |       expect(result.exitCode).not.toBe(0);
+                                        ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/summarizer-portability.test.ts:285:35)
+(fail) portable session summarization > preserves the usable cached summary when a forced refresh returns frontmatter only output [256.51ms]
+290 |   }
+291 |
+292 |   it("does not cache empty output on the first generation", async () => {
+293 |     const result = await runSummarize(env, { env: { SUMMARY_FIXTURE_OUTPUT: "" } });
+294 |
+295 |     expect(result.exitCode).not.toBe(0);
+                                      ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/summarizer-portability.test.ts:295:33)
+(fail) portable session summarization > does not cache empty output on the first generation [256.01ms]
+303 |     const result = await runSummarize(env, {
+304 |       args: ["--force"],
+305 |       env: { KB_SUMMARIZE_TIMEOUT_MS: "100", SUMMARY_FIXTURE_DELAY_MS: "1500" },
+306 |     });
+307 |
+308 |     expect(result.exitCode).not.toBe(0);
+                                      ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/summarizer-portability.test.ts:308:33)
+(fail) portable session summarization > ends a timed-out provider promptly without replacing a usable cached summary [1795.99ms]
+
+ 2 pass
+ 23 fail
+ 36 expect() calls
+Ran 25 tests across 2 files. [6.22s]

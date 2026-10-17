@@ -26,11 +26,12 @@ function makeTestVault(): string {
 }
 
 describe("inject hook", () => {
-  it("should output valid JSON with additionalContext", async () => {
+  it("should output curated eager context as valid JSON", async () => {
     const vault = makeTestVault();
     const proc = Bun.spawn(["bash", "hooks/inject", vault], {
       stdout: "pipe",
       stderr: "pipe",
+      env: { ...process.env, KB_INJECT_MODE: "eager" },
     });
     const output = await new Response(proc.stdout).text();
     const exitCode = await proc.exited;
@@ -40,7 +41,7 @@ describe("inject hook", () => {
     expect(json.hookSpecificOutput.additionalContext).toBeDefined();
     expect(json.hookSpecificOutput.additionalContext).toContain("Vault Index");
     expect(json.hookSpecificOutput.additionalContext).toContain("Architecture");
-    expect(json.hookSpecificOutput.additionalContext).toContain("DB migration");
+    expect(json.hookSpecificOutput.additionalContext).not.toContain("DB migration");
 
     rmSync(vault, { recursive: true });
   });
@@ -60,19 +61,12 @@ describe("inject hook", () => {
 
   it("should respect configured budget", async () => {
     const vault = makeTestVault();
-    // Add many session files to exceed budget
-    for (let i = 0; i < 50; i++) {
-      const ts = `2026-05-${String(i + 1).padStart(2, "0")}T12-00-00.md`;
-      writeFileSync(
-        join(vault, "sessions", ts),
-        `---\nsession_id: '${ts}'\nstatus: completed\n---\n${"Long summary content repeating. ".repeat(20)}\n`
-      );
-    }
+    writeFileSync(join(vault, "context.md"), "Large curated working set. ".repeat(200));
 
     const proc = Bun.spawn(["bash", "hooks/inject", vault], {
       stdout: "pipe",
       stderr: "pipe",
-      env: { ...process.env, KB_BUDGET: "2048" },
+      env: { ...process.env, KB_INJECT_MODE: "eager", KB_BUDGET: "2048" },
     });
     const output = await new Response(proc.stdout).text();
     const json = JSON.parse(output);
@@ -88,6 +82,7 @@ describe("inject hook", () => {
     const proc = Bun.spawn(["bash", "hooks/inject", vault], {
       stdout: "pipe",
       stderr: "pipe",
+      env: { ...process.env, KB_INJECT_MODE: "eager" },
     });
     const output = await new Response(proc.stdout).text();
     const json = JSON.parse(output);
@@ -101,7 +96,7 @@ describe("inject hook", () => {
     rmSync(vault, { recursive: true });
   });
 
-  it("should prefer cached session summaries over manifest bodies", async () => {
+  it("should exclude cached session summaries and manifest bodies in eager mode", async () => {
     const vault = makeTestVault();
     mkdirSync(join(vault, "sessions", "summaries"), { recursive: true });
     writeFileSync(
@@ -112,12 +107,13 @@ describe("inject hook", () => {
     const proc = Bun.spawn(["bash", "hooks/inject", vault], {
       stdout: "pipe",
       stderr: "pipe",
+      env: { ...process.env, KB_INJECT_MODE: "eager" },
     });
     const output = await new Response(proc.stdout).text();
     const json = JSON.parse(output);
     const context = json.hookSpecificOutput.additionalContext;
 
-    expect(context).toContain("Cached summary body");
+    expect(context).not.toContain("Cached summary body");
     expect(context).not.toContain("Started DB migration");
 
     rmSync(vault, { recursive: true });

@@ -1,0 +1,198 @@
+bun test v1.4.3 (c6da4a4d3)
+
+tests/summarizer-portability.test.ts:
+289 |       const prompt = readProviderCalls(env.providerLog)[0]?.prompt ?? "";
+290 |       expect(prompt).toContain("## Assistant\nSURVIVING_TEXT");
+291 |       for (const text of fixture.retainedText) expect(prompt).toContain(text);
+292 |       expect(prompt).not.toContain("MALFORMED_TEXT");
+293 |       expect(prompt).not.toContain("FALLBACK_HEAD");
+294 |       expect(JSON.parse(result.stdout)).toMatchObject({ degraded: true });
+                                              ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "degraded": true,
++   "cached": false,
++   "chunked": false,
++   "degraded": false,
++   "path": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-summarizer-portability-PeEK4d/vault/sessions/summaries/2026-10-16T12-00-00-123e4567.md",
++   "truncated_turns": 0,
+  }
+
+- Expected  - 1
++ Received  + 5
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/summarizer-portability.test.ts:294:41)
+(fail) portable session summarization > reports degraded input for a Codex message with a missing role while preserving usable text [313.23ms]
+289 |       const prompt = readProviderCalls(env.providerLog)[0]?.prompt ?? "";
+290 |       expect(prompt).toContain("## Assistant\nSURVIVING_TEXT");
+291 |       for (const text of fixture.retainedText) expect(prompt).toContain(text);
+292 |       expect(prompt).not.toContain("MALFORMED_TEXT");
+293 |       expect(prompt).not.toContain("FALLBACK_HEAD");
+294 |       expect(JSON.parse(result.stdout)).toMatchObject({ degraded: true });
+                                              ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "degraded": true,
++   "cached": false,
++   "chunked": false,
++   "degraded": false,
++   "path": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-summarizer-portability-CXMBDG/vault/sessions/summaries/2026-10-16T12-00-00-123e4567.md",
++   "truncated_turns": 0,
+  }
+
+- Expected  - 1
++ Received  + 5
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/summarizer-portability.test.ts:294:41)
+(fail) portable session summarization > reports degraded input for a Codex message with a non-string role while preserving usable text [212.67ms]
+289 |       const prompt = readProviderCalls(env.providerLog)[0]?.prompt ?? "";
+290 |       expect(prompt).toContain("## Assistant\nSURVIVING_TEXT");
+291 |       for (const text of fixture.retainedText) expect(prompt).toContain(text);
+292 |       expect(prompt).not.toContain("MALFORMED_TEXT");
+293 |       expect(prompt).not.toContain("FALLBACK_HEAD");
+294 |       expect(JSON.parse(result.stdout)).toMatchObject({ degraded: true });
+                                              ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "degraded": true,
++   "cached": false,
++   "chunked": false,
++   "degraded": false,
++   "path": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-summarizer-portability-3tuWHJ/vault/sessions/summaries/2026-10-16T12-00-00-123e4567.md",
++   "truncated_turns": 0,
+  }
+
+- Expected  - 1
++ Received  + 5
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/summarizer-portability.test.ts:294:41)
+(fail) portable session summarization > reports degraded input for a generic message with a missing role while preserving usable text [219.12ms]
+289 |       const prompt = readProviderCalls(env.providerLog)[0]?.prompt ?? "";
+290 |       expect(prompt).toContain("## Assistant\nSURVIVING_TEXT");
+291 |       for (const text of fixture.retainedText) expect(prompt).toContain(text);
+292 |       expect(prompt).not.toContain("MALFORMED_TEXT");
+293 |       expect(prompt).not.toContain("FALLBACK_HEAD");
+294 |       expect(JSON.parse(result.stdout)).toMatchObject({ degraded: true });
+                                              ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "degraded": true,
++   "cached": false,
++   "chunked": false,
++   "degraded": false,
++   "path": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-summarizer-portability-t4KFM1/vault/sessions/summaries/2026-10-16T12-00-00-123e4567.md",
++   "truncated_turns": 0,
+  }
+
+- Expected  - 1
++ Received  + 5
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/summarizer-portability.test.ts:294:41)
+(fail) portable session summarization > reports degraded input for a generic message with a non-string role while preserving usable text [217.54ms]
+289 |       const prompt = readProviderCalls(env.providerLog)[0]?.prompt ?? "";
+290 |       expect(prompt).toContain("## Assistant\nSURVIVING_TEXT");
+291 |       for (const text of fixture.retainedText) expect(prompt).toContain(text);
+292 |       expect(prompt).not.toContain("MALFORMED_TEXT");
+293 |       expect(prompt).not.toContain("FALLBACK_HEAD");
+294 |       expect(JSON.parse(result.stdout)).toMatchObject({ degraded: true });
+                                              ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "degraded": true,
++   "cached": false,
++   "chunked": false,
++   "degraded": false,
++   "path": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-summarizer-portability-maLyNk/vault/sessions/summaries/2026-10-16T12-00-00-123e4567.md",
++   "truncated_turns": 0,
+  }
+
+- Expected  - 1
++ Received  + 5
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/summarizer-portability.test.ts:294:41)
+(fail) portable session summarization > reports degraded input for a Claude content block with a missing type while preserving usable text [217.44ms]
+289 |       const prompt = readProviderCalls(env.providerLog)[0]?.prompt ?? "";
+290 |       expect(prompt).toContain("## Assistant\nSURVIVING_TEXT");
+291 |       for (const text of fixture.retainedText) expect(prompt).toContain(text);
+292 |       expect(prompt).not.toContain("MALFORMED_TEXT");
+293 |       expect(prompt).not.toContain("FALLBACK_HEAD");
+294 |       expect(JSON.parse(result.stdout)).toMatchObject({ degraded: true });
+                                              ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "degraded": true,
++   "cached": false,
++   "chunked": false,
++   "degraded": false,
++   "path": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-summarizer-portability-tkLywo/vault/sessions/summaries/2026-10-16T12-00-00-123e4567.md",
++   "truncated_turns": 0,
+  }
+
+- Expected  - 1
++ Received  + 5
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/summarizer-portability.test.ts:294:41)
+(fail) portable session summarization > reports degraded input for a Codex content block with a non-string type while preserving usable text [231.14ms]
+289 |       const prompt = readProviderCalls(env.providerLog)[0]?.prompt ?? "";
+290 |       expect(prompt).toContain("## Assistant\nSURVIVING_TEXT");
+291 |       for (const text of fixture.retainedText) expect(prompt).toContain(text);
+292 |       expect(prompt).not.toContain("MALFORMED_TEXT");
+293 |       expect(prompt).not.toContain("FALLBACK_HEAD");
+294 |       expect(JSON.parse(result.stdout)).toMatchObject({ degraded: true });
+                                              ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "degraded": true,
++   "cached": false,
++   "chunked": false,
++   "degraded": false,
++   "path": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-summarizer-portability-ddId68/vault/sessions/summaries/2026-10-16T12-00-00-123e4567.md",
++   "truncated_turns": 0,
+  }
+
+- Expected  - 1
++ Received  + 5
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/summarizer-portability.test.ts:294:41)
+(fail) portable session summarization > reports degraded input for a generic content block with a missing type while preserving usable text [234.87ms]
+289 |       const prompt = readProviderCalls(env.providerLog)[0]?.prompt ?? "";
+290 |       expect(prompt).toContain("## Assistant\nSURVIVING_TEXT");
+291 |       for (const text of fixture.retainedText) expect(prompt).toContain(text);
+292 |       expect(prompt).not.toContain("MALFORMED_TEXT");
+293 |       expect(prompt).not.toContain("FALLBACK_HEAD");
+294 |       expect(JSON.parse(result.stdout)).toMatchObject({ degraded: true });
+                                              ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "degraded": true,
++   "cached": false,
++   "chunked": false,
++   "degraded": false,
++   "path": "/var/folders/vk/9z11szmj1r72z157_4rcb7jr0000gn/T/kb-summarizer-portability-SC2GFN/vault/sessions/summaries/2026-10-16T12-00-00-123e4567.md",
++   "truncated_turns": 0,
+  }
+
+- Expected  - 1
++ Received  + 5
+
+      at <anonymous> (/Users/justinbeaudry/Projects/kb/tests/summarizer-portability.test.ts:294:41)
+(fail) portable session summarization > reports degraded input for a generic content block with a non-string type while preserving usable text [237.07ms]
+(pass) portable session summarization > keeps complete-source status when ignoring Codex system, developer, and tool roles [246.74ms]
+(pass) portable session summarization > keeps complete-source status when ignoring generic system, developer, and tool roles [236.14ms]
+(pass) portable session summarization > keeps complete-source status when ignoring typed non-text content blocks [236.41ms]
+(pass) portable session summarization > keeps complete-source status when ignoring unrelated metadata and tool records [239.85ms]
+(pass) portable session summarization > keeps complete-source status when ignoring mirrored Codex event records [246.38ms]
+
+ 5 pass
+ 18 filtered out
+ 8 fail
+ 74 expect() calls
+Ran 13 tests across 1 file. [3.11s]

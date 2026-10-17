@@ -54,6 +54,51 @@ describeGit("headCommit", () => {
     const sha = await headCommit(dir);
     expect(sha).toBeNull();
   });
+
+  it("does not hide a missing working directory as unavailable Git", async () => {
+    dir = mkdtempSync(join(tmpdir(), "kb-git-cwd-"));
+
+    await expect(headCommit(join(dir, "does-not-exist"))).rejects.toThrow();
+  });
+});
+
+describe("optional Git provenance", () => {
+  let dir: string;
+  afterEach(() => { if (dir) rmSync(dir, { recursive: true, force: true }); });
+
+  it("returns null and empty provenance when the Git executable is absent", async () => {
+    dir = mkdtempSync(join(tmpdir(), "kb-no-git-executable-"));
+    const emptyPath = join(dir, "empty-path");
+    mkdirSync(emptyPath);
+    const modulePath = join(import.meta.dir, "..", "src", "lib", "git.ts");
+    // Use the absolute runtime path, then control PATH in the child so this
+    // exercises missing Git without depending on in-process binary lookup.
+    const proc = Bun.spawn([process.execPath, "-e", `
+      import { headCommit, currentBranch, filesChangedSince, uncommittedChanges } from ${JSON.stringify(modulePath)};
+      const cwd = process.cwd();
+      console.log(JSON.stringify({
+        head: await headCommit(cwd),
+        branch: await currentBranch(cwd),
+        committed: await filesChangedSince("deadbeef", cwd),
+        uncommitted: await uncommittedChanges(cwd),
+      }));
+    `], {
+      cwd: dir,
+      stdout: "pipe",
+      stderr: "pipe",
+      env: { ...process.env, PATH: emptyPath },
+    });
+
+    const [stdout, stderr, exitCode] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ]);
+
+    expect(exitCode).toBe(0);
+    expect(stderr).toBe("");
+    expect(JSON.parse(stdout)).toEqual({ head: null, branch: null, committed: [], uncommitted: [] });
+  });
 });
 
 describeGit("currentBranch", () => {
