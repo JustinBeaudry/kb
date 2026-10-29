@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/JustinBeaudry/kb/server/internal/domain"
+	"github.com/JustinBeaudry/kb/server/internal/gateway"
 	"github.com/JustinBeaudry/kb/server/internal/platform"
 	"github.com/JustinBeaudry/kb/server/internal/platform/graph"
 	"github.com/JustinBeaudry/kb/server/internal/repository"
@@ -20,7 +21,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const help = `kb-admin setup --owner-id PUBLIC_ID --owner-public-key BASE64_ED25519_PUBLIC_KEY --project PROJECT --credential-fd FD
+const help = `kb-admin setup --owner-id PUBLIC_ID --owner-public-key 64_HEX_NOSTR_PUBLIC_KEY --project PROJECT --credential-fd FD
 
 Run once as the operator on the controlled service host with KB_GRAPH_URI,
 KB_GRAPH_USER and KB_GRAPH_SECRET supplied by protected service configuration.
@@ -29,7 +30,10 @@ Buzz relay availability is not required. A second setup is refused.
 --credential-fd must name an already-open protected pipe or owner-only file descriptor
 (number >=3). Transfer the one-time scoped bearer directly to protected client
 credential import; never pass it in argv, print it, or save it in an example.
-No owner bearer is minted. Normal clients cannot administer clients or claim trust.
+The public key must be a valid 64-hex Nostr/BIP-340 secp256k1 x-only point;
+its canonical lowercase form is stored separately from the owner ID.
+No private key is accepted. No owner bearer is minted. Normal clients cannot administer clients or claim trust.
+Component only: do not live-bootstrap before I2 recovery acceptance.
 Recovery: recovery_unavailable until signed Buzz recovery is implemented (I2).
 `
 
@@ -65,7 +69,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	var ownerID, key, project, role, capabilities string
 	var fd int
 	flags.StringVar(&ownerID, "owner-id", "", "public owner ID")
-	flags.StringVar(&key, "owner-public-key", "", "public Ed25519 signing key")
+	flags.StringVar(&key, "owner-public-key", "", "Buzz/Nostr BIP-340 secp256k1 x-only public key (64 hex characters)")
 	flags.StringVar(&project, "project", "", "registered project ID")
 	flags.StringVar(&role, "role", "agent", "restricted client role")
 	flags.StringVar(&capabilities, "capabilities", "status:read,retrieval:read,evidence:read,candidate:write,checkpoint:write", "comma separated scoped capabilities")
@@ -91,7 +95,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 		defer cancel()
 		_ = store.Close(closeCtx)
 	}()
-	credential, err := service.NewIdentityService(store, repository.NewIdentityRepository(store)).Setup(ctx, domain.OwnerIdentity{ID: ownerID, PublicKey: key}, service.EnrollInput{Role: domain.Role(role), ProjectIDs: []string{project}, Capabilities: strings.Split(capabilities, ",")})
+	credential, err := service.NewIdentityService(store, repository.NewIdentityRepository(store), gateway.NostrIdentity{}).Setup(ctx, domain.OwnerIdentity{ID: ownerID, PublicKey: key}, service.EnrollInput{Role: domain.Role(role), ProjectIDs: []string{project}, Capabilities: strings.Split(capabilities, ",")})
 	if err != nil {
 		return err
 	}

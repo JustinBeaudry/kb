@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/JustinBeaudry/kb/server/internal/domain"
+	"github.com/JustinBeaudry/kb/server/internal/gateway"
 	"github.com/JustinBeaudry/kb/server/internal/handler"
 	"github.com/JustinBeaudry/kb/server/internal/platform/graph"
 	"github.com/JustinBeaudry/kb/server/internal/repository"
@@ -52,8 +53,8 @@ func TestIdentityRealGraph(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, store.Close(context.Background())) })
 	repo := repository.NewIdentityRepository(store)
-	identity := service.NewIdentityService(store, repo)
-	owner := domain.OwnerIdentity{ID: "owner-public", PublicKey: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}
+	identity := service.NewIdentityService(store, repo, gateway.NostrIdentity{})
+	owner := domain.OwnerIdentity{ID: "owner-public", PublicKey: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"}
 	input := service.EnrollInput{ClientID: "agent", Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"status:read", "retrieval:read"}}
 	reader, writer, err := os.Pipe()
 	require.NoError(t, err)
@@ -61,6 +62,15 @@ func TestIdentityRealGraph(t *testing.T) {
 	command := exec.CommandContext(t.Context(), "go", "run", "../../cmd/kb-admin", "setup", "--owner-id", owner.ID, "--owner-public-key", owner.PublicKey, "--project", "demo", "--capabilities", "status:read,retrieval:read", "--credential-fd", "3")
 	command.Env = append(os.Environ(), "KB_GRAPH_URI=bolt://"+host+":"+port.Port(), "KB_GRAPH_USER=neo4j", "KB_GRAPH_SECRET="+graphSecret, "KB_LISTEN=127.0.0.1:8080", "KB_TLS_CERT=", "KB_TLS_KEY=")
 	command.ExtraFiles = []*os.File{writer}
+	rejected := exec.CommandContext(t.Context(), "go", "run", "../../cmd/kb-admin", "setup", "--owner-id", owner.ID, "--owner-public-key", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", "--project", "demo", "--credential-fd", "3")
+	rejected.Env = command.Env
+	rejected.ExtraFiles = []*os.File{writer}
+	var rejectedOutput, rejectedDiagnostics bytes.Buffer
+	rejected.Stdout = &rejectedOutput
+	rejected.Stderr = &rejectedDiagnostics
+	require.Error(t, rejected.Run(), "wrong-algorithm setup must fail before initializing owner")
+	assert.Empty(t, rejectedOutput.String())
+	assert.Contains(t, rejectedDiagnostics.String(), "invalid_input")
 	var stdout, stderr bytes.Buffer
 	command.Stdout = &stdout
 	command.Stderr = &stderr
@@ -80,6 +90,11 @@ func TestIdentityRealGraph(t *testing.T) {
 		_, err := identity.Setup(t.Context(), owner, input)
 		assert.ErrorIs(t, err, domain.ErrConflict)
 		require.NoError(t, store.Within(t.Context(), func(ctx context.Context, tx domain.Tx) error {
+			storedOwner, err := repo.Owner(ctx, tx)
+			require.NoError(t, err)
+			assert.Equal(t, owner.ID, storedOwner.ID)
+			assert.Equal(t, owner.PublicKey, storedOwner.PublicKey)
+			assert.NotEqual(t, storedOwner.ID, storedOwner.PublicKey)
 			record, err := repo.FindToken(ctx, tx, service.TokenDigest(credential.Bearer))
 			require.NoError(t, err)
 			assert.Equal(t, service.TokenDigest(credential.Bearer), record.TokenDigest)

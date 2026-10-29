@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/JustinBeaudry/kb/server/internal/gateway"
 	"github.com/JustinBeaudry/kb/server/internal/handler"
 	"github.com/JustinBeaudry/kb/server/internal/platform"
 	"github.com/JustinBeaudry/kb/server/internal/platform/graph"
@@ -39,7 +40,7 @@ func run(parent context.Context, logger *slog.Logger) error {
 		defer cancel()
 		_ = store.Close(closeCtx)
 	}()
-	e, err := handler.NewIdentityServer(service.NewIdentityService(store, repository.NewIdentityRepository(store)), logger)
+	e, err := handler.NewIdentityServer(service.NewIdentityService(store, repository.NewIdentityRepository(store), gateway.NostrIdentity{}), logger)
 	if err != nil {
 		return err
 	}

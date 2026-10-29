@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"slices"
 	"strings"
@@ -35,13 +34,18 @@ type IdentityRepository interface {
 	Owner(context.Context, Tx) (OwnerIdentity, error)
 	PutOwner(context.Context, Tx, OwnerIdentity) error
 }
+
+// OwnerPublicKeyValidator isolates provider encoding/curve validation from
+// service orchestration. Implementations return canonical public identity only.
+type OwnerPublicKeyValidator interface{ NormalizePublicKey(string) (string, error) }
 type IdentityService struct {
-	tx   Transactor
-	repo IdentityRepository
+	tx         Transactor
+	repo       IdentityRepository
+	publicKeys OwnerPublicKeyValidator
 }
 
-func NewIdentityService(tx Transactor, repo IdentityRepository) *IdentityService {
-	return &IdentityService{tx: tx, repo: repo}
+func NewIdentityService(tx Transactor, repo IdentityRepository, publicKeys OwnerPublicKeyValidator) *IdentityService {
+	return &IdentityService{tx: tx, repo: repo, publicKeys: publicKeys}
 }
 func TokenDigest(bearer string) string {
 	digest := sha256.Sum256([]byte(bearer))
@@ -81,10 +85,11 @@ func (s *IdentityService) Setup(ctx context.Context, owner OwnerIdentity, input 
 		if existing.ID != "" {
 			return domain.ErrConflict
 		}
-		key, err := base64.StdEncoding.DecodeString(owner.PublicKey)
-		if err != nil || len(key) != 32 || domain.ValidateIDs(owner.ID) != nil {
+		canonicalKey, err := s.publicKeys.NormalizePublicKey(owner.PublicKey)
+		if err != nil || domain.ValidateIDs(owner.ID) != nil {
 			return domain.ErrInvalidInput
 		}
+		owner.PublicKey = canonicalKey
 		if err := validateEnrollment(input); err != nil {
 			return err
 		}

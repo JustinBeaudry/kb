@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/JustinBeaudry/kb/server/internal/domain"
+	"github.com/JustinBeaudry/kb/server/internal/gateway"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -61,11 +62,11 @@ func (f *identityFixture) PutOwner(_ context.Context, _ Tx, o OwnerIdentity) err
 }
 func newIdentityFixture() (*IdentityService, *identityFixture) {
 	f := &identityFixture{clients: map[string]ClientRecord{}}
-	return NewIdentityService(f, f), f
+	return NewIdentityService(f, f, gateway.NostrIdentity{}), f
 }
 func setupFixture(t *testing.T, s *IdentityService) ClientCredential {
 	t.Helper()
-	c, err := s.Setup(t.Context(), OwnerIdentity{ID: "owner-public", PublicKey: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}, EnrollInput{ClientID: "client", Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"status:read", "retrieval:read"}})
+	c, err := s.Setup(t.Context(), OwnerIdentity{ID: "owner-public", PublicKey: ownerNostrPublicKey}, EnrollInput{ClientID: "client", Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"status:read", "retrieval:read"}})
 	require.NoError(t, err)
 	return c
 }
@@ -165,9 +166,42 @@ func (f failedCommit) Within(ctx context.Context, fn func(context.Context, Tx) e
 }
 func TestFailedCommitReturnsNoCredential(t *testing.T) {
 	_, f := newIdentityFixture()
-	s := NewIdentityService(failedCommit{inner: f}, f)
-	credential, err := s.Setup(t.Context(), OwnerIdentity{ID: "owner-public", PublicKey: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}, EnrollInput{Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"status:read"}})
+	s := NewIdentityService(failedCommit{inner: f}, f, gateway.NostrIdentity{})
+	credential, err := s.Setup(t.Context(), OwnerIdentity{ID: "owner-public", PublicKey: ownerNostrPublicKey}, EnrollInput{Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"status:read"}})
 	assert.ErrorIs(t, err, domain.ErrUnavailable)
 	assert.Empty(t, credential.Bearer)
 	assert.Empty(t, credential.ClientID)
+}
+
+// The secp256k1 generator's public x coordinate is a public test vector only.
+const ownerNostrPublicKey = "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+
+func TestSetupRejectsNonNostrOwnerIdentity(t *testing.T) {
+	for _, tc := range []struct{ name, key string }{
+		{"former base64 zero fixture", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="},
+		{"base64 Ed25519 public key", "11qYAYdk9JYiv7wBF1jLQ3hHfX5xj5s3o1J7b53CzjM="},
+		{"algorithm-tagged key", "ed25519:" + ownerNostrPublicKey},
+		{"SEC compressed point", "02" + ownerNostrPublicKey},
+		{"zero x coordinate", strings.Repeat("0", 64)},
+		{"off curve x coordinate", strings.Repeat("0", 63) + "5"},
+		{"coordinate outside field", strings.Repeat("f", 64)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, f := newIdentityFixture()
+			credential, err := s.Setup(t.Context(), OwnerIdentity{ID: "owner-public", PublicKey: tc.key}, EnrollInput{Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"status:read"}})
+			assert.ErrorIs(t, err, domain.ErrInvalidInput)
+			assert.Empty(t, credential.ClientID)
+			assert.Empty(t, f.owner.ID)
+			assert.Empty(t, f.clients)
+		})
+	}
+}
+func TestSetupStoresCanonicalNostrOwnerIdentity(t *testing.T) {
+	s, f := newIdentityFixture()
+	credential, err := s.Setup(t.Context(), OwnerIdentity{ID: "owner-public", PublicKey: strings.ToUpper(ownerNostrPublicKey)}, EnrollInput{Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"status:read"}})
+	require.NoError(t, err)
+	assert.Equal(t, ownerNostrPublicKey, f.owner.PublicKey)
+	assert.Equal(t, "owner-public", f.owner.ID)
+	assert.NotEqual(t, f.owner.ID, f.owner.PublicKey)
+	assert.NotEmpty(t, credential.ClientID)
 }

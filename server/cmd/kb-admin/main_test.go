@@ -16,10 +16,11 @@ import (
 func TestHelpDescribesProtectedOneTimeSetup(t *testing.T) {
 	var output bytes.Buffer
 	require.NoError(t, run(t.Context(), []string{"help"}, &output))
-	for _, want := range []string{"controlled service host", "public signing identity", "second setup", "credential-fd", "recovery_unavailable", "No owner bearer"} {
+	for _, want := range []string{"controlled service host", "public signing identity", "second setup", "credential-fd", "recovery_unavailable", "No owner bearer", "64_HEX_NOSTR_PUBLIC_KEY", "BIP-340 secp256k1", "do not live-bootstrap", "No private key"} {
 		assert.Contains(t, output.String(), want)
 	}
 	assert.NotContains(t, output.String(), "--token")
+	assert.NotContains(t, output.String(), "ED25519")
 }
 func TestProtectedCredentialDescriptor(t *testing.T) {
 	for _, fd := range []int{0, 1, 2, -1, 999999} {
