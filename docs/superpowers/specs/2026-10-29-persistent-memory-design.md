@@ -1,7 +1,7 @@
 # Private graph-based memory service
 
 Date: 2026-10-29
-Status: Draft for owner approval; implementation is not authorized by this document.
+Status: Approved by owner on 2026-10-29; implementation plan approval is the next gate.
 Owner: Justin Beaudry
 Scope: KB evolution, one owner, Railway deployment, multiple agent harnesses.
 
