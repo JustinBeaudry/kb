@@ -13,16 +13,25 @@ const (
 )
 
 type Job struct {
-	ID, Kind, InputDigest string
-	Scope                 Scope
-	InputRevisionIDs      []string
-	Status                JobStatus
-	Attempts              int
-	DueAt                 time.Time
+	ID, Kind, InputDigest      string
+	PolicyRevision, ReasonCode string
+	Scope                      Scope
+	InputRevisionIDs           []string
+	Status                     JobStatus
+	Attempts                   int
+	DueAt                      time.Time
 }
 
 type Lease struct {
 	JobID, WorkerID string
 	Fence           uint64
 	ExpiresAt       time.Time
+}
+
+// JobEffect is a durable completion notification. It intentionally contains only
+// references and digests, never prompts, source payloads, or credentials.
+type JobEffect struct {
+	ID, JobID, Kind, InputDigest, PolicyRevision string
+	Fence                                        uint64
+	CreatedAt                                    time.Time
 }

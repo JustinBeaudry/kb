@@ -10,3 +10,6 @@ var Identity string
 
 //go:embed 002_clients.cypher
 var Clients string
+
+//go:embed 003_jobs.cypher
+var Jobs string
