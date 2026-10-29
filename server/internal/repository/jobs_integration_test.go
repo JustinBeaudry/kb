@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -290,16 +292,26 @@ func TestJobsWorkerProcess(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, store.Close(context.Background())) })
 	repo := repository.NewJobsRepository(store)
 	jobs := service.NewJobsService(store, repo)
-	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	t.Cleanup(cancel)
-	worker := platform.Worker{ID: os.Getenv("KB_TEST_JOBS_WORKER"), Kinds: []string{"verify"}, Jobs: jobs, PollInterval: 10 * time.Millisecond, RunJob: func(ctx context.Context, job domain.Job, lease domain.Lease) error {
-		// Keep the winning lease active while the other process tries to claim it.
-		timer := time.NewTimer(150 * time.Millisecond)
-		defer timer.Stop()
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-timer.C:
+	directory, id := os.Getenv("KB_TEST_JOBS_SIGNALS"), os.Getenv("KB_TEST_JOBS_WORKER")
+	require.NotEmpty(t, directory)
+	require.NoError(t, writeJobsSignal(directory, "ready-"+id, nil))
+	require.NoError(t, waitJobsSignal(ctx, directory, "start"))
+	go func() { _ = waitJobsSignal(ctx, directory, "stop"); cancel() }()
+	coordinated := raceWorkerJobs{JobsService: jobs, directory: directory, id: id}
+	worker := platform.Worker{ID: id, Kinds: []string{"verify"}, Jobs: coordinated, PollInterval: 10 * time.Millisecond, RunJob: func(ctx context.Context, job domain.Job, lease domain.Lease) error {
+		active, err := json.Marshal(lease)
+		if err != nil {
+			return err
+		}
+		if err := writeJobsSignal(directory, "active", active); err != nil {
+			return err
+		}
+		// Only the parent can release this handler, after receiving the other
+		// process's acknowledgment of a real unsuccessful claim against this fence.
+		if err := waitJobsSignal(ctx, directory, "release"); err != nil {
+			return err
 		}
 		return jobs.Commit(ctx, lease, job.InputDigest, func(ctx context.Context, tx service.Tx) error {
 			return repo.Enqueue(ctx, tx, domain.Job{ID: "logical-effect", Kind: "result", InputDigest: "result-" + job.InputDigest, PolicyRevision: job.PolicyRevision, DueAt: time.Now().UTC()})
@@ -310,11 +322,12 @@ func TestJobsWorkerProcess(t *testing.T) {
 func TestJobsTwoWorkerProcessesRace(t *testing.T) {
 	store, repo, s, cfg := jobsGraphConfig(t)
 	queueJob(t, s, "race", time.Now().UTC())
+	signals := t.TempDir()
 	var commands []*exec.Cmd
 	var outputs []*bytes.Buffer
 	for _, id := range []string{"process-a", "process-b"} {
 		command := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestJobsWorkerProcess$", "-test.v")
-		command.Env = append(os.Environ(), "KB_TEST_JOBS_PROCESS=1", "KB_TEST_JOBS_URI="+cfg.URI, "KB_TEST_JOBS_WORKER="+id)
+		command.Env = append(os.Environ(), "KB_TEST_JOBS_PROCESS=1", "KB_TEST_JOBS_URI="+cfg.URI, "KB_TEST_JOBS_WORKER="+id, "KB_TEST_JOBS_SIGNALS="+signals)
 		output := new(bytes.Buffer)
 		command.Stdout = output
 		command.Stderr = output
@@ -328,6 +341,44 @@ func TestJobsTwoWorkerProcessesRace(t *testing.T) {
 			}
 		})
 	}
+
+	barrierCtx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	t.Cleanup(cancel)
+	for _, id := range []string{"process-a", "process-b"} {
+		require.NoError(t, waitJobsSignal(barrierCtx, signals, "ready-"+id), "both graph drivers must initialize before claims begin")
+	}
+	// Release both initialized OS processes into the real claim race.
+	require.NoError(t, writeJobsSignal(signals, "start", nil))
+	require.NoError(t, waitJobsSignal(barrierCtx, signals, "active"))
+	active, err := os.ReadFile(filepath.Join(signals, "active"))
+	require.NoError(t, err)
+	var winningLease domain.Lease
+	require.NoError(t, json.Unmarshal(active, &winningLease))
+	require.Contains(t, []string{"process-a", "process-b"}, winningLease.WorkerID)
+	loser := "process-a"
+	if winningLease.WorkerID == loser {
+		loser = "process-b"
+	}
+	require.NoError(t, waitJobsSignal(barrierCtx, signals, "blocked-"+loser), "loser must acknowledge a real failed claim while winner is held")
+	acknowledged, err := os.ReadFile(filepath.Join(signals, "blocked-"+loser))
+	require.NoError(t, err)
+	assert.JSONEq(t, string(active), string(acknowledged))
+	// The acknowledgment alone is insufficient: confirm the same authoritative
+	// fence is still live and no completion effect exists before releasing it.
+	require.NoError(t, store.Within(t.Context(), func(ctx context.Context, tx domain.Tx) error {
+		job, _, err := repo.Leased(ctx, tx, winningLease, time.Now().UTC())
+		if err != nil {
+			return err
+		}
+		assert.Equal(t, domain.JobRunning, job.Status)
+		assert.Equal(t, 1, job.Attempts)
+		effects, err := repo.Effects(ctx, tx, "race")
+		assert.Empty(t, effects)
+		return err
+	}))
+	require.NoError(t, writeJobsSignal(signals, "release", nil))
+	require.NoError(t, waitJobsSignal(barrierCtx, signals, "completed-"+winningLease.WorkerID))
+	require.NoError(t, writeJobsSignal(signals, "stop", nil))
 	// One concurrent execution is the Act; each process owns an independent driver.
 	for i, command := range commands {
 		require.NoError(t, command.Wait(), outputs[i].String())
@@ -367,4 +418,71 @@ func TestJobsExhaustedCrashBecomesDead(t *testing.T) {
 	require.Len(t, dead, 1)
 	assert.Equal(t, "lease_expired", dead[0].ReasonCode)
 	assert.Equal(t, 5, dead[0].Attempts)
+}
+
+func waitJobsSignal(ctx context.Context, directory, name string) error {
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if _, err := os.Stat(filepath.Join(directory, name)); err == nil {
+			return nil
+		} else if !os.IsNotExist(err) {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+// raceWorkerJobs observes the real service boundary; it never fabricates a
+// claim result. A blocked acknowledgment is published only after an actual
+// Claim returns ErrIncomplete and the winning lease was visible before it ran.
+type raceWorkerJobs struct {
+	*service.JobsService
+	directory, id string
+}
+
+func (r raceWorkerJobs) Claim(ctx context.Context, workerID string, kinds []string, now time.Time) (domain.Job, domain.Lease, error) {
+	active, readErr := os.ReadFile(filepath.Join(r.directory, "active"))
+	if readErr != nil && !os.IsNotExist(readErr) {
+		return domain.Job{}, domain.Lease{}, readErr
+	}
+	job, lease, err := r.JobsService.Claim(ctx, workerID, kinds, now)
+	if errors.Is(err, domain.ErrIncomplete) && readErr == nil {
+		var winning domain.Lease
+		if decodeErr := json.Unmarshal(active, &winning); decodeErr != nil {
+			return domain.Job{}, domain.Lease{}, decodeErr
+		}
+		if winning.WorkerID != r.id {
+			if signalErr := writeJobsSignal(r.directory, "blocked-"+r.id, active); signalErr != nil {
+				return domain.Job{}, domain.Lease{}, signalErr
+			}
+		}
+	}
+	return job, lease, err
+}
+func (r raceWorkerJobs) Complete(ctx context.Context, lease domain.Lease, digest string) error {
+	if err := r.JobsService.Complete(ctx, lease, digest); err != nil {
+		return err
+	}
+	return writeJobsSignal(r.directory, "completed-"+r.id, nil)
+}
+func writeJobsSignal(directory, name string, data []byte) error {
+	file, err := os.CreateTemp(directory, ".signal-")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.Remove(file.Name()) }()
+	_, writeErr := file.Write(data)
+	closeErr := file.Close()
+	if writeErr != nil {
+		return writeErr
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	return os.Rename(file.Name(), filepath.Join(directory, name))
 }
