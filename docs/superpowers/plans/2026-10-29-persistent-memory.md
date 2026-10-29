@@ -82,7 +82,7 @@ Use explicit structs in `server/internal/domain/`; ID fields are strings validat
 | CandidateInput / `claim.go` | ClaimID, ExpectedRevision, Text, Kind string; Scope; Evidence []EvidenceRef; DependsOn []string; Applicability |
 | Verification / `claim.go` | ID, ClaimRevision, PolicyRevision, EvidenceDigest string; Outcome enum; Method string; Origin; CheckedAt |
 | Publication / `claim.go` | ID, ClaimRevision, SharingScope, Revision string; SupportRevisions []string; PolicyRevision string |
-| Job / `job.go` | ID, Kind, InputDigest string; Scope; InputRevisionIDs []string; Status enum; Attempts int; DueAt |
+| Job / `job.go` | ID, Kind, InputDigest, PolicyRevision string; Scope; InputRevisionIDs []string; Status enum; Attempts int; DueAt |
 | Lease / `job.go` | JobID, WorkerID string; Fence uint64; ExpiresAt |
 | Decision / `decision.go` | ID, CandidateRevision, EvidenceDigest, RequestedAction string; OwnerID string; ExpiresAt; State enum |
 | DecisionReply / `decision.go` | DecisionID, CandidateRevision, EvidenceDigest, Action, EventID, SignerID string; Signature []byte |
