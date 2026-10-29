@@ -16,3 +16,6 @@ var Jobs string
 
 //go:embed 004_evidence.cypher
 var Evidence string
+
+//go:embed 005_memory.cypher
+var Memory string

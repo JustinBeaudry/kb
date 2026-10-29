@@ -1,0 +1,318 @@
+package repository_test
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"sync"
+	"testing"
+
+	"github.com/JustinBeaudry/kb/server/internal/domain"
+	"github.com/JustinBeaudry/kb/server/internal/gateway"
+	"github.com/JustinBeaudry/kb/server/internal/platform/graph"
+	"github.com/JustinBeaudry/kb/server/internal/repository"
+	"github.com/JustinBeaudry/kb/server/internal/service"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func memoryMutation(t *testing.T, store *graph.Store, q string, p map[string]any) {
+	t.Helper()
+	require.NoError(t, store.Within(t.Context(), func(ctx context.Context, tx domain.Tx) error {
+		n, e := store.Unwrap(tx)
+		if e != nil {
+			return e
+		}
+		r, e := n.Run(ctx, q, p)
+		if e != nil {
+			return e
+		}
+		_, e = r.Consume(ctx)
+		return e
+	}))
+}
+func publishFixture(t *testing.T, store *graph.Store, c domain.ClaimRevision, support []string, sharing, generalized string) {
+	t.Helper()
+	data, e := json.Marshal(c)
+	require.NoError(t, e)
+	if support == nil {
+		support = []string{}
+	}
+	memoryMutation(t, store, `CREATE (c:ClaimRevision {id:$id,claimID:$claim,data:$data,status:$status,valid:true,projectID:$project,taskID:$task,clientID:'fixture',text:$text,kind:$kind}) CREATE (:Publication {id:$publication,claimRevision:$id,revision:'fixture-publication',policyRevision:'p1',valid:true,sharingScope:$sharing,supportRevisions:$support,generalizedText:$generalized}) WITH c MATCH (o:OwnerState {id:'owner'}) SET o.revisionEpoch=o.revisionEpoch+1`, map[string]any{"id": c.Revision, "claim": c.ClaimID, "data": string(data), "status": string(c.Status), "project": c.Scope.ProjectID, "task": c.Scope.TaskID, "text": c.Text, "kind": c.Kind, "publication": "pub-" + c.Revision, "sharing": sharing, "support": support, "generalized": generalized})
+	for _, ref := range c.Evidence {
+		memoryMutation(t, store, `MATCH (c:ClaimRevision {id:$id}),(a:Artifact {id:$artifact}) CREATE (c)-[:EVIDENCE {digest:$digest,locator:$locator}]->(a)`, map[string]any{"id": c.Revision, "artifact": ref.ArtifactID, "digest": ref.Digest, "locator": ref.Locator})
+	}
+}
+func TestRetrievalRealGraphAndUpload(t *testing.T) {
+	store, jobs, _ := jobsGraph(t)
+	objects := captureS3(t)
+	evidence := repository.NewEvidenceRepository(store)
+	tasks := repository.NewCheckpointRepository(store)
+	retrievalRepo := repository.NewRetrievalRepository(store)
+	memoryRepo := repository.NewMemoryRepository(store)
+	capture := service.NewCaptureService(store, evidence, jobs, objects)
+	identity := service.NewIdentityService(store, repository.NewIdentityRepository(store), gateway.NostrIdentity{})
+	collector, e := identity.Setup(t.Context(), domain.OwnerIdentity{ID: "owner", PublicKey: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"}, service.EnrollInput{ClientID: "collector", Role: domain.RoleCollector, ProjectIDs: []string{"demo", "secret"}, Capabilities: []string{"artifacts:write"}})
+	require.NoError(t, e)
+	owner := domain.Principal{OwnerID: "owner", Role: domain.RoleOwner}
+	agent, e := identity.Enroll(t.Context(), owner, service.EnrollInput{ClientID: "agent", Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"retrieval:read", "evidence:read", "candidate:write", "checkpoint:write"}})
+	require.NoError(t, e)
+	other, e := identity.Enroll(t.Context(), owner, service.EnrollInput{ClientID: "other", Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"retrieval:read", "evidence:read", "candidate:write", "checkpoint:write"}})
+	require.NoError(t, e)
+	seedCapturePolicy(t, store, domain.Policy{Revision: "p1", SpoolLimitBytes: service.MaxArtifactBytes})
+	policyData, e := json.Marshal(domain.Policy{Revision: "p1", SpoolLimitBytes: service.MaxArtifactBytes})
+	require.NoError(t, e)
+	memoryMutation(t, store, `CREATE (:CapturePolicy {projectID:'secret',data:$data})`, map[string]any{"data": string(policyData)})
+	retrieval, e := service.NewRetrievalService(store, retrievalRepo, tasks, evidence, objects, bytes.Repeat([]byte{1}, 32))
+	require.NoError(t, e)
+	memory := service.NewMemoryService(store, memoryRepo, retrievalRepo, evidence, capture)
+	checkpoints := service.NewCheckpointService(store, tasks, retrievalRepo)
+	upload := func(scope domain.Scope, text string) domain.Artifact {
+		meta := service.ArtifactInput{Scope: scope, Digest: service.TokenDigest(text), Bytes: int64(len(text)), PolicyRevision: "p1", SourceLocator: "synthetic.txt#bytes=0-" + fmt.Sprint(len(text)), SourcePath: "synthetic.txt"}
+		a, e := capture.Stage(t.Context(), collector.Principal, meta, strings.NewReader(text))
+		require.NoError(t, e)
+		_, e = capture.Complete(t.Context(), collector.Principal, a.ID, a.Digest)
+		require.NoError(t, e)
+		return a
+	}
+	ref := func(a domain.Artifact) domain.EvidenceRef {
+		return domain.EvidenceRef{ArtifactID: a.ID, Digest: a.Digest, Locator: a.SourceLocator, SourceRevision: a.Generation, Origin: domain.Origin{ClientID: "forged", Trust: domain.TrustOwnerAuthenticated}}
+	}
+	taskScope := domain.Scope{ProjectID: "demo", TaskID: "resume", SessionID: "session"}
+	taskArtifact := upload(taskScope, "synthetic retry result")
+	input := domain.CandidateInput{ClaimID: "task-finding", Text: "The synthetic retry completed.", Kind: "finding", EntityIDs: []string{"retry-api"}, Scope: taskScope, Evidence: []domain.EvidenceRef{ref(taskArtifact)}}
+	t.Run("actual upload candidate task working acceptance", func(t *testing.T) {
+		c, e := memory.Submit(t.Context(), agent.Principal, input)
+		require.NoError(t, e)
+		assert.Equal(t, domain.ClaimCandidate, c.Status)
+		assert.Equal(t, domain.TrustSubmitted, c.Evidence[0].Origin.Trust)
+		assert.Equal(t, "collector", c.Evidence[0].Origin.ClientID)
+		shared, e := retrieval.Retrieve(t.Context(), agent.Principal, domain.RetrievalRequest{Scope: domain.Scope{ProjectID: "demo"}, Mode: domain.RetrievalEvidence})
+		require.NoError(t, e)
+		assert.True(t, shared.NoResults)
+		working, e := retrieval.Retrieve(t.Context(), agent.Principal, domain.RetrievalRequest{Scope: taskScope, Mode: domain.RetrievalWorking, MaxDepth: 2})
+		require.NoError(t, e)
+		require.Len(t, working.Chunks, 1)
+		assert.Equal(t, c.Revision, working.Chunks[0].Revision)
+		assert.Nil(t, working.Chunks[0].VerificationOutcome)
+		entityResult, e := retrieval.Retrieve(t.Context(), agent.Principal, domain.RetrievalRequest{Scope: taskScope, Mode: domain.RetrievalWorking, EntityIDs: []string{"retry-api"}})
+		require.NoError(t, e)
+		require.Len(t, entityResult.Chunks, 1)
+		assert.Equal(t, taskArtifact.SourceLocator, working.Chunks[0].Evidence[0].Locator)
+		_, e = retrieval.Fetch(t.Context(), agent.Principal, taskArtifact.ID, taskArtifact.SourceLocator, 16384)
+		assert.ErrorIs(t, e, domain.ErrForbidden)
+		_, e = memory.Submit(t.Context(), other.Principal, input)
+		assert.ErrorIs(t, e, domain.ErrForbidden)
+		_, e = retrieval.Retrieve(t.Context(), other.Principal, domain.RetrievalRequest{Scope: taskScope, Mode: domain.RetrievalWorking})
+		assert.ErrorIs(t, e, domain.ErrForbidden)
+		input.ExpectedRevision = c.Revision
+		input.Text = "Updated task finding"
+		updated, e := memory.Submit(t.Context(), agent.Principal, input)
+		require.NoError(t, e)
+		assert.NotEqual(t, c.Revision, updated.Revision)
+		_, e = memory.Submit(t.Context(), agent.Principal, input)
+		assert.ErrorIs(t, e, domain.ErrConflict)
+	})
+
+	t.Run("evidence free hypothesis stays task local", func(t *testing.T) {
+		c, e := memory.Submit(t.Context(), agent.Principal, domain.CandidateInput{ClaimID: "task-hypothesis", Text: "A synthetic task hypothesis", Kind: "hypothesis", Scope: taskScope})
+		require.NoError(t, e)
+		assert.Empty(t, c.Evidence)
+		request := domain.RetrievalRequest{Scope: taskScope, Query: c.ClaimID, Mode: domain.RetrievalWorking}
+		got, e := retrieval.Retrieve(t.Context(), agent.Principal, request)
+		require.NoError(t, e)
+		require.Len(t, got.Chunks, 1)
+		assert.Equal(t, domain.ClaimCandidate, got.Chunks[0].ClaimStatus)
+		assert.Equal(t, domain.TrustSubmitted, got.Chunks[0].OriginTrust)
+		assert.Nil(t, got.Chunks[0].VerificationOutcome)
+		request.Mode = domain.RetrievalEvidence
+		request.Scope = domain.Scope{ProjectID: "demo"}
+		got, e = retrieval.Retrieve(t.Context(), agent.Principal, request)
+		require.NoError(t, e)
+		assert.True(t, got.NoResults)
+	})
+	t.Run("checkpoint atomic latest get and scope resume", func(t *testing.T) {
+		c, e := checkpoints.Put(t.Context(), agent.Principal, "", domain.Checkpoint{ID: "cp", Scope: taskScope, Objective: "Resume synthetic work", Pending: []string{"Inspect retry"}, EvidenceRevisionIDs: []string{"private-claim"}})
+		require.NoError(t, e)
+		got, e := checkpoints.Get(t.Context(), agent.Principal, c.ID)
+		require.NoError(t, e)
+		assert.Equal(t, c.Revision, got.Revision)
+		assert.Empty(t, got.EvidenceRevisionIDs)
+		assert.True(t, got.EvidenceReferencesOmitted)
+		_, e = checkpoints.Get(t.Context(), other.Principal, c.ID)
+		assert.ErrorIs(t, e, domain.ErrForbidden)
+		resume, e := retrieval.Retrieve(t.Context(), agent.Principal, domain.RetrievalRequest{Scope: domain.Scope{ProjectID: "demo", TaskID: "resume"}, Mode: domain.RetrievalOrientation})
+		require.NoError(t, e)
+		require.NotNil(t, resume.TaskCheckpoint)
+		assert.Equal(t, c.Revision, resume.TaskCheckpoint.Checkpoint.Revision)
+		assert.Empty(t, resume.Chunks)
+		var wg sync.WaitGroup
+		results := make(chan error, 2)
+		for range 2 {
+			wg.Go(func() { _, err := checkpoints.Put(t.Context(), agent.Principal, c.Revision, c); results <- err })
+		}
+		wg.Wait()
+		close(results)
+		success, conflicts := 0, 0
+		for err := range results {
+			switch err {
+			case nil:
+				success++
+			case domain.ErrConflict:
+				conflicts++
+			default:
+				t.Errorf("unexpected %v", err)
+			}
+		}
+		assert.Equal(t, 1, success)
+		assert.Equal(t, 1, conflicts)
+		latest, e := checkpoints.Latest(t.Context(), agent.Principal, domain.Scope{ProjectID: "demo", TaskID: "resume"})
+		require.NoError(t, e)
+		assert.NotEqual(t, c.Revision, latest.Revision)
+	})
+	projectArtifact := upload(domain.Scope{ProjectID: "demo"}, "synthetic project evidence <猫>")
+	projectRef := ref(projectArtifact)
+	projectRef.Origin = domain.Origin{ClientID: "collector", Trust: domain.TrustSubmitted}
+	base := domain.ClaimRevision{ClaimID: "verified", Revision: "verified-a", Text: "Project finding", Kind: "finding", Scope: domain.Scope{ProjectID: "demo"}, Status: domain.ClaimVerified, Evidence: []domain.EvidenceRef{projectRef}}
+	publishFixture(t, store, base, nil, "project", "")
+	t.Run("verified fetch eligibility unavailable and invalidated dependency", func(t *testing.T) {
+		request := domain.RetrievalRequest{Scope: domain.Scope{ProjectID: "demo"}, Query: "Project finding", Mode: domain.RetrievalEvidence}
+		got, e := retrieval.Retrieve(t.Context(), agent.Principal, request)
+		require.NoError(t, e)
+		require.Len(t, got.Chunks, 1)
+		fetched, e := retrieval.Fetch(t.Context(), agent.Principal, projectArtifact.ID, projectArtifact.SourceLocator, 16384)
+		require.NoError(t, e)
+		require.Len(t, fetched.Chunks, 1)
+		assert.Equal(t, "synthetic project evidence <猫>", fetched.Chunks[0].Text)
+		_, e = retrieval.Fetch(t.Context(), agent.Principal, projectArtifact.ID, "wrong", 16384)
+		assert.ErrorIs(t, e, domain.ErrForbidden)
+		_, e = retrieval.Fetch(t.Context(), agent.Principal, projectArtifact.ID, projectArtifact.SourceLocator, 1)
+		assert.ErrorIs(t, e, domain.ErrBudget)
+		memoryMutation(t, store, `MATCH (a:Artifact {id:$id}) SET a.available=false`, map[string]any{"id": projectArtifact.ID})
+		_, e = retrieval.Retrieve(t.Context(), agent.Principal, request)
+		assert.ErrorIs(t, e, domain.ErrUnavailable)
+		memoryMutation(t, store, `MATCH (a:Artifact {id:$id}) SET a.available=true`, map[string]any{"id": projectArtifact.ID})
+		dependent := base
+		dependent.ClaimID = "dependent"
+		dependent.Revision = "dependent-r"
+		dependent.Text = "dependent target"
+		dependent.DependsOn = []string{base.Revision}
+		publishFixture(t, store, dependent, []string{base.Revision}, "project", "")
+		memoryMutation(t, store, `MATCH (c:ClaimRevision {id:$id}) SET c.status='invalidated',c.valid=false`, map[string]any{"id": base.Revision})
+		request.Query = "dependent target"
+		got, e = retrieval.Retrieve(t.Context(), agent.Principal, request)
+		require.NoError(t, e)
+		assert.True(t, got.NoResults)
+		memoryMutation(t, store, `MATCH (c:ClaimRevision {id:$id}) SET c.status='verified',c.valid=true`, map[string]any{"id": base.Revision})
+	})
+	t.Run("cross project generalized lesson hides restricted metadata", func(t *testing.T) {
+		a := upload(domain.Scope{ProjectID: "secret"}, "secret source bytes")
+		r := ref(a)
+		r.Origin = domain.Origin{ClientID: "collector", Trust: domain.TrustSubmitted}
+		lesson := domain.ClaimRevision{ClaimID: "secret-claim", Revision: "lesson-safe", Text: "Generalized retry lesson", Kind: "lesson", Scope: domain.Scope{ProjectID: "secret"}, Status: domain.ClaimVerified, Evidence: []domain.EvidenceRef{r}}
+		publishFixture(t, store, lesson, nil, "cross_project", lesson.Text)
+		v, e := retrieval.Retrieve(t.Context(), agent.Principal, domain.RetrievalRequest{Scope: domain.Scope{ProjectID: "demo"}, Query: "Generalized retry lesson", Mode: domain.RetrievalEvidence})
+		require.NoError(t, e)
+		require.Len(t, v.Chunks, 1)
+		wire, e := domain.RetrievalWire(v)
+		require.NoError(t, e)
+		assert.NotContains(t, string(wire), a.ID)
+		assert.NotContains(t, string(wire), "secret")
+		assert.Empty(t, v.Chunks[0].Evidence)
+		_, e = retrieval.Fetch(t.Context(), agent.Principal, a.ID, a.SourceLocator, 16384)
+		assert.ErrorIs(t, e, domain.ErrForbidden)
+	})
+
+	t.Run("complete hidden task support closure and record bounds", func(t *testing.T) {
+		supportRef := ref(taskArtifact)
+		supportRef.Origin = domain.Origin{ClientID: "collector", Trust: domain.TrustSubmitted}
+		support := domain.ClaimRevision{ClaimID: "hidden-task-support", Revision: "hidden-task-support-r", Text: "task source finding", Kind: "finding", Scope: taskScope, Status: domain.ClaimVerified, Evidence: []domain.EvidenceRef{supportRef}}
+		publishFixture(t, store, support, nil, "project", "")
+		target := base
+		target.ClaimID = "target-with-task-support"
+		target.Revision = "target-with-task-support-r"
+		target.Text = "Allowed project excerpt"
+		target.DependsOn = []string{support.Revision}
+		publishFixture(t, store, target, []string{support.Revision}, "project", "")
+		request := domain.RetrievalRequest{Scope: domain.Scope{ProjectID: "demo"}, Query: target.Revision, Mode: domain.RetrievalEvidence, MaxDepth: 2}
+		got, e := retrieval.Retrieve(t.Context(), agent.Principal, request)
+		require.NoError(t, e)
+		require.Len(t, got.Chunks, 1)
+		wire, e := domain.RetrievalWire(got)
+		require.NoError(t, e)
+		assert.NotContains(t, string(wire), support.Revision)
+		assert.NotContains(t, string(wire), taskArtifact.ID)
+		memoryMutation(t, store, `MATCH (c:ClaimRevision {id:$id}) SET c.valid=false`, map[string]any{"id": support.Revision})
+		got, e = retrieval.Retrieve(t.Context(), agent.Principal, request)
+		require.NoError(t, e)
+		assert.True(t, got.NoResults)
+		memoryMutation(t, store, `MATCH (c:ClaimRevision {id:$id}) SET c.valid=true`, map[string]any{"id": support.Revision})
+		tooLong := make([]string, 1001)
+		for i := range tooLong {
+			tooLong[i] = fmt.Sprint(i)
+		}
+		capTarget := base
+		capTarget.ClaimID = "over-cap"
+		capTarget.Revision = "over-cap-r"
+		publishFixture(t, store, capTarget, tooLong, "project", "")
+		request.Query = capTarget.Revision
+		got, e = retrieval.Retrieve(t.Context(), agent.Principal, request)
+		require.NoError(t, e)
+		assert.True(t, got.NoResults)
+		memoryMutation(t, store, `CREATE (:Tombstone {id:$id})`, map[string]any{"id": target.Revision})
+		request.Query = target.Revision
+		got, e = retrieval.Retrieve(t.Context(), agent.Principal, request)
+		require.NoError(t, e)
+		assert.True(t, got.NoResults)
+		for i := range 80 {
+			c := base
+			c.ClaimID = fmt.Sprintf("fanout-%03d", i)
+			c.Revision = c.ClaimID
+			c.Text = "Filtered neighbor mentioning " + base.Revision
+			c.Status = domain.ClaimInvalidated
+			publishFixture(t, store, c, nil, "project", "")
+			memoryMutation(t, store, `MATCH (a:ClaimRevision {id:$seed}),(b:ClaimRevision {id:$id}) CREATE (a)-[:RELATED]->(b)`, map[string]any{"seed": base.Revision, "id": c.Revision})
+		}
+		request.Query = base.Revision
+		got, e = retrieval.Retrieve(t.Context(), agent.Principal, request)
+		require.NoError(t, e)
+		assert.Equal(t, 50, got.Visited)
+		require.Len(t, got.Chunks, 1)
+		assert.True(t, got.Truncated)
+	})
+	t.Run("continuation epoch and task head changes", func(t *testing.T) {
+		for i := range 6 {
+			c := base
+			c.ClaimID = fmt.Sprintf("page-%d", i)
+			c.Revision = c.ClaimID
+			c.Text = "pagination " + strings.Repeat("x", 300)
+			publishFixture(t, store, c, nil, "project", "")
+		}
+		request := domain.RetrievalRequest{Scope: domain.Scope{ProjectID: "demo", TaskID: "resume"}, Query: "pagination", Mode: domain.RetrievalOrientation, BudgetBytes: 1800}
+		first, e := retrieval.Retrieve(t.Context(), agent.Principal, request)
+		require.NoError(t, e)
+		require.NotEmpty(t, first.Continuation)
+		request.Continuation = first.Continuation
+		latest, e := checkpoints.Latest(t.Context(), agent.Principal, request.Scope)
+		require.NoError(t, e)
+		_, e = checkpoints.Put(t.Context(), agent.Principal, latest.Revision, latest)
+		require.NoError(t, e)
+		_, e = retrieval.Retrieve(t.Context(), agent.Principal, request)
+		assert.ErrorIs(t, e, domain.ErrStale)
+		request.Continuation = ""
+		request.Scope.TaskID = ""
+		first, e = retrieval.Retrieve(t.Context(), agent.Principal, request)
+		require.NoError(t, e)
+		require.NotEmpty(t, first.Continuation)
+		request.Continuation = first.Continuation
+		require.NoError(t, identity.Revoke(t.Context(), owner, other.ClientID))
+		fresh, e := identity.Authenticate(t.Context(), agent.Bearer)
+		require.NoError(t, e)
+		_, e = retrieval.Retrieve(t.Context(), fresh, request)
+		assert.ErrorIs(t, e, domain.ErrStale)
+		_, e = retrieval.Fetch(t.Context(), other.Principal, projectArtifact.ID, projectArtifact.SourceLocator, 16384)
+		assert.ErrorIs(t, e, domain.ErrUnauthorized)
+	})
+}

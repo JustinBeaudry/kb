@@ -47,7 +47,7 @@ func TestCaptureHTTPRoutes(t *testing.T) {
 	for _, tc := range []struct {
 		method, path, body string
 		status             int
-	}{{"POST", "/v1/artifacts", `{"scope":{"project_id":"demo"},"digest":"digest","bytes":5,"policy_revision":"p","content_base64":"aGVsbG8=","source_locator":"file#0-5"}`, 201}, {"POST", "/v1/artifacts/a:complete", `{"digest":"digest"}`, 200}, {"POST", "/v1/events:append", `{"events":[{"id":"e","idempotency_key":"k","digest":"d","scope":{"project_id":"demo"},"kind":"message","observed_at":"2026-10-29T00:00:00Z","payload_artifact_id":"a","sequence":0,"completeness":"complete"}]}`, 202}, {"PUT", "/v1/checkpoints/c", `{"scope":{"project_id":"demo","task_id":"task"},"objective":"test","completed":[],"pending":[],"questions":[],"evidence_revision_ids":[]}`, 200}, {"GET", "/v1/checkpoints/c", "", 503}} {
+	}{{"POST", "/v1/artifacts", `{"scope":{"project_id":"demo"},"digest":"digest","bytes":5,"policy_revision":"p","content_base64":"aGVsbG8=","source_locator":"file#0-5"}`, 201}, {"POST", "/v1/artifacts/a:complete", `{"digest":"digest"}`, 200}, {"POST", "/v1/events:append", `{"events":[{"id":"e","idempotency_key":"k","digest":"d","scope":{"project_id":"demo"},"kind":"message","observed_at":"2026-10-29T00:00:00Z","payload_artifact_id":"a","sequence":0,"completeness":"complete"}]}`, 202}, {"PUT", "/v1/checkpoints/c", `{"scope":{"project_id":"demo","task_id":"task"},"objective":"test","completed":[],"pending":[],"questions":[],"evidence_revision_ids":[]}`, 200}, {"GET", "/v1/checkpoints/c", "", 200}} {
 		t.Run(tc.path, func(t *testing.T) {
 			req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
 			req.Header.Set("Authorization", "Bearer fixture")

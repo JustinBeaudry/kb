@@ -203,7 +203,7 @@ func TestCaptureCrashRecovery(t *testing.T) {
 		}))
 	})
 	t.Run("checkpoint compare-and-swap and client task ownership", func(t *testing.T) {
-		s := service.NewCheckpointService(store, repository.NewCheckpointRepository(store))
+		s := service.NewCheckpointService(store, repository.NewCheckpointRepository(store), checkpointAuthFixture{})
 		p.Capabilities = append(p.Capabilities, "checkpoint:write")
 		c := domain.Checkpoint{ID: "checkpoint", Scope: domain.Scope{ProjectID: "demo", TaskID: "checkpoint-task"}, Objective: "synthetic task"}
 		created, err := s.Put(t.Context(), p, "", c)
@@ -435,4 +435,12 @@ func TestCaptureAbandonmentRealGraphAndS3(t *testing.T) {
 			return err
 		}))
 	})
+}
+
+// This pre-existing capture fixture isolates task persistence from enrollment;
+// F5's retrieval fixture separately exercises the real current-client snapshot.
+type checkpointAuthFixture struct{}
+
+func (checkpointAuthFixture) Snapshot(_ context.Context, _ domain.Tx, p domain.Principal, _ domain.Scope) (domain.RetrievalSnapshot, error) {
+	return domain.RetrievalSnapshot{Principal: p}, nil
 }

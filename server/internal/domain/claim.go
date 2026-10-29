@@ -22,6 +22,8 @@ const (
 // Revision identifiers are immutable opaque strings; creating a new version
 // never changes an existing revision or its evidence binding.
 type ClaimRevision struct {
+	EntityIDs                     []string `json:",omitempty"`
+	SubmittedBy                   string   `json:",omitempty"`
 	ClaimID, Revision, Text, Kind string
 	Scope                         Scope
 	Evidence                      []EvidenceRef
@@ -31,6 +33,7 @@ type ClaimRevision struct {
 }
 
 type CandidateInput struct {
+	EntityIDs                             []string
 	ClaimID, ExpectedRevision, Text, Kind string
 	Scope                                 Scope
 	Evidence                              []EvidenceRef

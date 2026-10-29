@@ -29,6 +29,10 @@ func run(parent context.Context, logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	key, err := platform.LoadRetrievalKey()
+	if err != nil {
+		return err
+	}
 	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	store, err := graph.Open(ctx, cfg.Graph)
@@ -49,8 +53,16 @@ func run(parent context.Context, logger *slog.Logger) error {
 		return err
 	}
 	capture := service.NewCaptureService(store, repository.NewEvidenceRepository(store), repository.NewJobsRepository(store), objects)
-	checkpoints := service.NewCheckpointService(store, repository.NewCheckpointRepository(store))
-	e, err := handler.NewMemoryServer(service.NewIdentityService(store, repository.NewIdentityRepository(store), gateway.NostrIdentity{}), capture, checkpoints, logger)
+	retrievalRepo := repository.NewRetrievalRepository(store)
+	checkpointRepo := repository.NewCheckpointRepository(store)
+	evidenceRepo := repository.NewEvidenceRepository(store)
+	checkpoints := service.NewCheckpointService(store, checkpointRepo, retrievalRepo)
+	memory := service.NewMemoryService(store, repository.NewMemoryRepository(store), retrievalRepo, evidenceRepo, capture)
+	retrieval, err := service.NewRetrievalService(store, retrievalRepo, checkpointRepo, evidenceRepo, objects, key)
+	if err != nil {
+		return err
+	}
+	e, err := handler.NewRetrievalServer(service.NewIdentityService(store, repository.NewIdentityRepository(store), gateway.NostrIdentity{}), capture, checkpoints, memory, retrieval, logger)
 	if err != nil {
 		return err
 	}

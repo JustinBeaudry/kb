@@ -135,7 +135,7 @@ func TestForgedExitCodeStaysSubmitted(t *testing.T) {
 }
 func TestCheckpointRejectsWrongTaskOwner(t *testing.T) {
 	r := &checkpointRepo{}
-	s := NewCheckpointService(directTx{}, r)
+	s := NewCheckpointService(directTx{}, r, &retrievalFixture{snapshot: RetrievalSnapshot{Principal: domain.Principal{ClientID: "first", ProjectIDs: []string{"project"}, Capabilities: []string{"checkpoint:write"}}}})
 	p := domain.Principal{ClientID: "first", OwnerID: "owner", Role: domain.RoleAgent, ProjectIDs: []string{"project"}, Capabilities: []string{"checkpoint:write"}}
 	c := domain.Checkpoint{ID: "checkpoint", Scope: domain.Scope{ProjectID: "project", TaskID: "task"}, Objective: "test"}
 	_, err := s.Put(t.Context(), p, "", c)
@@ -338,7 +338,7 @@ func TestCaptureRejectsMalformedEvents(t *testing.T) {
 }
 func TestCheckpointExpectedRevision(t *testing.T) {
 	r := &checkpointRepo{}
-	s := NewCheckpointService(directTx{}, r)
+	s := NewCheckpointService(directTx{}, r, &retrievalFixture{snapshot: RetrievalSnapshot{Principal: domain.Principal{ClientID: "first", ProjectIDs: []string{"project"}, Capabilities: []string{"checkpoint:write"}}}})
 	p := domain.Principal{ClientID: "first", ProjectIDs: []string{"project"}, Capabilities: []string{"checkpoint:write"}}
 	c := domain.Checkpoint{ID: "c", Scope: domain.Scope{ProjectID: "project", TaskID: "task"}, Objective: "test"}
 	initial, err := s.Put(t.Context(), p, "", c)
@@ -402,7 +402,7 @@ func TestCaptureBoundaryValidation(t *testing.T) {
 	_, err = s.Append(t.Context(), p, nil)
 	assert.ErrorIs(t, err, domain.ErrInvalidInput)
 	assert.ErrorIs(t, s.Sweep(t.Context(), 101), domain.ErrInvalidInput)
-	_, err = NewCheckpointService(nil, nil).Put(t.Context(), p, "", domain.Checkpoint{})
+	_, err = NewCheckpointService(nil, nil, nil).Put(t.Context(), p, "", domain.Checkpoint{})
 	assert.ErrorIs(t, err, domain.ErrInvalidInput)
 }
 
@@ -619,4 +619,8 @@ func TestCaptureOldGenerationCannotInvalidateReplacement(t *testing.T) {
 	_, err := s.Complete(t.Context(), p, a.ID, a.Digest)
 	assert.ErrorIs(t, err, domain.ErrIncomplete)
 	assert.True(t, r.artifacts[a.ID].ObjectAvailable)
+}
+
+func (r *checkpointRepo) Latest(context.Context, Tx, domain.Scope) (domain.Checkpoint, string, error) {
+	return r.c, r.client, nil
 }

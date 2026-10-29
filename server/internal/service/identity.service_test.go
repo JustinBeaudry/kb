@@ -205,3 +205,13 @@ func TestSetupStoresCanonicalNostrOwnerIdentity(t *testing.T) {
 	assert.NotEqual(t, f.owner.ID, f.owner.PublicKey)
 	assert.NotEmpty(t, credential.ClientID)
 }
+
+func TestEnrollmentReturnsEpochAfterRevocation(t *testing.T) {
+	s, f := newIdentityFixture()
+	old := setupFixture(t, s)
+	owner := domain.Principal{OwnerID: f.owner.ID, Role: domain.RoleOwner}
+	require.NoError(t, s.Revoke(t.Context(), owner, old.ClientID))
+	credential, err := s.Enroll(t.Context(), owner, EnrollInput{ClientID: "fresh", Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"retrieval:read"}})
+	require.NoError(t, err)
+	assert.Equal(t, uint64(1), credential.Principal.AuthEpoch)
+}

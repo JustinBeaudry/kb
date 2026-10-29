@@ -1,0 +1,169 @@
+[
+  {
+    "name": "task-working-candidate",
+    "response_schema": "RetrievalResult",
+    "http_status": 200,
+    "budget_bytes": 4096,
+    "body": {
+      "schema_version": "3",
+      "chunks": [
+        {
+          "record_id": "claim:synthetic",
+          "revision": "revision:synthetic",
+          "text": "Synthetic retry observed <猫>.",
+          "claim_status": "candidate",
+          "origin_trust": "submitted",
+          "evidence": [
+            {
+              "artifact_id": "artifact:synthetic",
+              "digest": "e6565d99ed6e69478f4628ab54ee42d4646cd733732b9c8c8f4fc8879626f9b1a",
+              "locator": "synthetic.txt#bytes=0-5",
+              "source_revision": "generation:synthetic",
+              "origin": {
+                "client_id": "collector:synthetic",
+                "trust": "submitted"
+              },
+              "applicability": {}
+            }
+          ],
+          "warnings": [
+            "unverified_task_candidate"
+          ]
+        }
+      ],
+      "truncated": false,
+      "visited": 1,
+      "no_results": false,
+      "task_checkpoint": {
+        "label": "task_state",
+        "checkpoint": {
+          "id": "checkpoint:synthetic",
+          "revision": "checkpoint-revision:synthetic",
+          "scope": {
+            "project_id": "demo",
+            "task_id": "resume-demo"
+          },
+          "objective": "Resume synthetic retry",
+          "completed": [],
+          "pending": [
+            "Inspect retry result"
+          ],
+          "questions": [],
+          "evidence_revision_ids": [],
+          "updated_at": "2026-10-29T12:00:00Z"
+        }
+      }
+    },
+    "http_wire": "{\"schema_version\":\"3\",\"chunks\":[{\"record_id\":\"claim:synthetic\",\"revision\":\"revision:synthetic\",\"text\":\"Synthetic retry observed \\u003c猫\\u003e.\",\"claim_status\":\"candidate\",\"origin_trust\":\"submitted\",\"evidence\":[{\"artifact_id\":\"artifact:synthetic\",\"digest\":\"e6565d99ed6e69478f4628ab54ee42d4646cd733732b9c8c8f4fc8879626f9b1a\",\"locator\":\"synthetic.txt#bytes=0-5\",\"source_revision\":\"generation:synthetic\",\"origin\":{\"client_id\":\"collector:synthetic\",\"trust\":\"submitted\"},\"applicability\":{}}],\"warnings\":[\"unverified_task_candidate\"]}],\"truncated\":false,\"visited\":1,\"no_results\":false,\"task_checkpoint\":{\"label\":\"task_state\",\"checkpoint\":{\"id\":\"checkpoint:synthetic\",\"revision\":\"checkpoint-revision:synthetic\",\"scope\":{\"project_id\":\"demo\",\"task_id\":\"resume-demo\"},\"objective\":\"Resume synthetic retry\",\"completed\":[],\"pending\":[\"Inspect retry result\"],\"questions\":[],\"evidence_revision_ids\":[],\"updated_at\":\"2026-10-29T12:00:00Z\"}}}\n",
+    "http_wire_bytes": 927,
+    "cli_frame": "926\n{\"schema_version\":\"3\",\"chunks\":[{\"record_id\":\"claim:synthetic\",\"revision\":\"revision:synthetic\",\"text\":\"Synthetic retry observed \\u003c猫\\u003e.\",\"claim_status\":\"candidate\",\"origin_trust\":\"submitted\",\"evidence\":[{\"artifact_id\":\"artifact:synthetic\",\"digest\":\"e6565d99ed6e69478f4628ab54ee42d4646cd733732b9c8c8f4fc8879626f9b1a\",\"locator\":\"synthetic.txt#bytes=0-5\",\"source_revision\":\"generation:synthetic\",\"origin\":{\"client_id\":\"collector:synthetic\",\"trust\":\"submitted\"},\"applicability\":{}}],\"warnings\":[\"unverified_task_candidate\"]}],\"truncated\":false,\"visited\":1,\"no_results\":false,\"task_checkpoint\":{\"label\":\"task_state\",\"checkpoint\":{\"id\":\"checkpoint:synthetic\",\"revision\":\"checkpoint-revision:synthetic\",\"scope\":{\"project_id\":\"demo\",\"task_id\":\"resume-demo\"},\"objective\":\"Resume synthetic retry\",\"completed\":[],\"pending\":[\"Inspect retry result\"],\"questions\":[],\"evidence_revision_ids\":[],\"updated_at\":\"2026-10-29T12:00:00Z\"}}}",
+    "cli_wire_bytes": 930,
+    "note": "Synthetic fixture; CLI framing is the C3 target shape, not an implemented CLI acceptance result. Task candidate citations are not expandable through ID-only Fetch; C3 owns explicit scoped working-evidence fetch."
+  },
+  {
+    "name": "scope-only-task-resume",
+    "response_schema": "RetrievalResult",
+    "http_status": 200,
+    "budget_bytes": 4096,
+    "body": {
+      "schema_version": "3",
+      "chunks": [],
+      "truncated": false,
+      "visited": 0,
+      "no_results": false,
+      "task_checkpoint": {
+        "label": "task_state",
+        "checkpoint": {
+          "id": "checkpoint:synthetic",
+          "revision": "checkpoint-revision:synthetic",
+          "scope": {
+            "project_id": "demo",
+            "task_id": "resume-demo"
+          },
+          "objective": "Resume synthetic retry",
+          "completed": [],
+          "pending": [
+            "Inspect retry result"
+          ],
+          "questions": [],
+          "evidence_revision_ids": [],
+          "updated_at": "2026-10-29T12:00:00Z"
+        }
+      }
+    },
+    "http_wire": "{\"schema_version\":\"3\",\"chunks\":[],\"truncated\":false,\"visited\":0,\"no_results\":false,\"task_checkpoint\":{\"label\":\"task_state\",\"checkpoint\":{\"id\":\"checkpoint:synthetic\",\"revision\":\"checkpoint-revision:synthetic\",\"scope\":{\"project_id\":\"demo\",\"task_id\":\"resume-demo\"},\"objective\":\"Resume synthetic retry\",\"completed\":[],\"pending\":[\"Inspect retry result\"],\"questions\":[],\"evidence_revision_ids\":[],\"updated_at\":\"2026-10-29T12:00:00Z\"}}}\n",
+    "http_wire_bytes": 430,
+    "cli_frame": "429\n{\"schema_version\":\"3\",\"chunks\":[],\"truncated\":false,\"visited\":0,\"no_results\":false,\"task_checkpoint\":{\"label\":\"task_state\",\"checkpoint\":{\"id\":\"checkpoint:synthetic\",\"revision\":\"checkpoint-revision:synthetic\",\"scope\":{\"project_id\":\"demo\",\"task_id\":\"resume-demo\"},\"objective\":\"Resume synthetic retry\",\"completed\":[],\"pending\":[\"Inspect retry result\"],\"questions\":[],\"evidence_revision_ids\":[],\"updated_at\":\"2026-10-29T12:00:00Z\"}}}",
+    "cli_wire_bytes": 433,
+    "note": "Synthetic fixture; CLI framing is the C3 target shape, not an implemented CLI acceptance result. Task candidate citations are not expandable through ID-only Fetch; C3 owns explicit scoped working-evidence fetch."
+  },
+  {
+    "name": "no-results",
+    "response_schema": "RetrievalResult",
+    "http_status": 200,
+    "budget_bytes": 4096,
+    "body": {
+      "schema_version": "3",
+      "chunks": [],
+      "truncated": false,
+      "visited": 0,
+      "no_results": true
+    },
+    "http_wire": "{\"schema_version\":\"3\",\"chunks\":[],\"truncated\":false,\"visited\":0,\"no_results\":true}\n",
+    "http_wire_bytes": 83,
+    "cli_frame": "82\n{\"schema_version\":\"3\",\"chunks\":[],\"truncated\":false,\"visited\":0,\"no_results\":true}",
+    "cli_wire_bytes": 85,
+    "note": "Synthetic fixture; CLI framing is the C3 target shape, not an implemented CLI acceptance result. Task candidate citations are not expandable through ID-only Fetch; C3 owns explicit scoped working-evidence fetch."
+  },
+  {
+    "name": "oversized-task-state-omitted",
+    "response_schema": "RetrievalResult",
+    "http_status": 200,
+    "budget_bytes": 4096,
+    "body": {
+      "schema_version": "3",
+      "chunks": [],
+      "truncated": true,
+      "visited": 0,
+      "no_results": false,
+      "task_state_omitted": true,
+      "truncation_reason": "task_state_budget",
+      "action": "Task state exceeds this budget; use the checkpoint endpoint or a larger supported budget."
+    },
+    "http_wire": "{\"schema_version\":\"3\",\"chunks\":[],\"truncated\":true,\"visited\":0,\"no_results\":false,\"task_state_omitted\":true,\"truncation_reason\":\"task_state_budget\",\"action\":\"Task state exceeds this budget; use the checkpoint endpoint or a larger supported budget.\"}\n",
+    "http_wire_bytes": 250,
+    "cli_frame": "249\n{\"schema_version\":\"3\",\"chunks\":[],\"truncated\":true,\"visited\":0,\"no_results\":false,\"task_state_omitted\":true,\"truncation_reason\":\"task_state_budget\",\"action\":\"Task state exceeds this budget; use the checkpoint endpoint or a larger supported budget.\"}",
+    "cli_wire_bytes": 253,
+    "note": "Synthetic fixture; CLI framing is the C3 target shape, not an implemented CLI acceptance result. Task candidate citations are not expandable through ID-only Fetch; C3 owns explicit scoped working-evidence fetch."
+  },
+  {
+    "name": "evidence-free-task-hypothesis",
+    "response_schema": "RetrievalResult",
+    "http_status": 200,
+    "budget_bytes": 4096,
+    "body": {
+      "schema_version": "3",
+      "chunks": [
+        {
+          "record_id": "claim:hypothesis",
+          "revision": "revision:hypothesis",
+          "text": "A synthetic task hypothesis.",
+          "claim_status": "candidate",
+          "origin_trust": "submitted",
+          "evidence": [],
+          "warnings": [
+            "unverified_task_candidate"
+          ]
+        }
+      ],
+      "truncated": false,
+      "visited": 1,
+      "no_results": false
+    },
+    "http_wire": "{\"schema_version\":\"3\",\"chunks\":[{\"record_id\":\"claim:hypothesis\",\"revision\":\"revision:hypothesis\",\"text\":\"A synthetic task hypothesis.\",\"claim_status\":\"candidate\",\"origin_trust\":\"submitted\",\"evidence\":[],\"warnings\":[\"unverified_task_candidate\"]}],\"truncated\":false,\"visited\":1,\"no_results\":false}\n",
+    "http_wire_bytes": 296,
+    "cli_frame": "295\n{\"schema_version\":\"3\",\"chunks\":[{\"record_id\":\"claim:hypothesis\",\"revision\":\"revision:hypothesis\",\"text\":\"A synthetic task hypothesis.\",\"claim_status\":\"candidate\",\"origin_trust\":\"submitted\",\"evidence\":[],\"warnings\":[\"unverified_task_candidate\"]}],\"truncated\":false,\"visited\":1,\"no_results\":false}",
+    "cli_wire_bytes": 299,
+    "note": "Synthetic fixture; CLI framing is the C3 target shape, not an implemented CLI acceptance result. Task candidate citations are not expandable through ID-only Fetch; C3 owns explicit scoped working-evidence fetch."
+  }
+]

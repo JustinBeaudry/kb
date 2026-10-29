@@ -149,7 +149,11 @@ func (s *IdentityService) enroll(ctx context.Context, tx Tx, ownerID string, inp
 	if err := s.repo.PutClient(ctx, tx, ClientRecord{Principal: p, TokenDigest: TokenDigest(bearer)}); err != nil {
 		return ClientCredential{}, err
 	}
-	return ClientCredential{ClientID: id, Bearer: bearer, Principal: p}, nil
+	record, err := s.repo.FindToken(ctx, tx, TokenDigest(bearer))
+	if err != nil {
+		return ClientCredential{}, err
+	}
+	return ClientCredential{ClientID: id, Bearer: bearer, Principal: record.Principal}, nil
 }
 func (s *IdentityService) Revoke(ctx context.Context, owner domain.Principal, id string) error {
 	return s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {

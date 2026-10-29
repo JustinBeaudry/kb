@@ -29,11 +29,31 @@ type EvidenceChunk struct {
 	Warnings                 []string
 }
 
+type TaskState struct {
+	Label      string
+	Checkpoint Checkpoint
+}
+
 type RetrievalResult struct {
-	SchemaVersion string
-	Chunks        []EvidenceChunk
-	Truncated     bool
-	Continuation  string
-	Visited       int
-	NoResults     bool
+	TruncationReason string
+	Action           string
+	TaskCheckpoint   *TaskState
+	TaskStateOmitted bool
+	SchemaVersion    string
+	Chunks           []EvidenceChunk
+	Truncated        bool
+	Continuation     string
+	Visited          int
+	NoResults        bool
+}
+
+type RetrievalSnapshot struct {
+	Principal                                Principal
+	AuthEpoch, KnowledgeEpoch, DeletionEpoch uint64
+	TaskHead, TaskOwner                      string
+}
+type EligibilityResult struct {
+	Claims      []ClaimRevision
+	Snapshot    RetrievalSnapshot
+	Unavailable bool
 }

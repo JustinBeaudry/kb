@@ -23,6 +23,8 @@ type IdentityHandler struct {
 	identity    IdentityService
 	capture     CaptureService
 	checkpoints CheckpointService
+	memory      MemoryService
+	retrieval   RetrievalService
 }
 
 var _ StrictServerInterface = (*IdentityHandler)(nil)
@@ -31,6 +33,9 @@ func NewIdentityServer(identity IdentityService, logger *slog.Logger) (*echo.Ech
 	return newMemoryServer(identity, nil, nil, logger)
 }
 func newMemoryServer(identity IdentityService, capture CaptureService, checkpoints CheckpointService, logger *slog.Logger) (*echo.Echo, error) {
+	return configuredMemoryServer(identity, capture, checkpoints, nil, nil, logger)
+}
+func configuredMemoryServer(identity IdentityService, capture CaptureService, checkpoints CheckpointService, memory MemoryService, retrieval RetrievalService, logger *slog.Logger) (*echo.Echo, error) {
 	spec, err := GetSpec()
 	if err != nil {
 		return nil, domain.ErrUnavailable
@@ -70,7 +75,7 @@ func newMemoryServer(identity IdentityService, capture CaptureService, checkpoin
 		}
 		return problem(c, domain.ErrInvalidInput)
 	}}))
-	strict := NewStrictHandler(&IdentityHandler{identity: identity, capture: capture, checkpoints: checkpoints}, nil)
+	strict := NewStrictHandler(&IdentityHandler{identity: identity, capture: capture, checkpoints: checkpoints, memory: memory, retrieval: retrieval}, nil)
 	wrapper := ServerInterfaceWrapper{Handler: strict}
 	e.POST("/v1/clients", wrapper.EnrollClient, Capability("clients:manage", nil))
 	e.POST("/v1/clients/:id\\:revoke", wrapper.RevokeClient, Capability("clients:manage", nil))
@@ -82,6 +87,15 @@ func newMemoryServer(identity IdentityService, capture CaptureService, checkpoin
 	}
 	if checkpoints != nil {
 		e.PUT("/v1/checkpoints/:id", wrapper.PutCheckpoint)
+		e.GET("/v1/checkpoints/:id", wrapper.GetCheckpoint)
+	}
+	if memory != nil {
+		e.POST("/v1/candidates", wrapper.SubmitCandidate)
+	}
+	if retrieval != nil {
+		e.POST("/v1/retrieval\\:orient", wrapper.OrientMemory)
+		e.POST("/v1/retrieval\\:search", wrapper.SearchMemory)
+		e.GET("/v1/evidence/:id", wrapper.FetchEvidence)
 	}
 	e.Any("/*", func(c echo.Context) error { return problem(c, domain.ErrUnavailable) })
 	return e, nil
@@ -110,7 +124,10 @@ func (h *IdentityHandler) RevokeClient(ctx context.Context, request RevokeClient
 }
 func (h *IdentityHandler) GetStatus(ctx context.Context, _ GetStatusRequestObject) (GetStatusResponseObject, error) {
 	p := principal(ctx)
-	gaps := []string{"recovery_unavailable", "retrieval_unavailable"}
+	gaps := []string{"recovery_unavailable"}
+	if h.retrieval == nil {
+		gaps = append(gaps, "retrieval_unavailable")
+	}
 	if h.capture == nil {
 		gaps = append(gaps, "capture_unavailable")
 	}

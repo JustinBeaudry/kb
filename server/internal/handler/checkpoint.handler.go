@@ -14,5 +14,5 @@ func (h *IdentityHandler) PutCheckpoint(ctx context.Context, request PutCheckpoi
 	if err != nil {
 		return nil, err
 	}
-	return PutCheckpoint200JSONResponse{SchemaVersion: "3", Checkpoint: Checkpoint{Id: c.ID, Revision: c.Revision, Scope: scopeAPI(c.Scope), Objective: c.Objective, Completed: c.Completed, Pending: c.Pending, Questions: c.Questions, EvidenceRevisionIds: c.EvidenceRevisionIDs, UpdatedAt: c.UpdatedAt}}, nil
+	return PutCheckpoint200JSONResponse{SchemaVersion: "3", Checkpoint: checkpointAPI(c)}, nil
 }

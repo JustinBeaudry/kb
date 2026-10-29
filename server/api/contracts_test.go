@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"testing"
 
@@ -97,4 +98,44 @@ func TestContractGoldenWireVectors(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestScopedRetrievalWireSamples(t *testing.T) {
+	spec, err := handler.GetSpec()
+	require.NoError(t, err)
+	data, err := os.ReadFile("testdata/retrieval-v3.json")
+	require.NoError(t, err)
+	var vectors []struct {
+		Name      string         `json:"name"`
+		Schema    string         `json:"response_schema"`
+		Budget    int            `json:"budget_bytes"`
+		Body      map[string]any `json:"body"`
+		HTTPWire  string         `json:"http_wire"`
+		HTTPBytes int            `json:"http_wire_bytes"`
+		CLIFrame  string         `json:"cli_frame"`
+		CLIBytes  int            `json:"cli_wire_bytes"`
+	}
+	require.NoError(t, json.Unmarshal(data, &vectors))
+	require.Len(t, vectors, 5)
+	for _, v := range vectors {
+		t.Run(v.Name, func(t *testing.T) {
+			require.NoError(t, spec.Components.Schemas[v.Schema].Value.VisitJSON(v.Body))
+			assert.Equal(t, len(v.HTTPWire), v.HTTPBytes)
+			assert.Equal(t, len(v.CLIFrame), v.CLIBytes)
+			assert.Equal(t, fmt.Sprintf("%d\n%s", len(v.HTTPWire)-1, v.HTTPWire[:len(v.HTTPWire)-1]), v.CLIFrame)
+			assert.LessOrEqual(t, v.HTTPBytes, v.Budget)
+			assert.LessOrEqual(t, v.CLIBytes, v.Budget)
+			assert.JSONEq(t, string(mustJSON(t, v.Body)), v.HTTPWire)
+			if v.Name == "task-working-candidate" {
+				assert.Contains(t, v.HTTPWire, `"claim_status":"candidate"`)
+				assert.NotContains(t, v.HTTPWire, "verification_outcome")
+			}
+		})
+	}
+}
+func mustJSON(t *testing.T, v any) []byte {
+	t.Helper()
+	data, e := json.Marshal(v)
+	require.NoError(t, e)
+	return data
 }

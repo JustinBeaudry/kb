@@ -1074,7 +1074,8 @@
           },
           "text": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 16384
           },
           "kind": {
             "type": "string"
@@ -1086,16 +1087,26 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/SubmittedEvidenceRef"
-            }
+            },
+            "maxItems": 50
           },
           "depends_on": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/OpaqueID"
-            }
+            },
+            "maxItems": 50
           },
           "applicability": {
             "$ref": "#/components/schemas/Applicability"
+          },
+          "entity_ids": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/OpaqueID"
+            },
+            "description": "Structural entity hints scoped to this project; these are not revision identifiers."
           }
         },
         "required": [
@@ -1151,6 +1162,14 @@
           },
           "verification_outcome": {
             "$ref": "#/components/schemas/VerificationOutcome"
+          },
+          "entity_ids": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/OpaqueID"
+            },
+            "description": "Structural entity hints scoped to this project; these are not revision identifiers."
           }
         },
         "required": [
@@ -1276,6 +1295,10 @@
             "type": "string",
             "format": "date-time",
             "description": "UTC timestamp."
+          },
+          "evidence_references_omitted": {
+            "type": "boolean",
+            "description": "Unavailable or unauthorized evidence identifiers were omitted from this task snapshot."
           }
         },
         "required": [
@@ -1384,6 +1407,26 @@
           },
           "no_results": {
             "type": "boolean"
+          },
+          "task_checkpoint": {
+            "$ref": "#/components/schemas/TaskState"
+          },
+          "task_state_omitted": {
+            "type": "boolean",
+            "description": "Task snapshot exceeded this complete-wire budget and was omitted."
+          },
+          "truncation_reason": {
+            "type": "string",
+            "enum": [
+              "visited_limit",
+              "wire_budget",
+              "task_state_budget"
+            ],
+            "description": "Explains bounded truncation. A visited frontier without withheld eligible chunks has no continuation; narrow query/entity hints."
+          },
+          "action": {
+            "type": "string",
+            "description": "Safe next step for bounded truncation."
           }
         },
         "required": [
@@ -2007,6 +2050,26 @@
             "description": "One-time enrollment credential, returned only to authenticated owner. Never log, persist plaintext, or include in list/status."
           }
         }
+      },
+      "TaskState": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "label",
+          "checkpoint"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "enum": [
+              "task_state"
+            ]
+          },
+          "checkpoint": {
+            "$ref": "#/components/schemas/Checkpoint"
+          }
+        },
+        "description": "Owned task state only; this snapshot conveys no claim verification."
       }
     },
     "responses": {

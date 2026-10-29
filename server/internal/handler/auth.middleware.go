@@ -80,6 +80,12 @@ func problem(c echo.Context, err error) error {
 		status, code, message, action = 403, "forbidden", "Operation not authorized.", "Use an authorized project and capability."
 	case errors.Is(err, domain.ErrInvalidInput):
 		status, code, message, action = 400, "invalid_input", "Invalid request.", "Check the documented request schema."
+	case errors.Is(err, domain.ErrStale):
+		status, code, message, action = 409, "stale", "Results changed.", "Rerun the original scoped retrieval without its continuation."
+	case errors.Is(err, domain.ErrBudget):
+		status, code, message, action = 413, "budget", "Output exceeds the requested budget.", "Rerun with a larger budget within the documented limit."
+	case errors.Is(err, domain.ErrIncomplete):
+		status, code, message, action = 503, "incomplete", "Evidence is incomplete.", "Complete capture or retry when the source is available."
 	case errors.Is(err, domain.ErrConflict):
 		status, code, message, action = 409, "conflict", "Operation conflicts with current state.", "Refresh state before retrying."
 	}
