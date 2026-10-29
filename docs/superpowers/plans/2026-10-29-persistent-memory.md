@@ -74,7 +74,7 @@ Use explicit structs in `server/internal/domain/`; ID fields are strings validat
 | Policy / `policy.go` | Revision string; Paused bool; ExcludedPaths, ExcludedFields []string; AllowedModelRoutes []string; retention durations; SpoolLimitBytes int64 |
 | Event / `evidence.go` | ID, IdempotencyKey, Digest string; Scope; Kind enum; ObservedAt; PayloadArtifactID string; Sequence uint64; Completeness enum |
 | Origin / `evidence.go` | ClientID string; Trust enum(submitted, collector_attested, gateway_observed, owner_authenticated); AttestationID string |
-| Artifact / `evidence.go` | ID, ObjectKey, Digest, PolicyRevision string; Scope; Bytes int64; State enum(staged, ready, deleted); ExpiresAt |
+| Artifact / `evidence.go` | ID, ObjectKey, Digest, PolicyRevision, SourceLocator string; optional SourcePath string; ObjectAvailable bool (separate mutable health); Scope; Bytes int64; State enum(staged, ready, deleted); ExpiresAt |
 | EvidenceRef / `evidence.go` | ArtifactID, Digest, Locator, SourceRevision string; Origin; Applicability |
 | Applicability / `claim.go` | RepositoryRevision, DirtyDigest, Environment string; Versions map[string]string; ValidFrom, ValidUntil optional UTC times |
 | ClaimRevision / `claim.go` | ClaimID, Revision, Text, Kind string; Scope; Evidence []EvidenceRef; DependsOn []string; Applicability; Status enum |
