@@ -96,7 +96,7 @@ expect(grade.reportedTokens).toBeNull(); // unknown usage
 Assertion anchors for the separate named cases above (fixture variables come from that case):
 
 ```go
-assert.Equal(t, "verified", returnedClaim.Trust) // independently verified case
+assert.Equal(t, "verified", string(returnedClaim.ClaimStatus)) // independently verified case
 assert.Empty(t, restrictedSourceContents)
 assert.Equal(t, 1, acceptedDecisionEffects)
 ```

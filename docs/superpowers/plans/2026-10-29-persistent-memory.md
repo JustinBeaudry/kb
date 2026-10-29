@@ -57,7 +57,7 @@ Do not call the product complete after Plan 01. Plans 02 and 03 can run in paral
 - `server/migrations/*.cypher`: versioned graph constraints/indexes; no SQL migration tools for graph schema.
 - `src/services/remote.service.ts`, `src/gateways/memory.gateway.ts`, `src/commands/remote.ts`: explicit remote CLI.
 - `src/capture/`, `src/adapters/`, `src/commands/capture.ts`: new event capture alongside existing conversation-only local capture.
-- `server/internal/handler/mcp.handler.go`: MCP adapter invoking the same service interfaces as HTTP.
+- `server/internal/handler/mcp.handler.go`: transport-independent MCP dispatcher invoking the same service interfaces as HTTP; `server/cmd/kb-mcp/main.go` wires stdio. Remote HTTP transport is separately qualified.
 - `integrations/hermes/`: thin plugin for the qualified Hermes version, with independent uv test gate if Python.
 - `deploy/`, `docs/runbooks/`, `docs/adr/`, `evals/memory/`: operational configuration, decisions, and evaluation.
 
@@ -88,7 +88,7 @@ Use explicit structs in `server/internal/domain/`; ID fields are strings validat
 | DecisionReply / `decision.go` | DecisionID, CandidateRevision, EvidenceDigest, Action, EventID, SignerID string; Signature []byte |
 | Receipt / `evidence.go` | ID string; Duplicate bool; State string |
 | RetrievalRequest / `retrieval.go` | Scope; Query string; EntityIDs []string; Applicability; BudgetBytes, MaxDepth, MaxVisited int; Continuation string; Mode enum(orientation,evidence,working) |
-| EvidenceChunk / `retrieval.go` | RecordID, Revision, Text, Trust string; Evidence []EvidenceRef; Warnings []string |
+| EvidenceChunk / `retrieval.go` | RecordID, Revision, Text string; ClaimStatus closed enum; OriginTrust closed enum; VerificationOutcome optional closed enum; Evidence []EvidenceRef; Warnings []string |
 | RetrievalResult / `retrieval.go` | SchemaVersion string; Chunks []EvidenceChunk; Truncated bool; Continuation string; Visited int; NoResults bool |
 
 Boundary structs referenced in task signatures are defined in the owning service file; API counterparts are separate generated DTOs. Sentinel errors in `domain/errors.go`: ErrUnauthorized, ErrForbidden, ErrConflict, ErrStale, ErrIncomplete, ErrBudget, ErrUnavailable, ErrDeleted, ErrInvalidInput. Map to consistent API problem responses; never leak source existence to unauthorized callers.
@@ -114,6 +114,12 @@ Initially serialize mutable shared graph decisions through one private `OwnerSta
 ### HTTP and remote wire contract
 
 F1 owns `server/api/openapi.yaml`: `/v1/events:append`, `/v1/artifacts`, `/v1/artifacts/{id}:complete`, `/v1/candidates`, `/v1/checkpoints/{id}`, `/v1/retrieval:orient`, `/v1/retrieval:search`, `/v1/evidence/{id}`, `/v1/decisions/{id}:respond`, `/v1/policies/{project}`, `/v1/clients`, `/v1/clients/{id}:revoke`, `/v1/deletions`, `/v1/exports`, `/v1/status`.
+
+F1 freezes snake_case JSON property names and golden wire examples for candidate,
+verified, conflict, no-results, unavailable-source, and tiny-budget cases. Never
+collapse claim status, origin trust, and verification outcome into one field.
+Problems carry stable `code`, safe `message`, `action`, `request_id`, and a runbook
+reference; optional retry delay/minimum budget must not reveal restricted existence.
 
 Register only implemented operations; unimplemented routes return an explicit unavailable problem. Never accept client-supplied Origin/verified status as authority. Authentication derives Origin and Principal. Remote schema-v3 responses include explicit verification status; preserve existing schema-v2 local parsing without broadening `curated` to mean verified. Budget the HTTP JSON response and the CLI/MCP representation independently, including framing.
 
@@ -142,6 +148,14 @@ Research checked 2026-10-29. These references support planning, not executed eng
 provider, harness, or Railway acceptance. F1 records pinned compatibility evidence.
 
 ## Self-review and coverage
+
+Pre-build DX rulings are recorded in [memory-plan-devex](../../reports/memory-plan-devex.md).
+Implement within the owning tasks: F2 operator-only one-time setup independent of
+Buzz recovery; C3 secret-safe `remote profile add` with TLS/origin pinning and no
+cross-origin bearer redirect; explicit --profile/--project/--task/--session/--budget/
+--continuation flags; task-required --mode working; authorized queue/loss/policy and
+capability status; O2/O4 supported-major upgrade/rollback checks. These correct
+interfaces and onboarding within approved scope, without adding a product feature.
 
 | Approved design requirement | Tasks |
 | --- | --- |
