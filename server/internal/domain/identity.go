@@ -1,6 +1,9 @@
 package domain
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
 
 type Role string
 
@@ -32,3 +35,13 @@ func ValidateIDs(ids ...string) error {
 	}
 	return nil
 }
+
+// ClientRecord persists a digest only. Bearers never enter graph storage.
+type ClientRecord struct {
+	Principal   Principal
+	TokenDigest string
+	RevokedAt   *time.Time
+}
+
+// OwnerIdentity is the enrolled public signing identity, not an access token.
+type OwnerIdentity struct{ ID, PublicKey string }

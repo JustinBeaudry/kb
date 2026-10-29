@@ -66,7 +66,7 @@ func (s *Store) Close(ctx context.Context) error {
 }
 
 func (s *Store) migrate(ctx context.Context) error {
-	for _, statement := range strings.Split(migrations.Identity, ";") {
+	for _, statement := range strings.Split(migrations.Identity+"\n"+migrations.Clients, ";") {
 		if strings.TrimSpace(statement) == "" {
 			continue
 		}

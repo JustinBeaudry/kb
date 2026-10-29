@@ -7,3 +7,6 @@ import _ "embed"
 //
 //go:embed 001_identity.cypher
 var Identity string
+
+//go:embed 002_clients.cypher
+var Clients string

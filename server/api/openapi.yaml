@@ -1546,19 +1546,38 @@
             "$ref": "#/components/schemas/OpaqueID"
           },
           "role": {
-            "$ref": "#/components/schemas/Role"
+            "type": "string",
+            "enum": [
+              "collector",
+              "agent",
+              "verifier"
+            ]
           },
           "project_ids": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/OpaqueID"
-            }
+            },
+            "minItems": 1,
+            "maxItems": 50
           },
           "capabilities": {
             "type": "array",
             "items": {
-              "type": "string"
-            }
+              "type": "string",
+              "enum": [
+                "status:read",
+                "retrieval:read",
+                "evidence:read",
+                "candidate:write",
+                "checkpoint:write",
+                "events:append",
+                "artifacts:write",
+                "verification:write"
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 20
           }
         },
         "required": [
@@ -1566,7 +1585,8 @@
           "role",
           "project_ids",
           "capabilities"
-        ]
+        ],
+        "description": "Owner-only enrollment of restricted clients. No owner bearer may be minted. Public identity setup runs once on the controlled service host; signed recovery is unavailable until I2."
       },
       "Client": {
         "type": "object",
@@ -1747,13 +1767,21 @@
             "items": {
               "type": "string"
             }
+          },
+          "authorized_capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Capabilities granted to this authenticated client; other clients are never listed."
           }
         },
         "required": [
           "schema_version",
           "connection_state",
           "authorized_project_ids",
-          "capability_gaps"
+          "capability_gaps",
+          "authorized_capabilities"
         ]
       },
       "Problem": {
