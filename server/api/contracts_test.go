@@ -116,7 +116,7 @@ func TestScopedRetrievalWireSamples(t *testing.T) {
 		CLIBytes  int            `json:"cli_wire_bytes"`
 	}
 	require.NoError(t, json.Unmarshal(data, &vectors))
-	require.Len(t, vectors, 5)
+	require.Len(t, vectors, 6)
 	for _, v := range vectors {
 		t.Run(v.Name, func(t *testing.T) {
 			require.NoError(t, spec.Components.Schemas[v.Schema].Value.VisitJSON(v.Body))
@@ -126,6 +126,12 @@ func TestScopedRetrievalWireSamples(t *testing.T) {
 			assert.LessOrEqual(t, v.HTTPBytes, v.Budget)
 			assert.LessOrEqual(t, v.CLIBytes, v.Budget)
 			assert.JSONEq(t, string(mustJSON(t, v.Body)), v.HTTPWire)
+			if v.Name == "conditional-cross-project-target" {
+				assert.Contains(t, v.HTTPWire, `"applicability":`)
+				assert.Contains(t, v.HTTPWire, `"unknown":""`)
+				assert.Contains(t, v.HTTPWire, `"valid_until":`)
+				assert.Contains(t, v.HTTPWire, `"evidence":[]`)
+			}
 			if v.Name == "task-working-candidate" {
 				assert.Contains(t, v.HTTPWire, `"claim_status":"candidate"`)
 				assert.NotContains(t, v.HTTPWire, "verification_outcome")

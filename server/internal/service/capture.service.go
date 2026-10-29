@@ -243,14 +243,17 @@ func (s *CaptureService) checkObject(ctx context.Context, a domain.Artifact) err
 	if err != nil {
 		return err
 	}
-	defer func() { _ = r.Close() }()
 	h := sha256.New()
 	n, err := io.Copy(h, io.LimitReader(r, MaxArtifactBytes+1))
+	closeErr := r.Close()
 	if err != nil {
 		return domain.ErrUnavailable
 	}
 	if n != a.Bytes || hex.EncodeToString(h.Sum(nil)) != a.Digest {
 		return domain.ErrIncomplete
+	}
+	if closeErr != nil {
+		return domain.ErrUnavailable
 	}
 	return nil
 }

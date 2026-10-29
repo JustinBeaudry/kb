@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"slices"
 	"sort"
@@ -22,7 +23,7 @@ type RetrievalRepository interface {
 	Snapshot(context.Context, Tx, domain.Principal, domain.Scope) (RetrievalSnapshot, error)
 	Seeds(context.Context, Tx, domain.Scope, string, int) ([]domain.ClaimRevision, error)
 	Neighbors(context.Context, Tx, []string, []string, int) ([]domain.ClaimRevision, error)
-	Eligible(context.Context, Tx, domain.Principal, []string) (EligibilityResult, error)
+	Eligible(context.Context, Tx, domain.Principal, domain.Scope, []string) (EligibilityResult, error)
 }
 type TaskStateReader interface {
 	Latest(context.Context, Tx, domain.Scope) (domain.Checkpoint, string, error)
@@ -207,7 +208,7 @@ func (s *RetrievalService) Retrieve(ctx context.Context, p domain.Principal, inp
 					ids = append(ids, c.Revision)
 				}
 			}
-			eligible, e := s.repo.Eligible(ctx, tx, p, ids)
+			eligible, e := s.repo.Eligible(ctx, tx, p, r.Scope, ids)
 			if e != nil {
 				return e
 			}
@@ -274,7 +275,7 @@ func (s *RetrievalService) Retrieve(ctx context.Context, p domain.Principal, inp
 			if c.Scope.ProjectID == "" {
 				warnings = append(warnings, "generalized_lesson_source_withheld")
 			}
-			chunk := domain.EvidenceChunk{RecordID: c.ClaimID, Revision: c.Revision, Text: c.Text, ClaimStatus: c.Status, OriginTrust: trust, Evidence: c.Evidence, Warnings: warnings}
+			chunk := domain.EvidenceChunk{RecordID: c.ClaimID, Revision: c.Revision, Text: c.Text, ClaimStatus: c.Status, OriginTrust: trust, Evidence: c.Evidence, Warnings: warnings, Applicability: targetApplicability(c.Applicability)}
 			trial := result
 			trial.Chunks = append(slices.Clone(result.Chunks), chunk)
 			trial.NoResults = false
@@ -424,7 +425,7 @@ func (s *RetrievalService) Fetch(ctx context.Context, p domain.Principal, id, lo
 				ids = append(ids, c.Revision)
 			}
 		}
-		eligible, e := s.repo.Eligible(ctx, tx, p, ids)
+		eligible, e := s.repo.Eligible(ctx, tx, p, a.Scope, ids)
 		if e != nil {
 			return e
 		}
@@ -463,12 +464,21 @@ func (s *RetrievalService) Fetch(ctx context.Context, p domain.Principal, id, lo
 	}
 	reader, e := s.objects.Open(ctx, artifact.ObjectKey)
 	if e != nil {
-		return failSource()
+		if errors.Is(e, domain.ErrIncomplete) {
+			return failSource()
+		}
+		return domain.RetrievalResult{}, domain.ErrUnavailable
 	}
 	data, e := io.ReadAll(io.LimitReader(reader, MaxArtifactBytes+1))
 	closeErr := reader.Close()
-	if e != nil || closeErr != nil || int64(len(data)) != artifact.Bytes || TokenDigest(string(data)) != artifact.Digest {
+	if e != nil {
+		return domain.RetrievalResult{}, domain.ErrUnavailable
+	}
+	if int64(len(data)) != artifact.Bytes || TokenDigest(string(data)) != artifact.Digest {
 		return failSource()
+	}
+	if closeErr != nil {
+		return domain.RetrievalResult{}, domain.ErrUnavailable
 	}
 	if !utf8.Valid(data) {
 		return domain.RetrievalResult{}, domain.ErrIncomplete
@@ -492,4 +502,13 @@ func (s *RetrievalService) Fetch(ctx context.Context, p domain.Principal, id, lo
 		return domain.RetrievalResult{}, domain.ErrBudget
 	}
 	return result, nil
+}
+
+// These are the verified target's public conditions, never hidden support/source
+// metadata. A zero/absent constraint stays absent instead of an invented value.
+func targetApplicability(a domain.Applicability) *domain.Applicability {
+	if a.RepositoryRevision == "" && a.DirtyDigest == "" && a.Environment == "" && a.Versions == nil && a.ValidFrom == nil && a.ValidUntil == nil {
+		return nil
+	}
+	return &a
 }

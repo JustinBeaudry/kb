@@ -24,6 +24,9 @@ func RetrievalWire(r RetrievalResult) ([]byte, error) {
 			warnings = []string{}
 		}
 		m := map[string]any{"record_id": c.RecordID, "revision": c.Revision, "text": c.Text, "claim_status": c.ClaimStatus, "origin_trust": c.OriginTrust, "evidence": refs, "warnings": warnings}
+		if c.Applicability != nil {
+			m["applicability"] = applicabilityWire(*c.Applicability)
+		}
 		if c.VerificationOutcome != nil {
 			m["verification_outcome"] = *c.VerificationOutcome
 		}

@@ -469,7 +469,8 @@ func TestCaptureSweepAdvancesAfterSlowObject(t *testing.T) {
 	assert.ErrorIs(t, err, domain.ErrUnavailable)
 	assert.Greater(t, r.checked[slow.ID], int64(1))
 	assert.Greater(t, r.checked[later.ID], int64(1))
-	assert.False(t, r.artifacts[slow.ID].ObjectAvailable)
+	// A timed-out read does not establish missing/corrupt bytes.
+	assert.True(t, r.artifacts[slow.ID].ObjectAvailable)
 	assert.True(t, r.artifacts[later.ID].ObjectAvailable)
 }
 func TestCaptureSweepExpiresAbandonedAndAllowsFreshRetry(t *testing.T) {
@@ -623,4 +624,47 @@ func TestCaptureOldGenerationCannotInvalidateReplacement(t *testing.T) {
 
 func (r *checkpointRepo) Latest(context.Context, Tx, domain.Scope) (domain.Checkpoint, string, error) {
 	return r.c, r.client, nil
+}
+
+func TestCaptureTransientStoragePreservesLastConfirmedHealth(t *testing.T) {
+	for _, phase := range []string{"open", "read", "close"} {
+		for _, operation := range []string{"complete", "append", "reference", "reconcile", "sweep"} {
+			t.Run(phase+"/"+operation, func(t *testing.T) {
+				s, r, objects, p, m := captureFixture(t)
+				a := readyCapture(t, s, p, m)
+				s.objects = objectFaultStore{ObjectStore: objects, phase: phase}
+				var err error
+				switch operation {
+				case "complete":
+					_, err = s.Complete(t.Context(), p, a.ID, a.Digest)
+				case "append":
+					_, err = s.Append(t.Context(), p, []domain.Event{eventFor(a)})
+				case "reference":
+					_, err = s.Reference(t.Context(), p, domain.EvidenceRef{ArtifactID: a.ID, Digest: a.Digest, Locator: a.SourceLocator}, a.Scope)
+				case "reconcile":
+					for _, job := range s.jobs.(*fakeJobs).jobs {
+						if job.Kind == "capture.reconcile" {
+							err = s.Reconcile(t.Context(), job, domain.Lease{}, directCommit{})
+						}
+					}
+				case "sweep":
+					err = s.Sweep(t.Context(), 100)
+				}
+				assert.ErrorIs(t, err, domain.ErrUnavailable)
+				assert.True(t, r.artifacts[a.ID].ObjectAvailable)
+				if operation == "sweep" {
+					assert.Positive(t, r.checked[a.ID])
+				}
+			})
+		}
+	}
+}
+func TestCaptureTransientAuditDoesNotRestoreConcurrentKnownMissing(t *testing.T) {
+	s, r, objects, p, m := captureFixture(t)
+	a := readyCapture(t, s, p, m)
+	s.objects = objectFaultStore{ObjectStore: objects, phase: "open", after: func() { v := r.artifacts[a.ID]; v.ObjectAvailable = false; r.artifacts[a.ID] = v }}
+	err := s.Sweep(t.Context(), 100)
+	assert.ErrorIs(t, err, domain.ErrUnavailable)
+	assert.False(t, r.artifacts[a.ID].ObjectAvailable)
+	assert.Positive(t, r.checked[a.ID])
 }

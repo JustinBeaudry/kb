@@ -118,7 +118,7 @@ func (s *MemoryService) Submit(ctx context.Context, p domain.Principal, input do
 			c.Evidence[i].Origin = domain.Origin{ClientID: client, Trust: domain.TrustSubmitted}
 		}
 		if len(c.DependsOn) > 0 {
-			eligible, e := s.auth.Eligible(ctx, tx, p, c.DependsOn)
+			eligible, e := s.auth.Eligible(ctx, tx, p, c.Scope, c.DependsOn)
 			if e != nil {
 				return e
 			}

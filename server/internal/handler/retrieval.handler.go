@@ -24,6 +24,10 @@ func retrievalAPI(r domain.RetrievalResult) RetrievalResult {
 	}
 	for _, c := range r.Chunks {
 		item := EvidenceChunk{RecordId: c.RecordID, Revision: c.Revision, Text: c.Text, ClaimStatus: ClaimStatus(c.ClaimStatus), OriginTrust: OriginTrust(c.OriginTrust), Evidence: refsAPI(c.Evidence), Warnings: stringsAPI(c.Warnings)}
+		if c.Applicability != nil {
+			a := applicabilityAPI(*c.Applicability)
+			item.Applicability = &a
+		}
 		if c.VerificationOutcome != nil {
 			v := VerificationOutcome(*c.VerificationOutcome)
 			item.VerificationOutcome = &v

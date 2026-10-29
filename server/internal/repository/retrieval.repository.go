@@ -201,8 +201,8 @@ func (r *RetrievalRepository) sources(ctx context.Context, tx domain.Tx, claims 
 	}
 	return true, nil
 }
-func (r *RetrievalRepository) Eligible(ctx context.Context, tx domain.Tx, p domain.Principal, ids []string) (domain.EligibilityResult, error) {
-	if len(ids) > 50 {
+func (r *RetrievalRepository) Eligible(ctx context.Context, tx domain.Tx, p domain.Principal, requested domain.Scope, ids []string) (domain.EligibilityResult, error) {
+	if len(ids) > 50 || domain.ValidateIDs(requested.ProjectID) != nil {
 		return domain.EligibilityResult{}, domain.ErrInvalidInput
 	}
 	snap, e := r.Snapshot(ctx, tx, p, domain.Scope{})
@@ -222,8 +222,9 @@ func (r *RetrievalRepository) Eligible(ctx context.Context, tx domain.Tx, p doma
 		c := record.claim
 		c.Status = record.status
 		authorized := slices.Contains(snap.Principal.ProjectIDs, c.Scope.ProjectID)
+		sameProject := c.Scope.ProjectID == requested.ProjectID
 		if c.Status == domain.ClaimCandidate {
-			if !authorized || record.client != p.ClientID || c.Scope.TaskID == "" {
+			if !authorized || !sameProject || record.client != p.ClientID || c.Scope.TaskID == "" {
 				continue
 			}
 			ownerRows, e := r.query(ctx, tx, `MATCH (t:TaskCheckpointOwner {projectID:$project,taskID:$task,clientID:$client}) RETURN t.clientID`, map[string]any{"project": c.Scope.ProjectID, "task": c.Scope.TaskID, "client": p.ClientID})
@@ -233,7 +234,7 @@ func (r *RetrievalRepository) Eligible(ctx context.Context, tx domain.Tx, p doma
 			if len(ownerRows) != 1 {
 				continue
 			}
-		} else if (c.Status != domain.ClaimVerified && c.Status != domain.ClaimDisputed) || !record.valid || !record.published || c.Scope.TaskID != "" || (!authorized && (!record.global || record.generalized == "" || c.Kind != "lesson" || c.Text != record.generalized)) {
+		} else if (c.Status != domain.ClaimVerified && c.Status != domain.ClaimDisputed) || !record.valid || !record.published || c.Scope.TaskID != "" || (sameProject && !authorized) || (!sameProject && (!record.global || record.generalized == "" || c.Kind != "lesson" || c.Text != record.generalized)) {
 			continue
 		}
 
@@ -249,18 +250,17 @@ func (r *RetrievalRepository) Eligible(ctx context.Context, tx domain.Tx, p doma
 			return result, e
 		}
 		if !usable {
-			if authorized {
+			if sameProject && authorized {
 				result.Unavailable = true
 			}
 			continue
 		}
-		if !authorized {
+		if !sameProject {
 			c.Text = record.generalized
 			c.ClaimID = "lesson:" + c.Revision
 			c.Scope = domain.Scope{}
 			c.Evidence = nil
 			c.DependsOn = nil
-			c.Applicability = domain.Applicability{}
 			c.EntityIDs = nil
 		} else { // task sources cannot enter project-wide publications even via imported data
 			safe := true

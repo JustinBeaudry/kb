@@ -61,6 +61,27 @@ acceptance claim. Publication records in F5 tests are synthetic setup only.
 - Candidate task ownership/current grants are checked before calling external
   source integrity reads and rechecked in the final write transaction. Raw Fetch
   requires evidence:read as well as retrieval:read before object I/O.
+- Eligibility takes the explicit requested Scope separately from Principal grants:
+  `Eligible(ctx,tx,p,requestedScope,revisionIDs)`. Retrieval passes its request scope,
+  candidate dependency checks pass candidate scope, and ID-only Fetch passes the
+  artifact's project scope. A cross-project request always projects the same safe
+  generalized target whether or not its client also has source-project access.
+  A separately authorized same-project request may retain permitted provenance.
+- Target applicability remains authoritative through filtering and ranking and is
+  optionally exposed on each chunk as `applicability`. Those public target conditions
+  include versions, environment, repository/dirty qualifiers and validity times when
+  present; unknown/absent values are preserved. I1 must verify these fields as safe to
+  share together with the distinct target's text and EntityIDs. Hidden source/support
+  Applicability is never copied into this public target projection. Both canonical
+  JSON and HTTP output budget the complete optional object.
+- Confirmed missing/corrupt objects (`ErrIncomplete`, including successful-read
+  length/digest mismatch) fence generation-specific availability. Provider/network,
+  mid-read or Close errors are unknown observations (`ErrUnavailable`): Fetch,
+  Complete, Reference, Append and Reconcile preserve last-confirmed availability.
+  Sweep still advances checkedAt on unknown observations but performs no availability
+  write, so it cannot restore a concurrently recorded known-missing result. A later
+  successful audit may confirm availability normally. This corrects F4's earlier
+  overly conservative transient-error invalidation policy.
 - Every graph read/eligibility/final epoch check shares the real OwnerState lock in
   a service-owned transaction. No object I/O or nested Within runs in its callback.
   Retrieval authenticates authoritative current client grants/revocation, not only

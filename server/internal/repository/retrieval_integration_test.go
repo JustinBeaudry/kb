@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/JustinBeaudry/kb/server/internal/domain"
 	"github.com/JustinBeaudry/kb/server/internal/gateway"
@@ -186,6 +188,26 @@ func TestRetrievalRealGraphAndUpload(t *testing.T) {
 		require.NoError(t, e)
 		require.Len(t, fetched.Chunks, 1)
 		assert.Equal(t, "synthetic project evidence <猫>", fetched.Chunks[0].Text)
+		for _, phase := range []string{"open", "read", "close"} {
+			t.Run("transient "+phase, func(t *testing.T) {
+				flaky, e := service.NewRetrievalService(store, retrievalRepo, tasks, evidence, retrievalTransportStore{ObjectStore: objects, phase: phase}, bytes.Repeat([]byte{1}, 32))
+				require.NoError(t, e)
+				_, e = flaky.Fetch(t.Context(), agent.Principal, projectArtifact.ID, projectArtifact.SourceLocator, 16384)
+				assert.ErrorIs(t, e, domain.ErrUnavailable)
+				assert.True(t, captureArtifact(t, store, evidence, projectArtifact.ID).ObjectAvailable)
+				_, e = retrieval.Fetch(t.Context(), agent.Principal, projectArtifact.ID, projectArtifact.SourceLocator, 16384)
+				require.NoError(t, e)
+			})
+		}
+		unknown, e := service.NewRetrievalService(store, retrievalRepo, tasks, evidence, retrievalTransportStore{ObjectStore: objects, phase: "open", after: func() {
+			memoryMutation(t, store, `MATCH (a:Artifact {id:$id}) SET a.available=false`, map[string]any{"id": projectArtifact.ID})
+		}}, bytes.Repeat([]byte{1}, 32))
+		require.NoError(t, e)
+		_, e = unknown.Fetch(t.Context(), agent.Principal, projectArtifact.ID, projectArtifact.SourceLocator, 16384)
+		assert.ErrorIs(t, e, domain.ErrUnavailable)
+		assert.False(t, captureArtifact(t, store, evidence, projectArtifact.ID).ObjectAvailable)
+		memoryMutation(t, store, `MATCH (a:Artifact {id:$id}) SET a.available=true`, map[string]any{"id": projectArtifact.ID})
+
 		_, e = retrieval.Fetch(t.Context(), agent.Principal, projectArtifact.ID, "wrong", 16384)
 		assert.ErrorIs(t, e, domain.ErrForbidden)
 		_, e = retrieval.Fetch(t.Context(), agent.Principal, projectArtifact.ID, projectArtifact.SourceLocator, 1)
@@ -223,6 +245,52 @@ func TestRetrievalRealGraphAndUpload(t *testing.T) {
 		assert.Empty(t, v.Chunks[0].Evidence)
 		_, e = retrieval.Fetch(t.Context(), agent.Principal, a.ID, a.SourceLocator, 16384)
 		assert.ErrorIs(t, e, domain.ErrForbidden)
+	})
+
+	t.Run("cross project target applicability and grants", func(t *testing.T) {
+		broad, e := identity.Enroll(t.Context(), owner, service.EnrollInput{ClientID: "broad-agent", Role: domain.RoleAgent, ProjectIDs: []string{"demo", "secret"}, Capabilities: []string{"retrieval:read", "evidence:read"}})
+		require.NoError(t, e)
+		a := upload(domain.Scope{ProjectID: "secret"}, "conditional source bytes")
+		source := ref(a)
+		source.Origin = domain.Origin{ClientID: "collector", Trust: domain.TrustSubmitted}
+		source.Applicability = domain.Applicability{Environment: "hidden-support-environment"}
+		past := time.Now().UTC().Add(-time.Hour)
+		future := time.Now().UTC().Add(time.Hour)
+		for _, tc := range []struct {
+			name            string
+			target, request domain.Applicability
+			want            int
+		}{{"expired", domain.Applicability{ValidUntil: &past}, domain.Applicability{}, 0}, {"future", domain.Applicability{ValidFrom: &future}, domain.Applicability{}, 0}, {"version mismatch", domain.Applicability{Versions: map[string]string{"runtime": "1"}}, domain.Applicability{Versions: map[string]string{"runtime": "2"}}, 0}, {"environment mismatch", domain.Applicability{Environment: "prod"}, domain.Applicability{Environment: "test"}, 0}, {"repository mismatch", domain.Applicability{RepositoryRevision: "public-target-r1"}, domain.Applicability{RepositoryRevision: "public-target-r2"}, 0}, {"conditional valid", domain.Applicability{Environment: "public-fixture", Versions: map[string]string{"runtime": "1", "unknown": ""}, ValidFrom: &past, ValidUntil: &future}, domain.Applicability{Environment: "public-fixture", Versions: map[string]string{"runtime": "1"}}, 1}} {
+			t.Run(tc.name, func(t *testing.T) {
+				target := domain.ClaimRevision{ClaimID: "private-target-" + tc.name, Revision: "conditional-" + tc.name, Text: "Shareable conditional lesson " + tc.name, Kind: "lesson", Scope: domain.Scope{ProjectID: "secret"}, Status: domain.ClaimVerified, Evidence: []domain.EvidenceRef{source}, Applicability: tc.target}
+				publishFixture(t, store, target, nil, "cross_project", target.Text)
+				request := domain.RetrievalRequest{Scope: domain.Scope{ProjectID: "demo"}, Query: target.Revision, Applicability: tc.request, Mode: domain.RetrievalEvidence}
+				limited, e := retrieval.Retrieve(t.Context(), agent.Principal, request)
+				require.NoError(t, e)
+				assert.Len(t, limited.Chunks, tc.want)
+				expanded, e := retrieval.Retrieve(t.Context(), broad.Principal, request)
+				require.NoError(t, e)
+				assert.Equal(t, limited, expanded)
+				if tc.want == 1 {
+					wire, e := domain.RetrievalWire(limited)
+					require.NoError(t, e)
+					assert.Contains(t, string(wire), `"applicability":`)
+					assert.Contains(t, string(wire), "public-fixture")
+					assert.Contains(t, string(wire), `"unknown":""`)
+					assert.Contains(t, string(wire), "valid_from")
+					assert.Contains(t, string(wire), "valid_until")
+					assert.NotContains(t, string(wire), "hidden-support-environment")
+					assert.NotContains(t, string(wire), a.ID)
+					own := request
+					own.Scope.ProjectID = "secret"
+					owned, e := retrieval.Retrieve(t.Context(), broad.Principal, own)
+					require.NoError(t, e)
+					require.Len(t, owned.Chunks, 1)
+					assert.Equal(t, target.ClaimID, owned.Chunks[0].RecordID)
+					assert.Len(t, owned.Chunks[0].Evidence, 1)
+				}
+			})
+		}
 	})
 
 	t.Run("complete hidden task support closure and record bounds", func(t *testing.T) {
@@ -315,4 +383,48 @@ func TestRetrievalRealGraphAndUpload(t *testing.T) {
 		_, e = retrieval.Fetch(t.Context(), other.Principal, projectArtifact.ID, projectArtifact.SourceLocator, 16384)
 		assert.ErrorIs(t, e, domain.ErrUnauthorized)
 	})
+}
+
+type retrievalTransportStore struct {
+	service.ObjectStore
+	phase string
+	after func()
+}
+
+func (o retrievalTransportStore) Open(ctx context.Context, key string) (io.ReadCloser, error) {
+	if o.after != nil {
+		o.after()
+	}
+	if o.phase == "open" {
+		return nil, domain.ErrUnavailable
+	}
+	body, e := o.ObjectStore.Open(ctx, key)
+	if e != nil {
+		return nil, e
+	}
+	return &retrievalTransportReader{body: body, phase: o.phase}, nil
+}
+
+type retrievalTransportReader struct {
+	body  io.ReadCloser
+	phase string
+	read  bool
+}
+
+func (r *retrievalTransportReader) Read(p []byte) (int, error) {
+	if r.phase == "read" {
+		if r.read {
+			return 0, domain.ErrUnavailable
+		}
+		r.read = true
+		return r.body.Read(p[:min(3, len(p))])
+	}
+	return r.body.Read(p)
+}
+func (r *retrievalTransportReader) Close() error {
+	e := r.body.Close()
+	if r.phase == "close" {
+		return domain.ErrUnavailable
+	}
+	return e
 }

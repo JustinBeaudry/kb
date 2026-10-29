@@ -165,5 +165,44 @@
     "cli_frame": "295\n{\"schema_version\":\"3\",\"chunks\":[{\"record_id\":\"claim:hypothesis\",\"revision\":\"revision:hypothesis\",\"text\":\"A synthetic task hypothesis.\",\"claim_status\":\"candidate\",\"origin_trust\":\"submitted\",\"evidence\":[],\"warnings\":[\"unverified_task_candidate\"]}],\"truncated\":false,\"visited\":1,\"no_results\":false}",
     "cli_wire_bytes": 299,
     "note": "Synthetic fixture; CLI framing is the C3 target shape, not an implemented CLI acceptance result. Task candidate citations are not expandable through ID-only Fetch; C3 owns explicit scoped working-evidence fetch."
+  },
+  {
+    "name": "conditional-cross-project-target",
+    "response_schema": "RetrievalResult",
+    "http_status": 200,
+    "budget_bytes": 4096,
+    "body": {
+      "schema_version": "3",
+      "chunks": [
+        {
+          "record_id": "lesson:synthetic-conditional",
+          "revision": "synthetic-conditional",
+          "text": "Synthetic generalized lesson for runtime 1 in the public fixture.",
+          "claim_status": "verified",
+          "origin_trust": "submitted",
+          "evidence": [],
+          "warnings": [
+            "generalized_lesson_source_withheld"
+          ],
+          "applicability": {
+            "environment": "public-fixture",
+            "versions": {
+              "runtime": "1",
+              "unknown": ""
+            },
+            "valid_from": "2026-10-01T00:00:00Z",
+            "valid_until": "2026-12-01T00:00:00Z"
+          }
+        }
+      ],
+      "truncated": false,
+      "visited": 1,
+      "no_results": false
+    },
+    "http_wire": "{\"schema_version\":\"3\",\"chunks\":[{\"record_id\":\"lesson:synthetic-conditional\",\"revision\":\"synthetic-conditional\",\"text\":\"Synthetic generalized lesson for runtime 1 in the public fixture.\",\"claim_status\":\"verified\",\"origin_trust\":\"submitted\",\"evidence\":[],\"warnings\":[\"generalized_lesson_source_withheld\"],\"applicability\":{\"environment\":\"public-fixture\",\"versions\":{\"runtime\":\"1\",\"unknown\":\"\"},\"valid_from\":\"2026-10-01T00:00:00Z\",\"valid_until\":\"2026-12-01T00:00:00Z\"}}],\"truncated\":false,\"visited\":1,\"no_results\":false}\n",
+    "http_wire_bytes": 517,
+    "cli_frame": "516\n{\"schema_version\":\"3\",\"chunks\":[{\"record_id\":\"lesson:synthetic-conditional\",\"revision\":\"synthetic-conditional\",\"text\":\"Synthetic generalized lesson for runtime 1 in the public fixture.\",\"claim_status\":\"verified\",\"origin_trust\":\"submitted\",\"evidence\":[],\"warnings\":[\"generalized_lesson_source_withheld\"],\"applicability\":{\"environment\":\"public-fixture\",\"versions\":{\"runtime\":\"1\",\"unknown\":\"\"},\"valid_from\":\"2026-10-01T00:00:00Z\",\"valid_until\":\"2026-12-01T00:00:00Z\"}}],\"truncated\":false,\"visited\":1,\"no_results\":false}",
+    "cli_wire_bytes": 520,
+    "note": "Synthetic published target fixture, not production verification. Applicability belongs to the public target; no hidden source/support conditions or identifiers are included."
   }
 ]

@@ -1365,6 +1365,10 @@
             "items": {
               "type": "string"
             }
+          },
+          "applicability": {
+            "$ref": "#/components/schemas/Applicability",
+            "description": "Conditions of the independently verified/public target; hidden source/support applicability is never projected here."
           }
         },
         "required": [

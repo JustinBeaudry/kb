@@ -417,7 +417,8 @@ func TestCaptureAbandonmentRealGraphAndS3(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 		t.Cleanup(cancel)
 		assert.ErrorIs(t, audit.Sweep(ctx, 2), domain.ErrUnavailable)
-		assert.False(t, captureArtifact(t, store, repo, slow.ID).ObjectAvailable)
+		// Transport timeout preserves last-confirmed health while checkedAt advances.
+		assert.True(t, captureArtifact(t, store, repo, slow.ID).ObjectAvailable)
 		assert.True(t, captureArtifact(t, store, repo, later.ID).ObjectAvailable)
 		require.NoError(t, store.Within(t.Context(), func(ctx context.Context, tx domain.Tx) error {
 			native, err := store.Unwrap(tx)

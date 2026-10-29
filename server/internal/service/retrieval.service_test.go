@@ -51,7 +51,7 @@ func (f *retrievalFixture) Neighbors(_ context.Context, _ Tx, _ []string, _ []st
 	f.examined += n
 	return f.claims[:n], nil
 }
-func (f *retrievalFixture) Eligible(_ context.Context, _ Tx, _ domain.Principal, ids []string) (EligibilityResult, error) {
+func (f *retrievalFixture) Eligible(_ context.Context, _ Tx, _ domain.Principal, _ domain.Scope, ids []string) (EligibilityResult, error) {
 	if f.fail == "eligible" {
 		return EligibilityResult{}, domain.ErrUnavailable
 	}
@@ -379,4 +379,65 @@ type countRetrievalObjects struct {
 func (o *countRetrievalObjects) Open(ctx context.Context, key string) (io.ReadCloser, error) {
 	o.opens++
 	return o.ObjectStore.Open(ctx, key)
+}
+
+type objectFaultReader struct {
+	body  io.ReadCloser
+	phase string
+	read  bool
+}
+
+func (r *objectFaultReader) Read(p []byte) (int, error) {
+	if r.phase == "read" {
+		if r.read {
+			return 0, domain.ErrUnavailable
+		}
+		r.read = true
+		return r.body.Read(p[:min(3, len(p))])
+	}
+	return r.body.Read(p)
+}
+func (r *objectFaultReader) Close() error {
+	err := r.body.Close()
+	if r.phase == "close" {
+		return domain.ErrUnavailable
+	}
+	return err
+}
+
+type objectFaultStore struct {
+	ObjectStore
+	phase string
+	after func()
+}
+
+func (o objectFaultStore) Open(ctx context.Context, key string) (io.ReadCloser, error) {
+	if o.after != nil {
+		o.after()
+	}
+	if o.phase == "open" {
+		return nil, domain.ErrUnavailable
+	}
+	body, e := o.ObjectStore.Open(ctx, key)
+	if e != nil {
+		return nil, e
+	}
+	return &objectFaultReader{body: body, phase: o.phase}, nil
+}
+func TestRetrievalTransientStoragePreservesHealth(t *testing.T) {
+	for _, phase := range []string{"open", "read", "close"} {
+		t.Run(phase, func(t *testing.T) {
+			capture, evidence, objects, p, m := captureFixture(t)
+			p.Capabilities = append(p.Capabilities, "retrieval:read")
+			m.Scope.TaskID = ""
+			m.Scope.SessionID = ""
+			a := readyCapture(t, capture, p, m)
+			f := &retrievalFixture{snapshot: RetrievalSnapshot{Principal: p}, eligible: map[string]bool{"verified": true}, claims: []domain.ClaimRevision{{ClaimID: "verified", Revision: "verified", Status: domain.ClaimVerified, Scope: m.Scope, Evidence: []domain.EvidenceRef{{ArtifactID: a.ID, Digest: a.Digest, Locator: a.SourceLocator}}}}}
+			s, e := NewRetrievalService(directTx{}, f, nil, evidence, objectFaultStore{ObjectStore: objects, phase: phase}, []byte(strings.Repeat("k", 32)))
+			require.NoError(t, e)
+			_, e = s.Fetch(t.Context(), p, a.ID, a.SourceLocator, 16384)
+			assert.ErrorIs(t, e, domain.ErrUnavailable)
+			assert.True(t, evidence.artifacts[a.ID].ObjectAvailable)
+		})
+	}
 }

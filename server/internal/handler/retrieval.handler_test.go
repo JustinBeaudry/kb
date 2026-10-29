@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 type retrievalHandlerService struct {
@@ -65,12 +66,17 @@ func TestRetrievalHTTPWireAndProblems(t *testing.T) {
 }
 func TestRetrievalServiceAndHTTPAccountingAgree(t *testing.T) {
 	v := domain.RetrievalResult{SchemaVersion: "3", Chunks: []domain.EvidenceChunk{{RecordID: "c", Revision: "r", Text: "<猫>\"\\", ClaimStatus: domain.ClaimVerified, OriginTrust: domain.TrustOwnerAuthenticated, Evidence: []domain.EvidenceRef{{ArtifactID: "a", Digest: "digest", Locator: "file#1-2", SourceRevision: "s", Origin: domain.Origin{ClientID: "client", Trust: domain.TrustSubmitted}}}}}, TaskCheckpoint: &domain.TaskState{Label: "task_state", Checkpoint: domain.Checkpoint{ID: "cp", Revision: "r", EvidenceReferencesOmitted: true}}}
+	now := time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
+	v.Chunks[0].Applicability = &domain.Applicability{Environment: "public-fixture", Versions: map[string]string{"runtime": "1", "unknown": ""}, ValidFrom: &now}
 	a, e := domain.RetrievalWire(v)
 	require.NoError(t, e)
 	b, e := json.Marshal(retrievalAPI(v))
 	require.NoError(t, e)
 	assert.JSONEq(t, string(a), string(b))
 	assert.Equal(t, len(a), len(b))
+	assert.Contains(t, string(b), `"applicability":`)
+	_, e = wireBudget(v, len(b))
+	assert.ErrorIs(t, e, domain.ErrBudget)
 }
 func TestRetrievalCandidateRejectsForgedTrust(t *testing.T) {
 	server, e := NewRetrievalServer(captureIdentity{}, nil, checkpointHandlerService{}, memoryHandlerService{}, &retrievalHandlerService{}, slog.New(slog.NewJSONHandler(io.Discard, nil)))

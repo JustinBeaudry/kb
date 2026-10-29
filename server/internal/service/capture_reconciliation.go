@@ -25,14 +25,14 @@ func captureObjectContext(ctx context.Context) (context.Context, context.CancelF
 	return context.WithTimeout(ctx, budget)
 }
 
-// All observation paths invalidate the same generation, using the live parent
-// budget for graph settlement after the shorter object check times out.
+// Confirmed absence/corruption invalidates the same generation. A transport
+// failure is an unknown observation and must preserve last-confirmed health.
 func (s *CaptureService) verifyObject(ctx context.Context, a domain.Artifact) error {
 	checkCtx, cancel := captureObjectContext(ctx)
 	err := s.checkObject(checkCtx, a)
 	cancel()
-	if err == nil {
-		return nil
+	if err == nil || !errors.Is(err, domain.ErrIncomplete) {
+		return err
 	}
 	healthErr := s.tx.Within(ctx, func(ctx context.Context, tx Tx) error { return s.repo.Availability(ctx, tx, a.ID, a.ObjectKey, false) })
 	if healthErr != nil && !errors.Is(healthErr, domain.ErrStale) {
@@ -174,8 +174,10 @@ func (s *CaptureService) Sweep(ctx context.Context, limit int) error {
 		checkErr := s.checkObject(checkCtx, a)
 		cancel()
 		err = s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
-			if err := s.repo.Availability(ctx, tx, a.ID, a.ObjectKey, checkErr == nil); err != nil {
-				return err
+			if checkErr == nil || errors.Is(checkErr, domain.ErrIncomplete) {
+				if err := s.repo.Availability(ctx, tx, a.ID, a.ObjectKey, checkErr == nil); err != nil {
+					return err
+				}
 			}
 			return s.repo.Checked(ctx, tx, a.ID, a.ObjectKey, time.Now().UTC().UnixNano())
 		})

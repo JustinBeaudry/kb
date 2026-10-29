@@ -21,6 +21,7 @@ type RetrievalRequest struct {
 // ClaimStatus, OriginTrust and VerificationOutcome are independent. A candidate
 // submission has no verification outcome until an actual verification exists.
 type EvidenceChunk struct {
+	Applicability            *Applicability
 	RecordID, Revision, Text string
 	ClaimStatus              ClaimStatus
 	OriginTrust              OriginTrust
