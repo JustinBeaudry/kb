@@ -1,0 +1,1966 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Private Memory API",
+    "version": "0.1.0",
+    "description": "Private single-owner API. Authentication derives Principal and Origin; submitted data cannot grant trust. Only implemented capabilities may return success. Unavailable capabilities use a 503 Problem. Remote schema version 3 is independent of preserved local schema-v2."
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/v1/events:append": {
+      "post": {
+        "operationId": "appendEvents",
+        "responses": {
+          "202": {
+            "description": "Success from an implemented operation only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptsResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppendEventsInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/artifacts": {
+      "post": {
+        "operationId": "stageArtifact",
+        "responses": {
+          "201": {
+            "description": "Success from an implemented operation only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtifactInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/artifacts/{id}:complete": {
+      "post": {
+        "operationId": "completeArtifact",
+        "responses": {
+          "200": {
+            "description": "Success from an implemented operation only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteArtifactInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueID"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/candidates": {
+      "post": {
+        "operationId": "submitCandidate",
+        "responses": {
+          "201": {
+            "description": "Success from an implemented operation only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CandidateResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CandidateInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/checkpoints/{id}": {
+      "put": {
+        "operationId": "putCheckpoint",
+        "responses": {
+          "200": {
+            "description": "Success from an implemented operation only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckpointResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckpointInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueID"
+            }
+          }
+        ]
+      },
+      "get": {
+        "operationId": "getCheckpoint",
+        "responses": {
+          "200": {
+            "description": "Success from an implemented operation only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckpointResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueID"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/retrieval:orient": {
+      "post": {
+        "operationId": "orientMemory",
+        "responses": {
+          "200": {
+            "description": "Success from an implemented operation only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetrievalResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrientInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/retrieval:search": {
+      "post": {
+        "operationId": "searchMemory",
+        "responses": {
+          "200": {
+            "description": "Success from an implemented operation only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetrievalResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/evidence/{id}": {
+      "get": {
+        "operationId": "fetchEvidence",
+        "responses": {
+          "200": {
+            "description": "Success from an implemented operation only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetrievalResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueID"
+            }
+          },
+          {
+            "name": "locator",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "budget_bytes",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 16384,
+              "default": 16384
+            }
+          }
+        ]
+      }
+    },
+    "/v1/decisions/{id}:respond": {
+      "post": {
+        "operationId": "respondDecision",
+        "responses": {
+          "200": {
+            "description": "Success from an implemented operation only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionReply"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueID"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/policies/{project}": {
+      "get": {
+        "operationId": "getPolicy",
+        "responses": {
+          "200": {
+            "description": "Success from an implemented operation only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueID"
+            }
+          }
+        ]
+      },
+      "put": {
+        "operationId": "putPolicy",
+        "responses": {
+          "200": {
+            "description": "Success from an implemented operation only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueID"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/clients": {
+      "get": {
+        "operationId": "listClients",
+        "responses": {
+          "200": {
+            "description": "Success from an implemented operation only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientsResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "enrollClient",
+        "responses": {
+          "201": {
+            "description": "Success from an implemented operation only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientCredentialResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/clients/{id}:revoke": {
+      "post": {
+        "operationId": "revokeClient",
+        "responses": {
+          "200": {
+            "description": "Success from an implemented operation only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueID"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/deletions": {
+      "post": {
+        "operationId": "deleteMemory",
+        "responses": {
+          "202": {
+            "description": "Success from an implemented operation only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeletionInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/exports": {
+      "post": {
+        "operationId": "exportMemory",
+        "responses": {
+          "202": {
+            "description": "Success from an implemented operation only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/status": {
+      "get": {
+        "operationId": "getStatus",
+        "responses": {
+          "200": {
+            "description": "Success from an implemented operation only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "schemas": {
+      "OpaqueID": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "\\S",
+        "description": "Nonempty opaque identifier. Never a database elementId."
+      },
+      "Role": {
+        "type": "string",
+        "enum": [
+          "collector",
+          "agent",
+          "verifier",
+          "owner"
+        ]
+      },
+      "ClaimStatus": {
+        "type": "string",
+        "enum": [
+          "candidate",
+          "verified",
+          "superseded",
+          "disputed",
+          "invalidated",
+          "rejected"
+        ]
+      },
+      "OriginTrust": {
+        "type": "string",
+        "enum": [
+          "submitted",
+          "collector_attested",
+          "gateway_observed",
+          "owner_authenticated"
+        ]
+      },
+      "VerificationOutcome": {
+        "type": "string",
+        "enum": [
+          "supported",
+          "unsupported",
+          "ambiguous"
+        ]
+      },
+      "Completeness": {
+        "type": "string",
+        "enum": [
+          "complete",
+          "partial",
+          "withheld"
+        ]
+      },
+      "RetrievalMode": {
+        "type": "string",
+        "enum": [
+          "orientation",
+          "evidence",
+          "working"
+        ]
+      },
+      "Scope": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "project_id": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "task_id": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "session_id": {
+            "$ref": "#/components/schemas/OpaqueID"
+          }
+        },
+        "required": [
+          "project_id"
+        ]
+      },
+      "Applicability": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "repository_revision": {
+            "type": "string"
+          },
+          "dirty_digest": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "string"
+          },
+          "versions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "valid_from": {
+            "type": "string",
+            "format": "date-time",
+            "description": "UTC timestamp."
+          },
+          "valid_until": {
+            "type": "string",
+            "format": "date-time",
+            "description": "UTC timestamp."
+          }
+        },
+        "required": []
+      },
+      "Origin": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "client_id": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "trust": {
+            "$ref": "#/components/schemas/OriginTrust"
+          },
+          "attestation_id": {
+            "$ref": "#/components/schemas/OpaqueID"
+          }
+        },
+        "required": [
+          "client_id",
+          "trust"
+        ]
+      },
+      "EvidenceRef": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "artifact_id": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "digest": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Content integrity digest; checked at the owning service boundary."
+          },
+          "locator": {
+            "type": "string"
+          },
+          "source_revision": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/Origin"
+          },
+          "applicability": {
+            "$ref": "#/components/schemas/Applicability"
+          }
+        },
+        "required": [
+          "artifact_id",
+          "digest",
+          "locator",
+          "source_revision",
+          "origin",
+          "applicability"
+        ]
+      },
+      "EventInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "idempotency_key": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "digest": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Content integrity digest; checked at the owning service boundary."
+          },
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "message",
+              "tool_call",
+              "tool_result",
+              "checkpoint",
+              "artifact"
+            ]
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "UTC timestamp."
+          },
+          "payload_artifact_id": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "sequence": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "completeness": {
+            "$ref": "#/components/schemas/Completeness"
+          }
+        },
+        "required": [
+          "id",
+          "idempotency_key",
+          "digest",
+          "scope",
+          "kind",
+          "observed_at",
+          "payload_artifact_id",
+          "sequence",
+          "completeness"
+        ]
+      },
+      "AppendEventsInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventInput"
+            },
+            "minItems": 1,
+            "maxItems": 100
+          }
+        },
+        "required": [
+          "events"
+        ]
+      },
+      "Receipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "duplicate": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "duplicate",
+          "state"
+        ]
+      },
+      "ReceiptsResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "3"
+            ]
+          },
+          "receipts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Receipt"
+            }
+          }
+        },
+        "required": [
+          "schema_version",
+          "receipts"
+        ]
+      },
+      "ArtifactInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          },
+          "digest": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Content integrity digest; checked at the owning service boundary."
+          },
+          "bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "policy_revision": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "content_base64": {
+            "type": "string",
+            "format": "byte"
+          }
+        },
+        "required": [
+          "scope",
+          "digest",
+          "bytes",
+          "policy_revision",
+          "content_base64"
+        ],
+        "description": "Base64 transfer is transport only. The service receives decoded bytes and verifies digest/length. No caller-supplied trust."
+      },
+      "Artifact": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "digest": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Content integrity digest; checked at the owning service boundary."
+          },
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          },
+          "bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "staged",
+              "ready",
+              "deleted"
+            ]
+          },
+          "policy_revision": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "UTC timestamp."
+          }
+        },
+        "required": [
+          "id",
+          "digest",
+          "scope",
+          "bytes",
+          "state",
+          "policy_revision"
+        ]
+      },
+      "ArtifactResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "3"
+            ]
+          },
+          "artifact": {
+            "$ref": "#/components/schemas/Artifact"
+          }
+        },
+        "required": [
+          "schema_version",
+          "artifact"
+        ]
+      },
+      "CompleteArtifactInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "digest": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Content integrity digest; checked at the owning service boundary."
+          }
+        },
+        "required": [
+          "digest"
+        ]
+      },
+      "ReceiptResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "3"
+            ]
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/Receipt"
+          }
+        },
+        "required": [
+          "schema_version",
+          "receipt"
+        ]
+      },
+      "SubmittedEvidenceRef": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "artifact_id": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "digest": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Content integrity digest; checked at the owning service boundary."
+          },
+          "locator": {
+            "type": "string"
+          },
+          "source_revision": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "applicability": {
+            "$ref": "#/components/schemas/Applicability"
+          }
+        },
+        "required": [
+          "artifact_id",
+          "digest",
+          "locator",
+          "source_revision",
+          "applicability"
+        ]
+      },
+      "CandidateInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "claim_id": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "expected_revision": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubmittedEvidenceRef"
+            }
+          },
+          "depends_on": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpaqueID"
+            }
+          },
+          "applicability": {
+            "$ref": "#/components/schemas/Applicability"
+          }
+        },
+        "required": [
+          "claim_id",
+          "text",
+          "kind",
+          "scope",
+          "evidence",
+          "depends_on",
+          "applicability"
+        ],
+        "description": "The authenticated service derives evidence origins. Status and verification are never accepted from the client."
+      },
+      "ClaimRevision": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "claim_id": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "revision": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "text": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceRef"
+            }
+          },
+          "depends_on": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpaqueID"
+            }
+          },
+          "applicability": {
+            "$ref": "#/components/schemas/Applicability"
+          },
+          "claim_status": {
+            "$ref": "#/components/schemas/ClaimStatus"
+          },
+          "origin_trust": {
+            "$ref": "#/components/schemas/OriginTrust"
+          },
+          "verification_outcome": {
+            "$ref": "#/components/schemas/VerificationOutcome"
+          }
+        },
+        "required": [
+          "claim_id",
+          "revision",
+          "text",
+          "kind",
+          "scope",
+          "evidence",
+          "depends_on",
+          "applicability",
+          "claim_status",
+          "origin_trust"
+        ]
+      },
+      "CandidateResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "3"
+            ]
+          },
+          "claim": {
+            "$ref": "#/components/schemas/ClaimRevision"
+          }
+        },
+        "required": [
+          "schema_version",
+          "claim"
+        ]
+      },
+      "CheckpointInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          },
+          "objective": {
+            "type": "string"
+          },
+          "completed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "pending": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence_revision_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpaqueID"
+            }
+          }
+        },
+        "required": [
+          "scope",
+          "objective",
+          "completed",
+          "pending",
+          "questions",
+          "evidence_revision_ids"
+        ]
+      },
+      "Checkpoint": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "revision": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          },
+          "objective": {
+            "type": "string"
+          },
+          "completed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "pending": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence_revision_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpaqueID"
+            }
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "UTC timestamp."
+          }
+        },
+        "required": [
+          "id",
+          "revision",
+          "scope",
+          "objective",
+          "completed",
+          "pending",
+          "questions",
+          "evidence_revision_ids",
+          "updated_at"
+        ]
+      },
+      "CheckpointResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "3"
+            ]
+          },
+          "checkpoint": {
+            "$ref": "#/components/schemas/Checkpoint"
+          }
+        },
+        "required": [
+          "schema_version",
+          "checkpoint"
+        ]
+      },
+      "EvidenceChunk": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "record_id": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "revision": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "text": {
+            "type": "string"
+          },
+          "claim_status": {
+            "$ref": "#/components/schemas/ClaimStatus"
+          },
+          "origin_trust": {
+            "$ref": "#/components/schemas/OriginTrust"
+          },
+          "verification_outcome": {
+            "$ref": "#/components/schemas/VerificationOutcome"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceRef"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "record_id",
+          "revision",
+          "text",
+          "claim_status",
+          "origin_trust",
+          "evidence",
+          "warnings"
+        ],
+        "description": "Claim lifecycle, provenance trust, and verification outcome are separate. Missing outcome means unverified, never supported by default."
+      },
+      "RetrievalResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "3"
+            ]
+          },
+          "chunks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceChunk"
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "continuation": {
+            "type": "string"
+          },
+          "visited": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 50
+          },
+          "no_results": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "schema_version",
+          "chunks",
+          "truncated",
+          "visited",
+          "no_results"
+        ]
+      },
+      "DecisionReply": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "candidate_revision": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "evidence_digest": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Content integrity digest; checked at the owning service boundary."
+          },
+          "action": {
+            "type": "string"
+          },
+          "event_id": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "signer_id": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "signature": {
+            "type": "string",
+            "format": "byte"
+          }
+        },
+        "required": [
+          "candidate_revision",
+          "evidence_digest",
+          "action",
+          "event_id",
+          "signer_id",
+          "signature"
+        ]
+      },
+      "PolicyInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "excluded_paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "excluded_fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "allowed_model_routes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "raw_history_retention_seconds": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "inactive_task_retention_seconds": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "backup_retention_seconds": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "spool_limit_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "paused",
+          "excluded_paths",
+          "excluded_fields",
+          "allowed_model_routes",
+          "raw_history_retention_seconds",
+          "inactive_task_retention_seconds",
+          "backup_retention_seconds",
+          "spool_limit_bytes"
+        ]
+      },
+      "Policy": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "revision": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "excluded_paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "excluded_fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "allowed_model_routes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "raw_history_retention_seconds": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "inactive_task_retention_seconds": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "backup_retention_seconds": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "spool_limit_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "revision",
+          "paused",
+          "excluded_paths",
+          "excluded_fields",
+          "allowed_model_routes",
+          "raw_history_retention_seconds",
+          "inactive_task_retention_seconds",
+          "backup_retention_seconds",
+          "spool_limit_bytes"
+        ]
+      },
+      "PolicyResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "3"
+            ]
+          },
+          "policy": {
+            "$ref": "#/components/schemas/Policy"
+          }
+        },
+        "required": [
+          "schema_version",
+          "policy"
+        ]
+      },
+      "ClientInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "project_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpaqueID"
+            }
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "project_ids",
+          "capabilities"
+        ]
+      },
+      "Client": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "project_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpaqueID"
+            }
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "auth_epoch": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "revoked": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "project_ids",
+          "capabilities",
+          "auth_epoch",
+          "revoked"
+        ]
+      },
+      "ClientsResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "3"
+            ]
+          },
+          "clients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Client"
+            }
+          }
+        },
+        "required": [
+          "schema_version",
+          "clients"
+        ]
+      },
+      "ClientResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "3"
+            ]
+          },
+          "client": {
+            "$ref": "#/components/schemas/Client"
+          }
+        },
+        "required": [
+          "schema_version",
+          "client"
+        ]
+      },
+      "DeletionInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          },
+          "record_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpaqueID"
+            }
+          },
+          "idempotency_key": {
+            "$ref": "#/components/schemas/OpaqueID"
+          }
+        },
+        "required": [
+          "scope",
+          "record_ids",
+          "idempotency_key"
+        ]
+      },
+      "ExportInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          },
+          "idempotency_key": {
+            "$ref": "#/components/schemas/OpaqueID"
+          }
+        },
+        "required": [
+          "scope",
+          "idempotency_key"
+        ]
+      },
+      "JobResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "3"
+            ]
+          },
+          "id": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "id",
+          "state"
+        ]
+      },
+      "StatusResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "3"
+            ]
+          },
+          "connection_state": {
+            "type": "string",
+            "enum": [
+              "available",
+              "degraded",
+              "unavailable"
+            ]
+          },
+          "authorized_project_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpaqueID"
+            }
+          },
+          "capability_gaps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "schema_version",
+          "connection_state",
+          "authorized_project_ids",
+          "capability_gaps"
+        ]
+      },
+      "Problem": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer",
+            "minimum": 400,
+            "maximum": 599
+          },
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "3"
+            ]
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "unauthorized",
+              "forbidden",
+              "conflict",
+              "stale",
+              "incomplete",
+              "budget",
+              "unavailable",
+              "deleted",
+              "invalid_input"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/OpaqueID"
+          },
+          "runbook": {
+            "type": "string"
+          },
+          "retry_after_seconds": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "minimum_budget_bytes": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "status",
+          "schema_version",
+          "code",
+          "message",
+          "action",
+          "request_id",
+          "runbook"
+        ],
+        "description": "Safe problem response. Authorization failures never reveal whether a restricted record exists. Optional retry/budget metadata must preserve that boundary."
+      },
+      "OrientInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          },
+          "query": {
+            "type": "string"
+          },
+          "entity_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpaqueID"
+            }
+          },
+          "applicability": {
+            "$ref": "#/components/schemas/Applicability"
+          },
+          "budget_bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096,
+            "default": 4096
+          },
+          "max_depth": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2,
+            "default": 2
+          },
+          "max_visited": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 50
+          },
+          "continuation": {
+            "type": "string"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/RetrievalMode"
+          }
+        },
+        "required": [
+          "scope"
+        ],
+        "description": "Maximum 4096 complete HTTP JSON bytes, depth 2 and 50 visited records. CLI length-prefixed and MCP framed encodings each have their own complete-wire accounting. Defaults to orientation mode; working mode remains task-scoped."
+      },
+      "SearchInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          },
+          "query": {
+            "type": "string"
+          },
+          "entity_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpaqueID"
+            }
+          },
+          "applicability": {
+            "$ref": "#/components/schemas/Applicability"
+          },
+          "budget_bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 16384,
+            "default": 16384
+          },
+          "max_depth": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2,
+            "default": 2
+          },
+          "max_visited": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 50
+          },
+          "continuation": {
+            "type": "string"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/RetrievalMode"
+          }
+        },
+        "required": [
+          "scope"
+        ],
+        "description": "Maximum 16384 complete HTTP JSON bytes, depth 2 and 50 visited records. CLI length-prefixed and MCP framed encodings each have their own complete-wire accounting. Defaults to evidence mode; working mode remains task-scoped."
+      },
+      "ClientCredentialResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "client",
+          "bearer"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "3"
+            ]
+          },
+          "client": {
+            "$ref": "#/components/schemas/Client"
+          },
+          "bearer": {
+            "type": "string",
+            "minLength": 1,
+            "description": "One-time enrollment credential, returned only to authenticated owner. Never log, persist plaintext, or include in list/status."
+          }
+        }
+      }
+    },
+    "responses": {
+      "Problem": {
+        "description": "Safe failure; an unimplemented capability is explicitly unavailable.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      }
+    }
+  }
+}

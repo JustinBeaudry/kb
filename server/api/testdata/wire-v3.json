@@ -1,0 +1,137 @@
+[
+  {
+    "name": "candidate",
+    "response_schema": "RetrievalResult",
+    "http_status": 200,
+    "body": {
+      "schema_version": "3",
+      "truncated": false,
+      "visited": 1,
+      "no_results": false,
+      "chunks": [
+        {
+          "record_id": "claim:fixture",
+          "revision": "revision:1",
+          "text": "Fixture observation.",
+          "claim_status": "candidate",
+          "origin_trust": "submitted",
+          "evidence": [
+            {
+              "artifact_id": "artifact:fixture",
+              "digest": "sha256:fixture",
+              "locator": "line:1",
+              "source_revision": "source:fixture-revision",
+              "origin": {
+                "client_id": "collector:fixture",
+                "trust": "submitted"
+              },
+              "applicability": {
+                "environment": "fixture"
+              }
+            }
+          ],
+          "warnings": []
+        }
+      ]
+    }
+  },
+  {
+    "name": "verified",
+    "response_schema": "RetrievalResult",
+    "http_status": 200,
+    "body": {
+      "schema_version": "3",
+      "truncated": false,
+      "visited": 1,
+      "no_results": false,
+      "chunks": [
+        {
+          "record_id": "claim:fixture",
+          "revision": "revision:1",
+          "text": "Fixture observation.",
+          "claim_status": "verified",
+          "origin_trust": "gateway_observed",
+          "evidence": [
+            {
+              "artifact_id": "artifact:fixture",
+              "digest": "sha256:fixture",
+              "locator": "line:1",
+              "source_revision": "source:fixture-revision",
+              "origin": {
+                "client_id": "collector:fixture",
+                "trust": "gateway_observed"
+              },
+              "applicability": {
+                "environment": "fixture"
+              }
+            }
+          ],
+          "warnings": [],
+          "verification_outcome": "supported"
+        }
+      ]
+    }
+  },
+  {
+    "name": "conflict",
+    "response_schema": "Problem",
+    "http_status": 409,
+    "body": {
+      "type": "about:blank",
+      "title": "Revision conflict",
+      "status": 409,
+      "schema_version": "3",
+      "code": "conflict",
+      "message": "The expected revision has changed.",
+      "action": "Refresh the current revision and retry.",
+      "request_id": "request:fixture",
+      "runbook": "memory-operations#conflict"
+    }
+  },
+  {
+    "name": "no-results",
+    "response_schema": "RetrievalResult",
+    "http_status": 200,
+    "body": {
+      "schema_version": "3",
+      "truncated": false,
+      "visited": 0,
+      "no_results": true,
+      "chunks": []
+    }
+  },
+  {
+    "name": "unavailable-source",
+    "response_schema": "Problem",
+    "http_status": 503,
+    "body": {
+      "type": "about:blank",
+      "title": "Capability unavailable",
+      "status": 503,
+      "schema_version": "3",
+      "code": "unavailable",
+      "message": "The requested capability is unavailable.",
+      "action": "Retry after checking service status.",
+      "request_id": "request:fixture",
+      "runbook": "memory-operations#unavailable",
+      "retry_after_seconds": 30
+    }
+  },
+  {
+    "name": "tiny-budget",
+    "response_schema": "Problem",
+    "http_status": 413,
+    "body": {
+      "type": "about:blank",
+      "title": "Budget too small",
+      "status": 413,
+      "schema_version": "3",
+      "code": "budget",
+      "message": "The response cannot fit the requested budget.",
+      "action": "Retry with at least the minimum complete-wire budget.",
+      "request_id": "request:fixture",
+      "runbook": "memory-operations#budget",
+      "minimum_budget_bytes": 512
+    }
+  }
+]

@@ -1,0 +1,9 @@
+// Package migrations embeds the authoritative initial graph schema.
+package migrations
+
+import _ "embed"
+
+// Identity is idempotent and must finish before accepting service traffic.
+//
+//go:embed 001_identity.cypher
+var Identity string
