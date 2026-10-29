@@ -77,9 +77,9 @@ Use explicit structs in `server/internal/domain/`; ID fields are strings validat
 | Artifact / `evidence.go` | ID, ObjectKey, Digest, PolicyRevision, SourceLocator, Generation string; optional SourcePath string; ObjectAvailable and upload lease metadata separate from immutable JSON; Scope; Bytes int64; State(staged, ready, deleted; internal abandoning/abandoned are ineligible); ExpiresAt (staging deadline, cleared on ready) |
 | EvidenceRef / `evidence.go` | ArtifactID, Digest, Locator, SourceRevision string; Origin; Applicability |
 | Applicability / `claim.go` | RepositoryRevision, DirtyDigest, Environment string; Versions map[string]string; ValidFrom, ValidUntil optional UTC times |
-| ClaimRevision / `claim.go` | ClaimID, Revision, Text, Kind string; Scope; Evidence []EvidenceRef; DependsOn []string; Applicability; Status enum |
+| ClaimRevision / `claim.go` | ClaimID, Revision, Text, Kind string; Scope; optional EntityIDs []string; Evidence []EvidenceRef; DependsOn []string; Applicability; Status enum |
 | Checkpoint / `checkpoint.go` | ID, Revision string; Scope; Objective string; Completed, Pending, Questions, EvidenceRevisionIDs []string; UpdatedAt |
-| CandidateInput / `claim.go` | ClaimID, ExpectedRevision, Text, Kind string; Scope; Evidence []EvidenceRef; DependsOn []string; Applicability |
+| CandidateInput / `claim.go` | ClaimID, ExpectedRevision, Text, Kind string; Scope; optional EntityIDs []string; Evidence []EvidenceRef; DependsOn []string; Applicability |
 | Verification / `claim.go` | ID, ClaimRevision, PolicyRevision, EvidenceDigest string; Outcome enum; Method string; Origin; CheckedAt |
 | Publication / `claim.go` | ID, ClaimRevision, SharingScope, Revision string; SupportRevisions []string; PolicyRevision string |
 | Job / `job.go` | ID, Kind, InputDigest, PolicyRevision string; Scope; InputRevisionIDs []string; Status enum; Attempts int; DueAt |
