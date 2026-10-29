@@ -88,7 +88,7 @@ Use explicit structs in `server/internal/domain/`; ID fields are strings validat
 | DecisionReply / `decision.go` | DecisionID, CandidateRevision, EvidenceDigest, Action, EventID, SignerID string; Signature []byte |
 | Receipt / `evidence.go` | ID string; Duplicate bool; State string |
 | RetrievalRequest / `retrieval.go` | Scope; Query string; EntityIDs []string; Applicability; BudgetBytes, MaxDepth, MaxVisited int; Continuation string; Mode enum(orientation,evidence,working) |
-| EvidenceChunk / `retrieval.go` | RecordID, Revision, Text string; ClaimStatus closed enum; OriginTrust closed enum; VerificationOutcome optional closed enum; Evidence []EvidenceRef; Warnings []string |
+| EvidenceChunk / `retrieval.go` | RecordID, Revision, Text string; ClaimStatus closed enum; OriginTrust closed enum; VerificationOutcome optional closed enum; Evidence []EvidenceRef; optional target Applicability; Warnings []string |
 | RetrievalResult / `retrieval.go` | SchemaVersion string; Chunks []EvidenceChunk; optional TaskCheckpoint (explicitly labeled task state, never a verified claim); Truncated bool; Continuation string; Visited int; NoResults bool |
 
 Boundary structs referenced in task signatures are defined in the owning service file; API counterparts are separate generated DTOs. Sentinel errors in `domain/errors.go`: ErrUnauthorized, ErrForbidden, ErrConflict, ErrStale, ErrIncomplete, ErrBudget, ErrUnavailable, ErrDeleted, ErrInvalidInput. Map to consistent API problem responses; never leak source existence to unauthorized callers.
