@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -35,8 +36,9 @@ type EvidenceRepository interface {
 	Event(context.Context, Tx, string) (domain.Event, domain.Origin, error)
 	SaveEvent(context.Context, Tx, string, domain.Event, domain.Origin) error
 	Pending(context.Context, Tx, int) ([]domain.Artifact, error)
-	Checked(context.Context, Tx, string, int64) error
-	Availability(context.Context, Tx, string, bool) error
+	Checked(context.Context, Tx, string, string, int64) error
+	Availability(context.Context, Tx, string, string, bool) error
+	UploadLease(context.Context, Tx, string, string, string, time.Time) error
 }
 type CaptureJobs interface {
 	Enqueue(context.Context, Tx, domain.Job) error
@@ -103,20 +105,49 @@ func (s *CaptureService) Stage(ctx context.Context, p domain.Principal, m Artifa
 	if err := Authorize(p, "artifacts:write", []string{m.Scope.ProjectID}); err != nil {
 		return domain.Artifact{}, err
 	}
+	// Validate one capped chunk before creating persistence or cleanup obligations.
+	data, err := io.ReadAll(io.LimitReader(body, MaxArtifactBytes+1))
+	if err != nil {
+		return domain.Artifact{}, domain.ErrUnavailable
+	}
+	if int64(len(data)) != m.Bytes || TokenDigest(string(data)) != m.Digest {
+		return domain.Artifact{}, domain.ErrInvalidInput
+	}
 	id := captureID(p.ClientID, m.Scope, m.Digest, m.Bytes, m.PolicyRevision, m.SourceLocator, m.SourcePath)
-	a := domain.Artifact{ID: id, ObjectKey: "evidence/" + id, Digest: m.Digest, PolicyRevision: m.PolicyRevision, Scope: m.Scope, Bytes: m.Bytes, State: domain.ArtifactStaged, SourceLocator: m.SourceLocator, SourcePath: m.SourcePath}
-	err := s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
+	a := domain.Artifact{ID: id, Digest: m.Digest, PolicyRevision: m.PolicyRevision, Scope: m.Scope, Bytes: m.Bytes, State: domain.ArtifactStaged, SourceLocator: m.SourceLocator, SourcePath: m.SourcePath}
+	leaseID := rand.Text()
+	err = s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
 		if err := s.policy(ctx, tx, a); err != nil {
 			return err
 		}
-		existing, _, err := s.repo.Artifact(ctx, tx, id)
-		if err == nil {
-			a = existing
-			return nil
-		}
-		if !errors.Is(err, domain.ErrIncomplete) {
+		current, _, err := s.repo.Artifact(ctx, tx, id)
+		if err != nil && !errors.Is(err, domain.ErrIncomplete) {
 			return err
 		}
+		if err == nil {
+			a = current
+			switch a.State {
+			case domain.ArtifactDeleted:
+				return domain.ErrDeleted
+			case domain.ArtifactAbandoning:
+				return domain.ErrIncomplete
+			case domain.ArtifactReady:
+				return nil
+			}
+			if a.UploadLeaseUntil.After(time.Now().UTC()) {
+				return domain.ErrConflict
+			}
+		}
+		if a.Generation == "" || a.State == domain.ArtifactAbandoned {
+			a.Generation = rand.Text()
+			a.ObjectKey = "evidence/" + id + "/" + a.Generation
+		}
+		a.State = domain.ArtifactStaged
+		a.ObjectAvailable = false
+		deadline := time.Now().UTC().Add(CaptureAbandonAfter)
+		a.ExpiresAt = &deadline
+		a.UploadLeaseID = leaseID
+		a.UploadLeaseUntil = time.Now().UTC().Add(CaptureUploadLease)
 		if err = s.repo.SaveArtifact(ctx, tx, a, p.ClientID); err != nil {
 			return err
 		}
@@ -125,33 +156,53 @@ func (s *CaptureService) Stage(ctx context.Context, p domain.Principal, m Artifa
 	if err != nil {
 		return domain.Artifact{}, err
 	}
-	// Bounded by one chunk, including one sentinel byte to reject oversized input.
-	data, err := io.ReadAll(io.LimitReader(body, MaxArtifactBytes+1))
+	putCtx, cancel := context.WithTimeout(ctx, CapturePutTimeout)
+	putErr := s.objects.Put(putCtx, a.ObjectKey, bytes.NewReader(data), a.Digest)
+	cancel()
+	// Parent cancellation is authoritative; a failed settlement leaves only the
+	// bounded persisted lease, not an unbounded detached cleanup goroutine.
+	err = s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
+		current, _, err := s.repo.Artifact(ctx, tx, a.ID)
+		if err != nil {
+			return err
+		}
+		if current.ObjectKey != a.ObjectKey {
+			return domain.ErrStale
+		}
+		if current.UploadLeaseID == leaseID {
+			if err = s.repo.UploadLease(ctx, tx, a.ID, a.ObjectKey, "", time.Time{}); err != nil {
+				return err
+			}
+		}
+		if current.State == domain.ArtifactDeleted {
+			return domain.ErrDeleted
+		}
+		if current.State == domain.ArtifactAbandoning || current.State == domain.ArtifactAbandoned {
+			return domain.ErrIncomplete
+		}
+		return s.policy(ctx, tx, current)
+	})
 	if err != nil {
-		return domain.Artifact{}, domain.ErrUnavailable
-	}
-	if int64(len(data)) != m.Bytes || TokenDigest(string(data)) != m.Digest {
-		return domain.Artifact{}, domain.ErrInvalidInput
-	}
-	if a.State == domain.ArtifactDeleted {
-		return domain.Artifact{}, domain.ErrDeleted
-	}
-	// Content-addressed immutable key: retries can only write the validated bytes.
-	if err = s.objects.Put(ctx, a.ObjectKey, bytes.NewReader(data), a.Digest); err != nil {
 		return domain.Artifact{}, err
 	}
-	// Policy may have changed while object I/O was in progress. Never acknowledge
-	// the object as usable without rechecking authoritative state.
-	err = s.tx.Within(ctx, func(ctx context.Context, tx Tx) error { return s.policy(ctx, tx, a) })
-	if err != nil {
-		return domain.Artifact{}, err
+	if putErr != nil {
+		return domain.Artifact{}, putErr
 	}
+	a.UploadLeaseID = ""
+	a.UploadLeaseUntil = time.Time{}
 	return a, nil
 }
 func (s *CaptureService) enqueue(ctx context.Context, tx Tx, a domain.Artifact, kind string) error {
-	// The input digest binds immutable identity, client/scope and policy, not raw payload.
-	j := domain.Job{ID: captureID(kind, a.ID), Kind: kind, InputDigest: captureID(a.ID, a.Digest), PolicyRevision: a.PolicyRevision, Scope: a.Scope, InputRevisionIDs: []string{a.ID}, DueAt: time.Now().UTC()}
-	if domain.ValidateIDs(j.ID, j.Kind, j.InputDigest, j.PolicyRevision, j.InputRevisionIDs[0]) != nil {
+	digest := captureID(a.ID, a.Digest)
+	id := captureID(kind, a.ID)
+	revisions := []string{a.ID}
+	if kind == "capture.reconcile" {
+		digest = captureID(a.ID, a.Digest, a.Generation)
+		id = captureID(kind, a.ID, a.Generation)
+		revisions = append(revisions, a.Generation)
+	}
+	j := domain.Job{ID: id, Kind: kind, InputDigest: digest, PolicyRevision: a.PolicyRevision, Scope: a.Scope, InputRevisionIDs: revisions, DueAt: time.Now().UTC()}
+	if domain.ValidateIDs(j.ID, j.Kind, j.InputDigest, j.PolicyRevision) != nil {
 		return domain.ErrInvalidInput
 	}
 	return s.jobs.Enqueue(ctx, tx, j)
@@ -179,6 +230,9 @@ func (s *CaptureService) load(ctx context.Context, p domain.Principal, id, cap s
 		}
 		if a.State == domain.ArtifactDeleted {
 			return domain.ErrDeleted
+		}
+		if a.State == domain.ArtifactAbandoning || a.State == domain.ArtifactAbandoned {
+			return domain.ErrIncomplete
 		}
 		return s.policy(ctx, tx, a)
 	})
@@ -208,18 +262,30 @@ func (s *CaptureService) publish(ctx context.Context, tx Tx, a domain.Artifact) 
 	if current.State == domain.ArtifactDeleted {
 		return domain.Receipt{}, domain.ErrDeleted
 	}
+	if current.ObjectKey != a.ObjectKey || current.Generation != a.Generation {
+		return domain.Receipt{}, domain.ErrStale
+	}
+	if current.State != domain.ArtifactStaged && current.State != domain.ArtifactReady {
+		return domain.Receipt{}, domain.ErrIncomplete
+	}
+	if current.State == domain.ArtifactStaged && current.ExpiresAt != nil && !current.ExpiresAt.After(time.Now().UTC()) {
+		return domain.Receipt{}, domain.ErrIncomplete
+	}
 	if err = s.policy(ctx, tx, current); err != nil {
 		return domain.Receipt{}, err
 	}
 	duplicate := current.State == domain.ArtifactReady
 	if !duplicate {
 		current.State = domain.ArtifactReady
+		current.ExpiresAt = nil
+		current.UploadLeaseID = ""
+		current.UploadLeaseUntil = time.Time{}
 		current.ObjectAvailable = true
 		if err = s.repo.SaveArtifact(ctx, tx, current, client); err != nil {
 			return domain.Receipt{}, err
 		}
 	}
-	if err = s.repo.Availability(ctx, tx, current.ID, true); err != nil {
+	if err = s.repo.Availability(ctx, tx, current.ID, current.ObjectKey, true); err != nil {
 		return domain.Receipt{}, err
 	}
 	if err = s.enqueue(ctx, tx, current, "evidence.extract"); err != nil {
@@ -238,7 +304,7 @@ func (s *CaptureService) Complete(ctx context.Context, p domain.Principal, id, d
 	if a.Digest != digest {
 		return domain.Receipt{}, domain.ErrConflict
 	}
-	if err = s.checkObject(ctx, a); err != nil {
+	if err = s.verifyObject(ctx, a); err != nil {
 		return domain.Receipt{}, err
 	}
 	var receipt domain.Receipt
@@ -290,7 +356,7 @@ func (s *CaptureService) Append(ctx context.Context, p domain.Principal, events 
 		if a.Digest != e.Digest {
 			return nil, domain.ErrConflict
 		}
-		if err = s.checkObject(ctx, a); err != nil {
+		if err = s.verifyObject(ctx, a); err != nil {
 			return nil, err
 		}
 	}
@@ -362,11 +428,7 @@ func (s *CaptureService) Reference(ctx context.Context, p domain.Principal, ref 
 	if a.Digest != ref.Digest || ref.Locator != a.SourceLocator {
 		return domain.EvidenceRef{}, domain.ErrConflict
 	}
-	if err = s.checkObject(ctx, a); err != nil {
-		healthErr := s.tx.Within(ctx, func(ctx context.Context, tx Tx) error { return s.repo.Availability(ctx, tx, a.ID, false) })
-		if healthErr != nil {
-			return domain.EvidenceRef{}, healthErr
-		}
+	if err = s.verifyObject(ctx, a); err != nil {
 		return domain.EvidenceRef{}, err
 	}
 	// Caller trust never crosses the boundary. Capture proves integrity only.
@@ -386,82 +448,4 @@ func (s *CaptureService) Reference(ctx context.Context, p domain.Principal, ref 
 		return domain.EvidenceRef{}, err
 	}
 	return ref, nil
-}
-
-// Reconcile performs object I/O outside JobsService.Commit. Its callback only
-// publishes graph state with the live lease fence. Extraction stays queued.
-func (s *CaptureService) Reconcile(ctx context.Context, job domain.Job, lease domain.Lease, jobs interface {
-	Commit(context.Context, domain.Lease, string, func(context.Context, Tx) error) error
-}) error {
-	if job.Kind != "capture.reconcile" || len(job.InputRevisionIDs) != 1 {
-		return domain.ErrInvalidInput
-	}
-	var a domain.Artifact
-	err := s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
-		var err error
-		a, _, err = s.repo.Artifact(ctx, tx, job.InputRevisionIDs[0])
-		if err != nil {
-			return err
-		}
-		if job.PolicyRevision != a.PolicyRevision || job.InputDigest != captureID(a.ID, a.Digest) || job.Scope != a.Scope {
-			return domain.ErrConflict
-		}
-		return s.policy(ctx, tx, a)
-	})
-	if err != nil {
-		return err
-	}
-	if a.State == domain.ArtifactDeleted {
-		return nil
-	}
-	if err = s.checkObject(ctx, a); err != nil {
-		return err
-	}
-	return jobs.Commit(ctx, lease, job.InputDigest, func(ctx context.Context, tx Tx) error { _, err := s.publish(ctx, tx, a); return err })
-}
-
-// Sweep audits bounded batches ordered by last check, so missing ready objects
-// cannot remain silently usable and interrupted uploads can finish without the
-// caller. Missing objects stay explicit incomplete manifests; no extraction is
-// acknowledged by this operation. It is safe alongside leased reconciliation.
-func (s *CaptureService) Sweep(ctx context.Context, limit int) error {
-	if limit < 1 || limit > 100 {
-		return domain.ErrInvalidInput
-	}
-	var artifacts []domain.Artifact
-	err := s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
-		var err error
-		artifacts, err = s.repo.Pending(ctx, tx, limit)
-		return err
-	})
-	if err != nil {
-		return err
-	}
-	var failures error
-	for _, a := range artifacts {
-		checkErr := s.checkObject(ctx, a)
-		err = s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
-			if err := s.repo.Availability(ctx, tx, a.ID, checkErr == nil); err != nil {
-				return err
-			}
-			if err := s.repo.Checked(ctx, tx, a.ID, time.Now().UTC().UnixNano()); err != nil {
-				return err
-			}
-			return nil
-		})
-		if err != nil {
-			return err
-		}
-		if checkErr != nil {
-			failures = errors.Join(failures, checkErr)
-			continue
-		}
-		if a.State == domain.ArtifactStaged {
-			err = s.tx.Within(ctx, func(ctx context.Context, tx Tx) error { _, err := s.publish(ctx, tx, a); return err })
-			if err != nil {
-				failures = errors.Join(failures, err)
-			}
-		}
-	}
-	return failures
 }

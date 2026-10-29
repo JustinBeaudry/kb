@@ -53,12 +53,18 @@ const (
 	ArtifactStaged  ArtifactState = "staged"
 	ArtifactReady   ArtifactState = "ready"
 	ArtifactDeleted ArtifactState = "deleted"
+	// Internal capture retirement states; they do not represent owner deletion.
+	ArtifactAbandoning ArtifactState = "abandoning"
+	ArtifactAbandoned  ArtifactState = "abandoned"
 )
 
 type Artifact struct {
 	ID, ObjectKey, Digest, PolicyRevision string
 	SourceLocator, SourcePath             string
-	ObjectAvailable                       bool `json:"-"`
+	Generation                            string
+	UploadLeaseID                         string    `json:"-"`
+	UploadLeaseUntil                      time.Time `json:"-"`
+	ObjectAvailable                       bool      `json:"-"`
 	Scope                                 Scope
 	Bytes                                 int64
 	State                                 ArtifactState

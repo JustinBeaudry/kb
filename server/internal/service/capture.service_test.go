@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"sort"
 	"testing"
 	"time"
 
@@ -20,6 +21,7 @@ type captureRepo struct {
 	events    map[string]domain.Event
 	origins   map[string]domain.Origin
 	policy    domain.Policy
+	checked   map[string]int64
 }
 
 func (r *captureRepo) Policy(context.Context, Tx, string) (domain.Policy, error) {
@@ -54,6 +56,12 @@ func (r *captureRepo) Pending(context.Context, Tx, int) ([]domain.Artifact, erro
 	for _, v := range r.artifacts {
 		a = append(a, v)
 	}
+	sort.Slice(a, func(i, j int) bool {
+		if r.checked[a[i].ID] == r.checked[a[j].ID] {
+			return a[i].ID < a[j].ID
+		}
+		return r.checked[a[i].ID] < r.checked[a[j].ID]
+	})
 	return a, nil
 }
 
@@ -157,6 +165,9 @@ func (r *checkpointRepo) Save(_ context.Context, _ Tx, c domain.Checkpoint, clie
 type directTx struct{}
 
 func (directTx) Within(ctx context.Context, fn func(context.Context, Tx) error) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	return fn(ctx, nil)
 }
 
@@ -176,10 +187,19 @@ func TestCaptureSweepRecoversStagedAndReportsMissing(t *testing.T) {
 	assert.False(t, r.artifacts[a.ID].ObjectAvailable)
 }
 
-func (r *captureRepo) Checked(context.Context, Tx, string, int64) error { return nil }
+func (r *captureRepo) Checked(_ context.Context, _ Tx, id, key string, at int64) error {
+	if r.checked == nil {
+		r.checked = map[string]int64{}
+	}
+	r.checked[id] = at
+	return nil
+}
 
-func (r *captureRepo) Availability(_ context.Context, _ Tx, id string, available bool) error {
+func (r *captureRepo) Availability(_ context.Context, _ Tx, id, key string, available bool) error {
 	a := r.artifacts[id]
+	if a.ObjectKey != key {
+		return domain.ErrStale
+	}
 	a.ObjectAvailable = available
 	r.artifacts[id] = a
 	return nil
@@ -384,4 +404,219 @@ func TestCaptureBoundaryValidation(t *testing.T) {
 	assert.ErrorIs(t, s.Sweep(t.Context(), 101), domain.ErrInvalidInput)
 	_, err = NewCheckpointService(nil, nil).Put(t.Context(), p, "", domain.Checkpoint{})
 	assert.ErrorIs(t, err, domain.ErrInvalidInput)
+}
+
+type directCommit struct{}
+
+func (directCommit) Commit(ctx context.Context, _ domain.Lease, _ string, fn func(context.Context, Tx) error) error {
+	return fn(ctx, nil)
+}
+func TestCaptureFailedChecksInvalidateEveryPath(t *testing.T)  { testCaptureFailedChecks(t, false) }
+func TestCaptureCorruptChecksInvalidateEveryPath(t *testing.T) { testCaptureFailedChecks(t, true) }
+func testCaptureFailedChecks(t *testing.T, corrupt bool) {
+	t.Helper()
+	for _, operation := range []string{"complete", "append", "reconcile"} {
+		t.Run(operation, func(t *testing.T) {
+			s, r, o, p, m := captureFixture(t)
+			a := readyCapture(t, s, p, m)
+			if corrupt {
+				o.data[a.ObjectKey] = []byte("corrupt bytes")
+			} else {
+				delete(o.data, a.ObjectKey)
+			}
+			var err error
+			switch operation {
+			case "complete":
+				_, err = s.Complete(t.Context(), p, a.ID, a.Digest)
+			case "append":
+				_, err = s.Append(t.Context(), p, []domain.Event{eventFor(a)})
+			case "reconcile":
+				for _, j := range s.jobs.(*fakeJobs).jobs {
+					if j.Kind == "capture.reconcile" {
+						err = s.Reconcile(t.Context(), j, domain.Lease{}, directCommit{})
+					}
+				}
+			}
+			assert.ErrorIs(t, err, domain.ErrIncomplete)
+			assert.False(t, r.artifacts[a.ID].ObjectAvailable)
+			assert.Equal(t, domain.ArtifactReady, r.artifacts[a.ID].State)
+		})
+	}
+}
+
+type slowObjects struct {
+	ObjectStore
+	slowKey string
+}
+
+func (o slowObjects) Open(ctx context.Context, key string) (io.ReadCloser, error) {
+	if key == o.slowKey {
+		<-ctx.Done()
+		return nil, domain.ErrUnavailable
+	}
+	return o.ObjectStore.Open(ctx, key)
+}
+func TestCaptureSweepAdvancesAfterSlowObject(t *testing.T) {
+	s, r, o, p, m := captureFixture(t)
+	slow := readyCapture(t, s, p, m)
+	m.SourceLocator = "file:two"
+	later := readyCapture(t, s, p, m)
+	r.checked = map[string]int64{slow.ID: 0, later.ID: 1}
+	s.objects = slowObjects{ObjectStore: o, slowKey: slow.ObjectKey}
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	t.Cleanup(cancel)
+	err := s.Sweep(ctx, 2)
+	assert.ErrorIs(t, err, domain.ErrUnavailable)
+	assert.Greater(t, r.checked[slow.ID], int64(1))
+	assert.Greater(t, r.checked[later.ID], int64(1))
+	assert.False(t, r.artifacts[slow.ID].ObjectAvailable)
+	assert.True(t, r.artifacts[later.ID].ObjectAvailable)
+}
+func TestCaptureSweepExpiresAbandonedAndAllowsFreshRetry(t *testing.T) {
+	s, r, o, p, m := captureFixture(t)
+	a, err := s.Stage(t.Context(), p, m, bytes.NewBufferString("exit_code=0"))
+	require.NoError(t, err)
+	expired := time.Now().UTC().Add(-time.Hour)
+	staged := r.artifacts[a.ID]
+	staged.ExpiresAt = &expired
+	r.artifacts[a.ID] = staged
+	require.NoError(t, s.Sweep(t.Context(), 100))
+	assert.Equal(t, "abandoned", string(r.artifacts[a.ID].State))
+	assert.NotContains(t, o.data, a.ObjectKey)
+	replacement, err := s.Stage(t.Context(), p, m, bytes.NewBufferString("exit_code=0"))
+	require.NoError(t, err)
+	assert.Equal(t, a.ID, replacement.ID)
+	assert.NotEqual(t, a.ObjectKey, replacement.ObjectKey)
+	_, err = s.Complete(t.Context(), p, replacement.ID, replacement.Digest)
+	require.NoError(t, err)
+}
+
+func (r *captureRepo) UploadLease(_ context.Context, _ Tx, id, key, lease string, until time.Time) error {
+	a := r.artifacts[id]
+	if a.ObjectKey != key {
+		return domain.ErrStale
+	}
+	a.UploadLeaseID = lease
+	a.UploadLeaseUntil = until
+	r.artifacts[id] = a
+	return nil
+}
+
+type heldDeleteObjects struct {
+	ObjectStore
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (o heldDeleteObjects) Delete(ctx context.Context, key string) error {
+	close(o.entered)
+	select {
+	case <-o.release:
+		return o.ObjectStore.Delete(ctx, key)
+	case <-ctx.Done():
+		return domain.ErrUnavailable
+	}
+}
+func TestCaptureCleanupClaimFencesRetryAndCompletion(t *testing.T) {
+	s, r, o, p, m := captureFixture(t)
+	a, err := s.Stage(t.Context(), p, m, bytes.NewBufferString("exit_code=0"))
+	require.NoError(t, err)
+	expire := time.Now().UTC().Add(-time.Minute)
+	staged := r.artifacts[a.ID]
+	staged.ExpiresAt = &expire
+	r.artifacts[a.ID] = staged
+	entered, release := make(chan struct{}), make(chan struct{})
+	s.objects = heldDeleteObjects{ObjectStore: o, entered: entered, release: release}
+	result := make(chan error, 1)
+	go func() { result <- s.Sweep(t.Context(), 100) }()
+	<-entered
+	_, err = s.Stage(t.Context(), p, m, bytes.NewBufferString("exit_code=0"))
+	assert.ErrorIs(t, err, domain.ErrIncomplete)
+	_, err = s.Complete(t.Context(), p, a.ID, a.Digest)
+	assert.ErrorIs(t, err, domain.ErrIncomplete)
+	close(release)
+	require.NoError(t, <-result)
+	s.objects = o
+	_, err = s.Complete(t.Context(), p, a.ID, a.Digest)
+	assert.ErrorIs(t, err, domain.ErrIncomplete)
+	replacement, err := s.Stage(t.Context(), p, m, bytes.NewBufferString("exit_code=0"))
+	require.NoError(t, err)
+	assert.NotEqual(t, a.Generation, replacement.Generation)
+	_, err = s.Complete(t.Context(), p, replacement.ID, replacement.Digest)
+	require.NoError(t, err)
+	var extracts int
+	for _, j := range s.jobs.(*fakeJobs).jobs {
+		if j.Kind == "evidence.extract" {
+			extracts++
+		}
+	}
+	assert.Equal(t, 1, extracts)
+}
+
+type failedDeleteObjects struct{ ObjectStore }
+
+func (failedDeleteObjects) Delete(context.Context, string) error { return domain.ErrUnavailable }
+func TestCaptureCleanupFailurePersistsAndPausedPolicyCanRetire(t *testing.T) {
+	s, r, o, p, m := captureFixture(t)
+	a, err := s.Stage(t.Context(), p, m, bytes.NewBufferString("exit_code=0"))
+	require.NoError(t, err)
+	expired := time.Now().UTC().Add(-time.Hour)
+	staged := r.artifacts[a.ID]
+	staged.ExpiresAt = &expired
+	r.artifacts[a.ID] = staged
+	r.policy.Paused = true
+	s.objects = failedDeleteObjects{ObjectStore: o}
+	assert.ErrorIs(t, s.Sweep(t.Context(), 100), domain.ErrUnavailable)
+	assert.Equal(t, domain.ArtifactAbandoning, r.artifacts[a.ID].State)
+	assert.Contains(t, o.data, a.ObjectKey)
+	s.objects = o
+	require.NoError(t, s.Sweep(t.Context(), 100))
+	assert.Equal(t, domain.ArtifactAbandoned, r.artifacts[a.ID].State)
+	assert.NotContains(t, o.data, a.ObjectKey)
+}
+func TestCaptureRetryLeaseAndDeadline(t *testing.T) {
+	s, r, o, p, m := captureFixture(t)
+	a, err := s.Stage(t.Context(), p, m, bytes.NewBufferString("exit_code=0"))
+	require.NoError(t, err)
+	require.NotNil(t, a.ExpiresAt)
+	assert.WithinDuration(t, time.Now().UTC().Add(CaptureAbandonAfter), *a.ExpiresAt, time.Second)
+	held := r.artifacts[a.ID]
+	held.UploadLeaseID = "active"
+	held.UploadLeaseUntil = time.Now().UTC().Add(CaptureUploadLease)
+	expired := time.Now().UTC().Add(-time.Hour)
+	held.ExpiresAt = &expired
+	r.artifacts[a.ID] = held
+	_, err = s.Stage(t.Context(), p, m, bytes.NewBufferString("exit_code=0"))
+	assert.ErrorIs(t, err, domain.ErrConflict)
+	assert.ErrorIs(t, s.Sweep(t.Context(), 100), domain.ErrIncomplete)
+	assert.Contains(t, o.data, a.ObjectKey)
+	assert.Equal(t, domain.ArtifactStaged, r.artifacts[a.ID].State)
+	held.UploadLeaseUntil = time.Now().UTC().Add(-time.Second)
+	r.artifacts[a.ID] = held
+	retried, err := s.Stage(t.Context(), p, m, bytes.NewBufferString("exit_code=0"))
+	require.NoError(t, err)
+	assert.Equal(t, a.ObjectKey, retried.ObjectKey)
+	_, err = s.Complete(t.Context(), p, a.ID, a.Digest)
+	require.NoError(t, err)
+}
+func TestCaptureInvalidBodyCreatesNoManifest(t *testing.T) {
+	s, r, _, p, m := captureFixture(t)
+	_, err := s.Stage(t.Context(), p, m, bytes.NewBufferString("wrong"))
+	assert.ErrorIs(t, err, domain.ErrInvalidInput)
+	assert.Empty(t, r.artifacts)
+	assert.Empty(t, s.jobs.(*fakeJobs).jobs)
+}
+func TestCaptureOldGenerationCannotInvalidateReplacement(t *testing.T) {
+	s, r, o, p, m := captureFixture(t)
+	a := readyCapture(t, s, p, m)
+	s.objects = policyChangingObjects{ObjectStore: o, afterOpen: func() {
+		changed := r.artifacts[a.ID]
+		changed.Generation = "replacement"
+		changed.ObjectKey = "replacement-key"
+		r.artifacts[a.ID] = changed
+	}}
+	delete(o.data, a.ObjectKey)
+	_, err := s.Complete(t.Context(), p, a.ID, a.Digest)
+	assert.ErrorIs(t, err, domain.ErrIncomplete)
+	assert.True(t, r.artifacts[a.ID].ObjectAvailable)
 }

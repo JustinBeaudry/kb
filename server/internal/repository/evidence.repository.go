@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/JustinBeaudry/kb/server/internal/domain"
 	"github.com/JustinBeaudry/kb/server/internal/platform/graph"
@@ -52,7 +53,7 @@ func decodeCapture(row *neo4j.Record, index int, dest any) error {
 	return nil
 }
 func (r *EvidenceRepository) Artifact(ctx context.Context, tx domain.Tx, id string) (domain.Artifact, string, error) {
-	rows, err := r.query(ctx, tx, `MATCH (a:Artifact {id:$id}) RETURN a.data,a.clientID,coalesce(a.available,false)`, map[string]any{"id": id})
+	rows, err := r.query(ctx, tx, `MATCH (a:Artifact {id:$id}) RETURN a.data,a.clientID,coalesce(a.available,false),coalesce(a.uploadLeaseID,''),coalesce(a.uploadLeaseUntil,0)`, map[string]any{"id": id})
 	if err != nil {
 		return domain.Artifact{}, "", err
 	}
@@ -68,11 +69,15 @@ func (r *EvidenceRepository) Artifact(ctx context.Context, tx domain.Tx, id stri
 		return a, "", domain.ErrUnavailable
 	}
 	a.ObjectAvailable, _ = rows[0].Values[2].(bool)
+	a.UploadLeaseID, _ = rows[0].Values[3].(string)
+	if leaseUntil, ok := rows[0].Values[4].(int64); ok && leaseUntil > 0 {
+		a.UploadLeaseUntil = time.Unix(0, leaseUntil).UTC()
+	}
 	return a, client, nil
 }
 func (r *EvidenceRepository) SaveArtifact(ctx context.Context, tx domain.Tx, a domain.Artifact, client string) error {
 	data, _ := json.Marshal(a)
-	_, err := r.query(ctx, tx, `MERGE (a:Artifact {id:$id}) SET a.data=$data,a.clientID=$client,a.state=$state,a.projectID=$project,a.taskID=$task,a.available=$available`, map[string]any{"available": a.ObjectAvailable, "id": a.ID, "data": string(data), "client": client, "state": string(a.State), "project": a.Scope.ProjectID, "task": a.Scope.TaskID})
+	_, err := r.query(ctx, tx, `MERGE (a:Artifact {id:$id}) SET a.data=$data,a.clientID=$client,a.state=$state,a.projectID=$project,a.taskID=$task,a.available=$available,a.objectKey=$key,a.uploadLeaseID=$lease,a.uploadLeaseUntil=$leaseUntil`, map[string]any{"key": a.ObjectKey, "lease": a.UploadLeaseID, "leaseUntil": leaseTime(a.UploadLeaseUntil), "available": a.ObjectAvailable, "id": a.ID, "data": string(data), "client": client, "state": string(a.State), "project": a.Scope.ProjectID, "task": a.Scope.TaskID})
 	return err
 }
 func (r *EvidenceRepository) Event(ctx context.Context, tx domain.Tx, key string) (domain.Event, domain.Origin, error) {
@@ -97,7 +102,7 @@ func (r *EvidenceRepository) SaveEvent(ctx context.Context, tx domain.Tx, key st
 	return err
 }
 func (r *EvidenceRepository) Pending(ctx context.Context, tx domain.Tx, limit int) ([]domain.Artifact, error) {
-	rows, err := r.query(ctx, tx, `MATCH (a:Artifact) WHERE a.state IN ['staged','ready'] RETURN a.data,coalesce(a.available,false) ORDER BY coalesce(a.checkedAt,0),a.id LIMIT $limit`, map[string]any{"limit": limit})
+	rows, err := r.query(ctx, tx, `MATCH (a:Artifact) WHERE a.state IN ['staged','ready','abandoning'] RETURN a.data,coalesce(a.available,false),coalesce(a.uploadLeaseID,''),coalesce(a.uploadLeaseUntil,0) ORDER BY coalesce(a.checkedAt,0),a.id LIMIT $limit`, map[string]any{"limit": limit})
 	if err != nil {
 		return nil, err
 	}
@@ -108,18 +113,49 @@ func (r *EvidenceRepository) Pending(ctx context.Context, tx domain.Tx, limit in
 			return nil, domain.ErrUnavailable
 		}
 		a.ObjectAvailable, _ = row.Values[1].(bool)
+		a.UploadLeaseID, _ = row.Values[2].(string)
+		if until, ok := row.Values[3].(int64); ok && until > 0 {
+			a.UploadLeaseUntil = time.Unix(0, until).UTC()
+		}
 		artifacts = append(artifacts, a)
 	}
 	return artifacts, nil
 }
 
-// Checked persists only reconciliation scheduling metadata, outside immutable manifests.
-func (r *EvidenceRepository) Checked(ctx context.Context, tx domain.Tx, id string, at int64) error {
-	_, err := r.query(ctx, tx, `MATCH (a:Artifact {id:$id}) SET a.checkedAt=$at`, map[string]any{"id": id, "at": at})
-	return err
+// Checked and Availability fence mutable health/scheduling to an object generation.
+func (r *EvidenceRepository) Checked(ctx context.Context, tx domain.Tx, id, key string, at int64) error {
+	rows, err := r.query(ctx, tx, `MATCH (a:Artifact {id:$id}) WHERE a.objectKey=$key SET a.checkedAt=$at RETURN a.id`, map[string]any{"id": id, "key": key, "at": at})
+	if err != nil {
+		return err
+	}
+	if len(rows) != 1 {
+		return domain.ErrStale
+	}
+	return nil
 }
-
-func (r *EvidenceRepository) Availability(ctx context.Context, tx domain.Tx, id string, available bool) error {
-	_, err := r.query(ctx, tx, `MATCH (a:Artifact {id:$id}) SET a.available=$available`, map[string]any{"id": id, "available": available})
-	return err
+func (r *EvidenceRepository) Availability(ctx context.Context, tx domain.Tx, id, key string, available bool) error {
+	rows, err := r.query(ctx, tx, `MATCH (a:Artifact {id:$id}) WHERE a.objectKey=$key SET a.available=$available RETURN a.id`, map[string]any{"id": id, "key": key, "available": available})
+	if err != nil {
+		return err
+	}
+	if len(rows) != 1 {
+		return domain.ErrStale
+	}
+	return nil
+}
+func (r *EvidenceRepository) UploadLease(ctx context.Context, tx domain.Tx, id, key, lease string, until time.Time) error {
+	rows, err := r.query(ctx, tx, `MATCH (a:Artifact {id:$id}) WHERE a.objectKey=$key SET a.uploadLeaseID=$lease,a.uploadLeaseUntil=$until RETURN a.id`, map[string]any{"id": id, "key": key, "lease": lease, "until": leaseTime(until)})
+	if err != nil {
+		return err
+	}
+	if len(rows) != 1 {
+		return domain.ErrStale
+	}
+	return nil
+}
+func leaseTime(t time.Time) int64 {
+	if t.IsZero() {
+		return 0
+	}
+	return t.UnixNano()
 }

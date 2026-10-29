@@ -221,3 +221,218 @@ func TestCaptureCrashRecovery(t *testing.T) {
 		assert.NotEqual(t, created.Revision, updated.Revision)
 	})
 }
+
+type heldCaptureDelete struct {
+	service.ObjectStore
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (o heldCaptureDelete) Delete(ctx context.Context, key string) error {
+	close(o.entered)
+	select {
+	case <-o.release:
+		return o.ObjectStore.Delete(ctx, key)
+	case <-ctx.Done():
+		return domain.ErrUnavailable
+	}
+}
+
+type delayedCaptureObject struct {
+	service.ObjectStore
+	key string
+}
+
+func (o delayedCaptureObject) Open(ctx context.Context, key string) (io.ReadCloser, error) {
+	if key == o.key {
+		<-ctx.Done()
+		return nil, domain.ErrUnavailable
+	}
+	return o.ObjectStore.Open(ctx, key)
+}
+func captureArtifact(t *testing.T, store *graph.Store, repo *repository.EvidenceRepository, id string) domain.Artifact {
+	t.Helper()
+	var a domain.Artifact
+	require.NoError(t, store.Within(t.Context(), func(ctx context.Context, tx domain.Tx) error {
+		var err error
+		a, _, err = repo.Artifact(ctx, tx, id)
+		return err
+	}))
+	return a
+}
+func expireCapture(t *testing.T, store *graph.Store, repo *repository.EvidenceRepository, a domain.Artifact, client string) {
+	t.Helper()
+	expired := time.Now().UTC().Add(-time.Hour)
+	a.ExpiresAt = &expired
+	require.NoError(t, store.Within(t.Context(), func(ctx context.Context, tx domain.Tx) error { return repo.SaveArtifact(ctx, tx, a, client) }))
+}
+func queuedCaptureJob(t *testing.T, store *graph.Store, repo *repository.JobsRepository, scope domain.Scope) domain.Job {
+	t.Helper()
+	var found domain.Job
+	require.NoError(t, store.Within(t.Context(), func(ctx context.Context, tx domain.Tx) error {
+		jobs, err := repo.List(ctx, tx, domain.JobQueued, 100)
+		for _, j := range jobs {
+			if j.Kind == "capture.reconcile" && j.Scope == scope {
+				found = j
+			}
+		}
+		return err
+	}))
+	require.NotEmpty(t, found.ID)
+	return found
+}
+func TestCaptureAbandonmentRealGraphAndS3(t *testing.T) {
+	store, jobsRepo, jobs := jobsGraph(t)
+	objects := captureS3(t)
+	repo := repository.NewEvidenceRepository(store)
+	p := domain.Principal{ClientID: "collector", ProjectIDs: []string{"demo"}, Capabilities: []string{"artifacts:write", "events:append", "evidence:read"}}
+	policy := domain.Policy{Revision: "p1", SpoolLimitBytes: service.MaxArtifactBytes}
+	seedCapturePolicy(t, store, policy)
+	makeInput := func(task string) service.ArtifactInput {
+		return service.ArtifactInput{Scope: domain.Scope{ProjectID: "demo", TaskID: task}, Digest: service.TokenDigest("synthetic body"), Bytes: 14, PolicyRevision: "p1", SourceLocator: task + "#0-14"}
+	}
+	t.Run("cleanup claim excludes retry and completion then fresh generation succeeds", func(t *testing.T) {
+		capture := service.NewCaptureService(store, repo, jobsRepo, objects)
+		meta := makeInput("cleanup-race")
+		a, err := capture.Stage(t.Context(), p, meta, bytes.NewBufferString("synthetic body"))
+		require.NoError(t, err)
+		oldJob := queuedCaptureJob(t, store, jobsRepo, meta.Scope)
+		expireCapture(t, store, repo, a, p.ClientID)
+		entered, release := make(chan struct{}), make(chan struct{})
+		cleaner := service.NewCaptureService(store, repo, jobsRepo, heldCaptureDelete{ObjectStore: objects, entered: entered, release: release})
+		done := make(chan error, 1)
+		go func() { done <- cleaner.Sweep(t.Context(), 100) }()
+		<-entered
+		_, err = capture.Stage(t.Context(), p, meta, bytes.NewBufferString("synthetic body"))
+		assert.ErrorIs(t, err, domain.ErrIncomplete)
+		_, err = capture.Complete(t.Context(), p, a.ID, a.Digest)
+		assert.ErrorIs(t, err, domain.ErrIncomplete)
+		assert.Equal(t, domain.ArtifactAbandoning, captureArtifact(t, store, repo, a.ID).State)
+		close(release)
+		require.NoError(t, <-done)
+		_, err = objects.Open(t.Context(), a.ObjectKey)
+		assert.ErrorIs(t, err, domain.ErrIncomplete)
+		assert.Equal(t, domain.ArtifactAbandoned, captureArtifact(t, store, repo, a.ID).State)
+		replacement, err := capture.Stage(t.Context(), p, meta, bytes.NewBufferString("synthetic body"))
+		require.NoError(t, err)
+		assert.Equal(t, a.ID, replacement.ID)
+		assert.NotEqual(t, a.ObjectKey, replacement.ObjectKey)
+		assert.NotEqual(t, a.Generation, replacement.Generation)
+		_, err = capture.Complete(t.Context(), p, replacement.ID, replacement.Digest)
+		require.NoError(t, err)
+		assert.ErrorIs(t, capture.Reconcile(t.Context(), oldJob, domain.Lease{}, jobs), domain.ErrConflict)
+		var extracts []domain.Job
+		require.NoError(t, store.Within(t.Context(), func(ctx context.Context, tx domain.Tx) error {
+			queued, err := jobsRepo.List(ctx, tx, domain.JobQueued, 100)
+			for _, j := range queued {
+				if j.Kind == "evidence.extract" && j.Scope == meta.Scope {
+					extracts = append(extracts, j)
+				}
+			}
+			return err
+		}))
+		assert.Len(t, extracts, 1)
+		// Ready generations are never eligible for abandonment cleanup.
+		require.NoError(t, capture.Sweep(t.Context(), 100))
+		body, err := objects.Open(t.Context(), replacement.ObjectKey)
+		require.NoError(t, err)
+		require.NoError(t, body.Close())
+		assert.True(t, captureArtifact(t, store, repo, a.ID).ObjectAvailable)
+	})
+	for _, operation := range []string{"complete", "append", "reconcile"} {
+		t.Run("missing ready object invalidates "+operation, func(t *testing.T) {
+			capture := service.NewCaptureService(store, repo, jobsRepo, objects)
+			meta := makeInput("health-" + operation)
+			a, err := capture.Stage(t.Context(), p, meta, bytes.NewBufferString("synthetic body"))
+			require.NoError(t, err)
+			_, err = capture.Complete(t.Context(), p, a.ID, a.Digest)
+			require.NoError(t, err)
+			before := captureArtifact(t, store, repo, a.ID)
+			require.NoError(t, objects.Delete(t.Context(), a.ObjectKey))
+			switch operation {
+			case "complete":
+				_, err = capture.Complete(t.Context(), p, a.ID, a.Digest)
+			case "append":
+				_, err = capture.Append(t.Context(), p, []domain.Event{{ID: "e", IdempotencyKey: "k", Digest: a.Digest, Scope: a.Scope, Kind: domain.EventToolResult, ObservedAt: time.Now().UTC(), PayloadArtifactID: a.ID, Completeness: domain.CompletenessComplete}})
+			case "reconcile":
+				err = capture.Reconcile(t.Context(), queuedCaptureJob(t, store, jobsRepo, a.Scope), domain.Lease{}, jobs)
+			}
+			assert.ErrorIs(t, err, domain.ErrIncomplete)
+			after := captureArtifact(t, store, repo, a.ID)
+			assert.False(t, after.ObjectAvailable)
+			beforeJSON, jsonErr := json.Marshal(before)
+			require.NoError(t, jsonErr)
+			afterJSON, jsonErr := json.Marshal(after)
+			require.NoError(t, jsonErr)
+			assert.JSONEq(t, string(beforeJSON), string(afterJSON))
+		})
+	}
+	t.Run("expired inaccessible staged bytes can be retired", func(t *testing.T) {
+		capture := service.NewCaptureService(store, repo, jobsRepo, objects)
+		meta := makeInput("paused-cleanup")
+		a, err := capture.Stage(t.Context(), p, meta, bytes.NewBufferString("synthetic body"))
+		require.NoError(t, err)
+		expireCapture(t, store, repo, a, p.ClientID)
+		policy.Paused = true
+		seedCapturePolicy(t, store, policy)
+		err = capture.Reconcile(t.Context(), queuedCaptureJob(t, store, jobsRepo, a.Scope), domain.Lease{}, jobs)
+		require.NoError(t, err)
+		_, err = objects.Open(t.Context(), a.ObjectKey)
+		assert.ErrorIs(t, err, domain.ErrIncomplete)
+		assert.Equal(t, domain.ArtifactAbandoned, captureArtifact(t, store, repo, a.ID).State)
+		policy.Paused = false
+		seedCapturePolicy(t, store, policy)
+	})
+	t.Run("deadline-exhausting check advances cursor and later real object", func(t *testing.T) {
+		capture := service.NewCaptureService(store, repo, jobsRepo, objects)
+		slowMeta, laterMeta := makeInput("slow"), makeInput("later")
+		slow, err := capture.Stage(t.Context(), p, slowMeta, bytes.NewBufferString("synthetic body"))
+		require.NoError(t, err)
+		_, err = capture.Complete(t.Context(), p, slow.ID, slow.Digest)
+		require.NoError(t, err)
+		later, err := capture.Stage(t.Context(), p, laterMeta, bytes.NewBufferString("synthetic body"))
+		require.NoError(t, err)
+		_, err = capture.Complete(t.Context(), p, later.ID, later.Digest)
+		require.NoError(t, err)
+		require.NoError(t, store.Within(t.Context(), func(ctx context.Context, tx domain.Tx) error {
+			pending, err := repo.Pending(ctx, tx, 100)
+			if err != nil {
+				return err
+			}
+			for _, a := range pending {
+				at := time.Now().UnixNano()
+				switch a.ID {
+				case slow.ID:
+					at = 0
+				case later.ID:
+					at = 1
+				}
+				if err = repo.Checked(ctx, tx, a.ID, a.ObjectKey, at); err != nil {
+					return err
+				}
+			}
+			return nil
+		}))
+		audit := service.NewCaptureService(store, repo, jobsRepo, delayedCaptureObject{ObjectStore: objects, key: slow.ObjectKey})
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+		t.Cleanup(cancel)
+		assert.ErrorIs(t, audit.Sweep(ctx, 2), domain.ErrUnavailable)
+		assert.False(t, captureArtifact(t, store, repo, slow.ID).ObjectAvailable)
+		assert.True(t, captureArtifact(t, store, repo, later.ID).ObjectAvailable)
+		require.NoError(t, store.Within(t.Context(), func(ctx context.Context, tx domain.Tx) error {
+			native, err := store.Unwrap(tx)
+			if err != nil {
+				return err
+			}
+			result, err := native.Run(ctx, `MATCH (a:Artifact) WHERE a.id IN $ids RETURN a.checkedAt`, map[string]any{"ids": []string{slow.ID, later.ID}})
+			if err != nil {
+				return err
+			}
+			rows, err := result.Collect(ctx)
+			for _, row := range rows {
+				assert.Greater(t, row.Values[0].(int64), int64(1))
+			}
+			return err
+		}))
+	})
+}
