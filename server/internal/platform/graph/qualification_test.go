@@ -274,13 +274,13 @@ func TestQualifiedGraphDumpLoadIdentity(t *testing.T) {
 	sourceVolume, backupVolume, targetVolume := "kb-f1-source-"+suffix, "kb-f1-backup-"+suffix, "kb-f1-target-"+suffix
 	for _, name := range []string{sourceVolume, backupVolume, targetVolume} {
 		dockerCommand(t, "volume", "create", name)
+		t.Cleanup(func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			output, err := exec.CommandContext(ctx, "docker", "volume", "rm", name).CombinedOutput()
+			require.NoError(t, err, string(output))
+		})
 	}
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		output, err := exec.CommandContext(ctx, "docker", "volume", "rm", sourceVolume, backupVolume, targetVolume).CombinedOutput()
-		require.NoError(t, err, string(output))
-	})
 	source, container := graphFixture(t, sourceVolume)
 	_, err := query(t.Context(), source, `CREATE (c:Claim {id:'opaque-claim',head:'revision:immutable'}), (r:ClaimRevision {id:'revision:immutable',text:'fixture-only',status:'candidate'}), (e:Event {id:'opaque-event',clientID:'collector',idempotencyKey:'stable-key'}), (j:Job {id:'opaque-job',fence:7}), (d:Tombstone {id:'deleted-fixture'}) CREATE (c)-[:HAS_REVISION]->(r)-[:SUPPORTED_BY]->(e)`, nil)
 	require.NoError(t, err)
