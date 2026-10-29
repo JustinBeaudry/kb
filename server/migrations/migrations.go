@@ -13,3 +13,6 @@ var Clients string
 
 //go:embed 003_jobs.cypher
 var Jobs string
+
+//go:embed 004_evidence.cypher
+var Evidence string

@@ -57,6 +57,8 @@ const (
 
 type Artifact struct {
 	ID, ObjectKey, Digest, PolicyRevision string
+	SourceLocator, SourcePath             string
+	ObjectAvailable                       bool `json:"-"`
 	Scope                                 Scope
 	Bytes                                 int64
 	State                                 ArtifactState

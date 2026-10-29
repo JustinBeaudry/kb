@@ -884,14 +884,27 @@
           "bytes": {
             "type": "integer",
             "format": "int64",
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 8388608
           },
           "policy_revision": {
             "$ref": "#/components/schemas/OpaqueID"
           },
           "content_base64": {
             "type": "string",
-            "format": "byte"
+            "format": "byte",
+            "maxLength": 11184812
+          },
+          "source_locator": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "description": "Exact source locator for this chunk; retained without rewriting offsets."
+          },
+          "source_path": {
+            "type": "string",
+            "maxLength": 4096,
+            "description": "Slash-separated relative source identifier; exact or directory-prefix policy exclusions, no globs. Client field filtering precedes network. This is not a server filesystem path."
           }
         },
         "required": [
@@ -899,7 +912,8 @@
           "digest",
           "bytes",
           "policy_revision",
-          "content_base64"
+          "content_base64",
+          "source_locator"
         ],
         "description": "Base64 transfer is transport only. The service receives decoded bytes and verifies digest/length. No caller-supplied trust."
       },
@@ -938,6 +952,21 @@
             "type": "string",
             "format": "date-time",
             "description": "UTC timestamp."
+          },
+          "source_locator": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "description": "Exact source locator for this chunk; retained without rewriting offsets."
+          },
+          "source_path": {
+            "type": "string",
+            "maxLength": 4096,
+            "description": "Slash-separated relative source identifier; exact or directory-prefix policy exclusions, no globs. Client field filtering precedes network. This is not a server filesystem path."
+          },
+          "object_available": {
+            "type": "boolean",
+            "description": "Authoritative object health, independent of immutable ready manifest. False is ineligible evidence until reconciliation succeeds."
           }
         },
         "required": [
@@ -946,7 +975,9 @@
           "scope",
           "bytes",
           "state",
-          "policy_revision"
+          "policy_revision",
+          "source_locator",
+          "object_available"
         ]
       },
       "ArtifactResult": {

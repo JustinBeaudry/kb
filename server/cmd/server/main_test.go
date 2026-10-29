@@ -58,6 +58,11 @@ func TestServerLoopbackAuthenticationAndGracefulShutdown(t *testing.T) {
 	t.Setenv("KB_LISTEN", address)
 	t.Setenv("KB_TLS_CERT", "")
 	t.Setenv("KB_TLS_KEY", "")
+	t.Setenv("KB_S3_ENDPOINT", "http://127.0.0.1:8333")
+	t.Setenv("KB_S3_REGION", "local")
+	t.Setenv("KB_S3_BUCKET", "evidence")
+	t.Setenv("KB_S3_ACCESS_KEY", "fixture")
+	t.Setenv("KB_S3_SECRET_KEY", "fixture-only")
 	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	t.Cleanup(cancel)
 	var logs strings.Builder

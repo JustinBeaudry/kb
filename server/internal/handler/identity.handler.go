@@ -20,12 +20,17 @@ type IdentityService interface {
 }
 type IdentityHandler struct {
 	StrictServerInterface
-	identity IdentityService
+	identity    IdentityService
+	capture     CaptureService
+	checkpoints CheckpointService
 }
 
 var _ StrictServerInterface = (*IdentityHandler)(nil)
 
 func NewIdentityServer(identity IdentityService, logger *slog.Logger) (*echo.Echo, error) {
+	return newMemoryServer(identity, nil, nil, logger)
+}
+func newMemoryServer(identity IdentityService, capture CaptureService, checkpoints CheckpointService, logger *slog.Logger) (*echo.Echo, error) {
 	spec, err := GetSpec()
 	if err != nil {
 		return nil, domain.ErrUnavailable
@@ -38,12 +43,25 @@ func NewIdentityServer(identity IdentityService, logger *slog.Logger) (*echo.Ech
 			return
 		}
 		if he, ok := err.(*echo.HTTPError); ok && he.Code == 413 {
-			_ = writeProblem(c, 413, "invalid_input", "Request too large.", "Limit request bodies to 65536 bytes.")
+			action := "Limit request bodies to 65536 bytes."
+			if c.Path() == "/v1/artifacts" {
+				action = "Split evidence into chunks of at most 8388608 decoded bytes."
+			}
+			_ = writeProblem(c, 413, "invalid_input", "Request too large.", action)
 			return
 		}
 		_ = problem(c, err)
 	}
-	e.Use(requestMetadata(logger), middleware.RecoverWithConfig(middleware.RecoverConfig{DisablePrintStack: true}), middleware.BodyLimit("64K"), middleware.ContextTimeout(10*time.Second), Authentication(identity))
+	e.Use(requestMetadata(logger), middleware.RecoverWithConfig(middleware.RecoverConfig{DisablePrintStack: true}), func(next echo.HandlerFunc) echo.HandlerFunc {
+		small := middleware.BodyLimit("64K")(next)
+		artifact := middleware.BodyLimit("11206656")(next)
+		return func(c echo.Context) error {
+			if capture != nil && c.Request().Method == "POST" && c.Path() == "/v1/artifacts" {
+				return artifact(c)
+			}
+			return small(c)
+		}
+	}, middleware.ContextTimeout(10*time.Second), Authentication(identity))
 	// Authentication runs before validation. kin-openapi must not re-interpret the
 	// already authenticated principal or treat submitted fields as authority.
 	e.Use(validator.OapiRequestValidatorWithOptions(spec, &validator.Options{Options: openapi3filter.Options{AuthenticationFunc: func(context.Context, *openapi3filter.AuthenticationInput) error { return nil }}, ErrorHandler: func(c echo.Context, he *echo.HTTPError) error {
@@ -52,11 +70,19 @@ func NewIdentityServer(identity IdentityService, logger *slog.Logger) (*echo.Ech
 		}
 		return problem(c, domain.ErrInvalidInput)
 	}}))
-	strict := NewStrictHandler(&IdentityHandler{identity: identity}, nil)
+	strict := NewStrictHandler(&IdentityHandler{identity: identity, capture: capture, checkpoints: checkpoints}, nil)
 	wrapper := ServerInterfaceWrapper{Handler: strict}
 	e.POST("/v1/clients", wrapper.EnrollClient, Capability("clients:manage", nil))
 	e.POST("/v1/clients/:id\\:revoke", wrapper.RevokeClient, Capability("clients:manage", nil))
 	e.GET("/v1/status", wrapper.GetStatus, Capability("status:read", nil))
+	if capture != nil {
+		e.POST("/v1/artifacts", wrapper.StageArtifact)
+		e.POST("/v1/artifacts/:id\\:complete", wrapper.CompleteArtifact)
+		e.POST("/v1/events\\:append", wrapper.AppendEvents)
+	}
+	if checkpoints != nil {
+		e.PUT("/v1/checkpoints/:id", wrapper.PutCheckpoint)
+	}
 	e.Any("/*", func(c echo.Context) error { return problem(c, domain.ErrUnavailable) })
 	return e, nil
 }
@@ -84,5 +110,9 @@ func (h *IdentityHandler) RevokeClient(ctx context.Context, request RevokeClient
 }
 func (h *IdentityHandler) GetStatus(ctx context.Context, _ GetStatusRequestObject) (GetStatusResponseObject, error) {
 	p := principal(ctx)
-	return GetStatus200JSONResponse{SchemaVersion: "3", ConnectionState: StatusResultConnectionStateAvailable, AuthorizedProjectIds: p.ProjectIDs, AuthorizedCapabilities: p.Capabilities, CapabilityGaps: []string{"recovery_unavailable", "capture_unavailable", "retrieval_unavailable"}}, nil
+	gaps := []string{"recovery_unavailable", "retrieval_unavailable"}
+	if h.capture == nil {
+		gaps = append(gaps, "capture_unavailable")
+	}
+	return GetStatus200JSONResponse{SchemaVersion: "3", ConnectionState: StatusResultConnectionStateAvailable, AuthorizedProjectIds: p.ProjectIDs, AuthorizedCapabilities: p.Capabilities, CapabilityGaps: gaps}, nil
 }

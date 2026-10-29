@@ -40,7 +40,17 @@ func run(parent context.Context, logger *slog.Logger) error {
 		defer cancel()
 		_ = store.Close(closeCtx)
 	}()
-	e, err := handler.NewIdentityServer(service.NewIdentityService(store, repository.NewIdentityRepository(store), gateway.NostrIdentity{}), logger)
+	objectConfig, err := platform.LoadObjectConfig()
+	if err != nil {
+		return err
+	}
+	objects, err := gateway.NewS3(objectConfig)
+	if err != nil {
+		return err
+	}
+	capture := service.NewCaptureService(store, repository.NewEvidenceRepository(store), repository.NewJobsRepository(store), objects)
+	checkpoints := service.NewCheckpointService(store, repository.NewCheckpointRepository(store))
+	e, err := handler.NewMemoryServer(service.NewIdentityService(store, repository.NewIdentityRepository(store), gateway.NostrIdentity{}), capture, checkpoints, logger)
 	if err != nil {
 		return err
 	}

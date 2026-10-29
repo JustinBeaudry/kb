@@ -103,4 +103,16 @@ func TestWorkerCompositionGracefulStop(t *testing.T) {
 	case <-time.After(6 * time.Second):
 		t.Fatal("composition did not stop gracefully")
 	}
+	t.Setenv("KB_WORKER_ID", "")
+	t.Setenv("KB_S3_ENDPOINT", "http://127.0.0.1:8333")
+	t.Setenv("KB_S3_REGION", "local")
+	t.Setenv("KB_S3_BUCKET", "evidence")
+	t.Setenv("KB_S3_ACCESS_KEY", "fixture")
+	t.Setenv("KB_S3_SECRET_KEY", "fixture-only")
+	assert.ErrorIs(t, runCapture(t.Context(), slog.New(slog.NewJSONHandler(io.Discard, nil))), domain.ErrInvalidInput)
+}
+
+func TestCaptureWorkerMissingConfiguration(t *testing.T) {
+	t.Setenv("KB_GRAPH_URI", "")
+	assert.ErrorIs(t, runCapture(t.Context(), slog.New(slog.NewJSONHandler(io.Discard, nil))), domain.ErrInvalidInput)
 }
