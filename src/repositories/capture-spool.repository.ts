@@ -1,4 +1,4 @@
-import { cc, dlopen, FFIType, ptr } from "bun:ffi";
+import { cc, dlopen, FFIType } from "bun:ffi";
 import { constants, fstat, type Stats } from "node:fs";
 import { realpath } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
@@ -10,28 +10,33 @@ import type { CaptureError, Result } from "../capture/types";
 function native() {
   if (process.platform !== "darwin" || process.arch !== "arm64")
     throw Error("unsupported: unqualified native platform");
-  return dlopen(
-    process.platform === "darwin" ? "/usr/lib/libSystem.B.dylib" : "libc.so.6",
-    {
-      mkdirat: {
-        args: [FFIType.i32, FFIType.ptr, FFIType.i32],
-        returns: FFIType.i32,
-      },
-      renameat: {
-        args: [FFIType.i32, FFIType.ptr, FFIType.i32, FFIType.ptr],
-        returns: FFIType.i32,
-      },
-      unlinkat: {
-        args: [FFIType.i32, FFIType.ptr, FFIType.i32],
-        returns: FFIType.i32,
-      },
-      flock: { args: [FFIType.i32, FFIType.i32], returns: FFIType.i32 },
-      close: { args: [FFIType.i32], returns: FFIType.i32 },
-      fsync: { args: [FFIType.i32], returns: FFIType.i32 },
-      ftruncate: { args: [FFIType.i32, FFIType.i64], returns: FFIType.i32 },
+  return dlopen("/usr/lib/libSystem.B.dylib", {
+    mkdirat: {
+      args: [FFIType.i32, FFIType.ptr, FFIType.i32],
+      returns: FFIType.i32,
     },
-  );
+    renameat: {
+      args: [FFIType.i32, FFIType.ptr, FFIType.i32, FFIType.ptr],
+      returns: FFIType.i32,
+    },
+    unlinkat: {
+      args: [FFIType.i32, FFIType.ptr, FFIType.i32],
+      returns: FFIType.i32,
+    },
+    flock: { args: [FFIType.i32, FFIType.i32], returns: FFIType.i32 },
+    close: { args: [FFIType.i32], returns: FFIType.i32 },
+    fsync: { args: [FFIType.i32], returns: FFIType.i32 },
+    ftruncate: { args: [FFIType.i32, FFIType.i64], returns: FFIType.i32 },
+  });
 }
+/** Darwin value; node:fs does not export O_CLOEXEC. Only darwin/arm64 is enabled. */
+const O_CLOEXEC = 0x01000000;
+const DIRECTORY =
+  constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW | O_CLOEXEC;
+/** Payload/state/lock files: an unsafe entry (symlink, wrong owner or mode,
+ * hard link) is tampering, not corruption. It fails closed and is never
+ * quarantined automatically. */
+export class UnsafeStorage extends Error {}
 let library: ReturnType<typeof native> | undefined;
 let opener: ReturnType<typeof compileOpener> | undefined;
 function compileOpener() {
@@ -65,19 +70,26 @@ function privateFile(s: Stats) {
     (s.mode & 0o7777) !== 0o600 ||
     s.nlink !== 1
   )
-    throw Error("unsafe file");
+    throw new UnsafeStorage("unsafe file");
 }
 function name(s: string) {
   if (
-    !/^(?:state|state-next|event-next|lock|dispatch|[a-f0-9]{64}\.json)$/.test(
+    !/^(?:state|state-next|event-next|policy|policy-next|lock|dispatch|[a-f0-9]{64}\.json)$/.test(
       s,
     )
   )
     throw Error("name");
   return cstr(s);
 }
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export class SecureSpoolDirectory {
-  constructor(readonly path: string) {}
+  /** The state lock guards short critical sections, so callers wait for it up
+   * to lockWaitMs. The dispatch lease is held across network requests and is
+   * never waited for. */
+  constructor(
+    readonly path: string,
+    private readonly lockWaitMs = 2000,
+  ) {}
   async within<T>(
     fn: (io: SpoolIO) => Promise<T>,
     lockName: "lock" | "dispatch" = "lock",
@@ -90,38 +102,17 @@ export class SecureSpoolDirectory {
       const parent = await realpath(dirname(absolute));
       // Walk the canonical parent with no-follow directory opens, retaining each
       // anchor until the next is opened. The final spool component is never resolved.
-      fd = check(
-        n.openat(
-          -2,
-          ptr(cstr("/")),
-          constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
-          0,
-        ),
-      );
+      fd = check(n.openat(-2, cstr("/"), DIRECTORY, 0));
       // AT_FDCWD differs by OS, but is ignored for the absolute initial open.
       for (const part of parent.split("/").filter(Boolean)) {
-        const next = check(
-          n.openat(
-            fd,
-            ptr(cstr(part)),
-            constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
-            0,
-          ),
-        );
+        const next = check(n.openat(fd, cstr(part), DIRECTORY, 0));
         n.close(fd);
         fd = next;
       }
       const leaf = cstr(basename(absolute));
-      n.mkdirat(fd, ptr(leaf), 0o700);
+      n.mkdirat(fd, leaf, 0o700);
       check(n.fsync(fd));
-      const child = check(
-        n.openat(
-          fd,
-          ptr(leaf),
-          constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
-          0,
-        ),
-      );
+      const child = check(n.openat(fd, leaf, DIRECTORY, 0));
       n.close(fd);
       fd = child;
       const s = await info(fd);
@@ -134,14 +125,22 @@ export class SecureSpoolDirectory {
       lock = check(
         n.openat(
           fd,
-          ptr(name(lockName)),
-          constants.O_RDWR | constants.O_CREAT | constants.O_NOFOLLOW,
+          name(lockName),
+          constants.O_RDWR |
+            constants.O_CREAT |
+            constants.O_NOFOLLOW |
+            O_CLOEXEC,
           0o600,
         ),
       );
       privateFile(await info(lock));
-      if (n.flock(lock, 2 | 4) !== 0)
-        return { ok: false, error: { code: "busy" } };
+      const deadline = Date.now() + (lockName === "lock" ? this.lockWaitMs : 0);
+      // LOCK_EX | LOCK_NB, polled: a blocking flock would stall the JS thread.
+      while (n.flock(lock, 2 | 4) !== 0) {
+        if (Date.now() >= deadline)
+          return { ok: false, error: { code: "busy" } };
+        await sleep(5);
+      }
       return { ok: true, value: await fn(new SpoolIO(fd)) };
     } catch {
       return { ok: false, error: { code: "storage_unavailable" } };
@@ -157,8 +156,8 @@ export class SpoolIO {
     const n = api();
     const opened = n.openat(
       this.fd,
-      ptr(name(file)),
-      constants.O_RDONLY | constants.O_NOFOLLOW,
+      name(file),
+      constants.O_RDONLY | constants.O_NOFOLLOW | O_CLOEXEC,
       0,
     );
     if (opened < 0) {
@@ -166,16 +165,17 @@ export class SpoolIO {
       // symlink or inaccessible existing entry fails closed rather than appearing absent.
       const probe = n.openat(
         this.fd,
-        ptr(name(file)),
+        name(file),
         constants.O_RDWR |
           constants.O_CREAT |
           constants.O_EXCL |
-          constants.O_NOFOLLOW,
+          constants.O_NOFOLLOW |
+          O_CLOEXEC,
         0o600,
       );
-      if (probe < 0) throw Error("unsafe or unavailable");
+      if (probe < 0) throw new UnsafeStorage("unsafe or unavailable");
       n.close(probe);
-      check(n.unlinkat(this.fd, ptr(name(file)), 0));
+      check(n.unlinkat(this.fd, name(file), 0));
       return null;
     }
     try {
@@ -192,8 +192,8 @@ export class SpoolIO {
     const opened = check(
       n.openat(
         this.fd,
-        ptr(name(temp)),
-        constants.O_RDWR | constants.O_CREAT | constants.O_NOFOLLOW,
+        name(temp),
+        constants.O_RDWR | constants.O_CREAT | constants.O_NOFOLLOW | O_CLOEXEC,
         0o600,
       ),
     );
@@ -205,11 +205,32 @@ export class SpoolIO {
     } finally {
       n.close(opened);
     }
-    check(n.renameat(this.fd, ptr(name(temp)), this.fd, ptr(name(file))));
+    // Both names stay referenced for the duration of the native call.
+    const from = name(temp),
+      to = name(file);
+    check(n.renameat(this.fd, from, this.fd, to));
     check(n.fsync(this.fd));
   }
+  /** Remove a file if present without reading its contents. */
+  async removeIfPresent(file: string): Promise<boolean> {
+    const n = api();
+    const opened = n.openat(
+      this.fd,
+      name(file),
+      constants.O_RDONLY | constants.O_NOFOLLOW | O_CLOEXEC,
+      0,
+    );
+    if (opened < 0) return (await this.read(file, 0)) !== null;
+    try {
+      privateFile(await info(opened));
+    } finally {
+      n.close(opened);
+    }
+    this.remove(file);
+    return true;
+  }
   remove(file: string): void {
-    check(api().unlinkat(this.fd, ptr(name(file)), 0));
+    check(api().unlinkat(this.fd, name(file), 0));
     check(api().fsync(this.fd));
   }
 }

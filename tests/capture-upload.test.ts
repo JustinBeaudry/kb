@@ -29,10 +29,12 @@ test("pause suppresses queued transmission", async () => {
   const g = gateway();
   try {
     const s = new CaptureService(f.spool, g.gateway);
-    await s.enqueue(event());
-    await s.pause();
+    const queued = await s.enqueue(event());
+    expect(queued.ok && queued.value.state).toBe("queued");
+    expect(await s.pause()).toEqual({ ok: true, value: "paused" });
     await s.flush(signal());
     expect(g.sentPayloads).toHaveLength(0);
+    expect(await bytes(f.spool.path)).toContain("hello");
   } finally {
     await f.cleanup();
   }
@@ -42,8 +44,9 @@ test("resume does not backfill pause", async () => {
   const g = gateway();
   try {
     const s = new CaptureService(f.spool, g.gateway);
-    await s.pause();
-    await s.enqueue(event({ text: "paused-secret-content" }));
+    expect((await s.pause()).ok).toBe(true);
+    const withheld = await s.enqueue(event({ text: "paused-secret-content" }));
+    expect(withheld.ok && withheld.value.state).toBe("withheld");
     await s.resume();
     await s.flush(signal());
     expect(g.sentPayloads).toHaveLength(0);
@@ -57,8 +60,9 @@ test("new exclusions purge queued payload", async () => {
   const g = gateway();
   try {
     const s = new CaptureService(f.spool, g.gateway);
-    await s.enqueue(event());
-    g.setPolicy({ ...policy(), localExcludedPaths: ["src"] });
+    const queued = await s.enqueue(event());
+    expect(queued.ok && queued.value.state).toBe("queued");
+    g.setPolicy({ ...policy(), excludedPaths: ["src"] });
     await s.flush(signal());
     expect(g.sentPayloads).toHaveLength(0);
     expect(await bytes(f.spool.path)).not.toContain("hello");
@@ -71,9 +75,13 @@ test("missing policy blocks upload", async () => {
   const g = gateway();
   try {
     const s = new CaptureService(f.spool, g.gateway);
-    await s.enqueue(event());
+    const queued = await s.enqueue(event());
+    expect(queued.ok && queued.value.state).toBe("queued");
     g.setPolicy(undefined);
-    expect((await s.flush(signal())).ok).toBe(false);
+    expect(await s.flush(signal())).toEqual({
+      ok: false,
+      error: { code: "policy_unavailable" },
+    });
     expect(g.sentPayloads).toHaveLength(0);
   } finally {
     await f.cleanup();
@@ -140,7 +148,7 @@ test("pause cancels in-flight request and persists across service restart", asyn
     await service.enqueue(event());
     const flushing = service.flush(signal());
     await begin;
-    expect((await service.pause()).ok).toBe(true);
+    expect(await service.pause()).toEqual({ ok: true, value: "paused" });
     expect((await flushing).ok).toBe(false);
     const restarted = new CaptureService(f.spool, g.gateway);
     expect((await restarted.flush(signal())).ok).toBe(true);
@@ -175,8 +183,13 @@ test("offline enqueue records only bounded loss metadata", async () => {
   g.setPolicy(undefined);
   try {
     const service = new CaptureService(f.spool, g.gateway);
+    // Never-fetched policy: no cached policy exists, so nothing is spooled.
     const r = await service.enqueue(event({ text: "never-persist-this" }));
     expect(r.ok && r.value.state).toBe("withheld");
+    const status = await service.status();
+    expect(status.ok && status.value.gaps).toEqual([
+      { sequence: 1, reason: "policy_unavailable" },
+    ]);
     expect(await bytes(f.spool.path)).not.toContain("never-persist-this");
   } finally {
     await f.cleanup();
@@ -391,7 +404,7 @@ test("gateway rejects redirects auth failures oversized replies and insecure ori
     }
   }
 });
-test("cross-process pause reports busy until active dispatch drains and retains paused marker", async () => {
+test("cross-process pause saves the marker and reports paused_draining while a dispatch is leased", async () => {
   const f = await spoolFixture();
   const g = gateway();
   let release!: () => void;
@@ -402,27 +415,38 @@ test("cross-process pause reports busy until active dispatch drains and retains 
   try {
     const first = new CaptureService(f.spool, {
       ...g.gateway,
-      send: async () => {
+      send: async (e) => {
         started();
         await new Promise<void>((r) => {
           release = r;
         });
+        g.sentPayloads.push(e);
         return { ok: true, value: undefined };
       },
     });
-    await first.enqueue(event());
+    for (const e of [
+      event(),
+      { ...event(), id: "event-2", idempotencyKey: "event-2", sequence: 2 },
+    ]) {
+      const queued = await first.enqueue(e);
+      expect(queued.ok && queued.value.state).toBe("queued");
+    }
     const flushing = first.flush(signal());
     await begin;
     const second = new CaptureService(f.spool, g.gateway);
     expect(await second.pause()).toEqual({
-      ok: false,
-      error: { code: "busy" },
+      ok: true,
+      value: "paused_draining",
     });
-    expect((await f.spool.readBatch()).ok).toBe(true);
+    const during = await second.status();
+    expect(during.ok && during.value.paused).toBe(true);
     release();
     await flushing;
-    expect((await second.pause()).ok).toBe(true);
-    expect(g.sentPayloads).toHaveLength(0);
+    // Only the request already leased before pause completed; nothing after it.
+    expect(g.sentPayloads).toHaveLength(1);
+    expect(await second.pause()).toEqual({ ok: true, value: "paused" });
+    const after = await second.status();
+    expect(after.ok && after.value).toMatchObject({ paused: true, queued: 1 });
   } finally {
     release?.();
     await f.cleanup();
@@ -492,7 +516,7 @@ test("guard-purged item continues to the next queued event", async () => {
       idempotencyKey: "event-2",
       sequence: 2,
     });
-    g.setPolicy({ ...policy(), localExcludedPaths: ["private"] });
+    g.setPolicy({ ...policy(), excludedPaths: ["private"] });
     const result = await s.flush(signal());
     expect(result.ok && result.value.sent).toBe(1);
     expect(g.sentPayloads).toHaveLength(1);

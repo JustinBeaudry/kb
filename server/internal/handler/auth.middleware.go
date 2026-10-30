@@ -86,6 +86,9 @@ func problem(c echo.Context, err error) error {
 		status, code, message, action = 413, "budget", "Output exceeds the requested budget.", "Rerun with a larger budget within the documented limit."
 	case errors.Is(err, domain.ErrIncomplete):
 		status, code, message, action = 503, "incomplete", "Evidence is incomplete.", "Complete capture or retry when the source is available."
+	case errors.Is(err, domain.ErrDeleted):
+		// Permanent: owner deletion must not look like a retryable outage.
+		status, code, message, action = 410, "deleted", "Record deleted.", "Do not retry; capture a new event if still needed."
 	case errors.Is(err, domain.ErrConflict):
 		status, code, message, action = 409, "conflict", "Operation conflicts with current state.", "Refresh state before retrying."
 	}

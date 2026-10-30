@@ -165,7 +165,7 @@ test("kill releases native lock and restart removes interrupted append bytes wit
     const restarted = await new DiskSpool(f.spool.path).readBatch();
     expect(restarted.ok && restarted.value.events).toEqual([]);
     expect(restarted.ok && restarted.value.gaps).toEqual([
-      { sequence: 42, reason: "invalid_input" },
+      { sequence: 42, reason: "interrupted" },
     ]);
     expect(await bytes(f.spool.path)).not.toContain("synthetic-filtered");
   } finally {
@@ -274,7 +274,7 @@ test("persisted state with invalid counters or journal fields fails closed", asy
     }
   }
 });
-test("queued payload with tampered metadata fails closed on read", async () => {
+test("queued payload with tampered metadata is quarantined, never sent or wedged", async () => {
   const { writeFile } = await import("node:fs/promises");
   const f = await spoolFixture();
   try {
@@ -288,7 +288,36 @@ test("queued payload with tampered metadata fails closed on read", async () => {
       JSON.stringify({ ...out.event, scope: undefined, sequence: -4 }),
       { mode: 0o600 },
     );
-    expect((await f.spool.readBatch()).ok).toBe(false);
+    const batch = await f.spool.readBatch();
+    expect(batch.ok && batch.value).toMatchObject({
+      events: [],
+      queued: 0,
+      gaps: [{ sequence: 1, reason: "corrupt" }],
+    });
+    expect(await bytes(f.spool.path)).not.toContain("hello");
+  } finally {
+    await f.cleanup();
+  }
+});
+test("multiline secret is absent from spool bytes in raw and JSON-escaped form", async () => {
+  const f = await spoolFixture();
+  try {
+    const secret = "line-one\nSYNTHETIC-MULTI\tline";
+    const out = filterEvent(
+      event({
+        text: "a " + secret + " b",
+        parts: ["line-one\nSYN", "THETIC-MULTI\tline"],
+      }),
+      policy(),
+      [secret],
+    );
+    if (out.kind !== "accepted") throw Error("fixture");
+    expect((await f.spool.appendFiltered(out.event)).ok).toBe(true);
+    const spoolBytes = await bytes(f.spool.path);
+    expect(spoolBytes).toContain("a ");
+    expect(spoolBytes).not.toContain(secret);
+    expect(spoolBytes).not.toContain(JSON.stringify(secret).slice(1, -1));
+    expect(spoolBytes).not.toContain("SYNTHETIC-MULTI");
   } finally {
     await f.cleanup();
   }

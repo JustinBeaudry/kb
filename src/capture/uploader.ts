@@ -59,6 +59,27 @@ async function boundedJSON(response: Response): Promise<unknown> {
     await reader.cancel().catch(() => {});
   }
 }
+const problemCodes = new Set([
+  "unauthorized",
+  "forbidden",
+  "conflict",
+  "stale",
+  "incomplete",
+  "budget",
+  "unavailable",
+  "deleted",
+  "invalid_input",
+]);
+async function problemCode(response: Response): Promise<string | undefined> {
+  try {
+    const x = await boundedJSON(response);
+    return object(x) && typeof x.code === "string" && problemCodes.has(x.code)
+      ? x.code
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
 async function wait(ms: number, signal: AbortSignal): Promise<boolean> {
   if (signal.aborted) return false;
   return new Promise((resolve) => {
@@ -80,10 +101,6 @@ export class F4Uploader implements CaptureUploadGateway {
     baseURL: string,
     private readonly bearer: string,
     private readonly attempts = 3,
-    private readonly localExclusions: {
-      paths?: readonly string[];
-      fields?: readonly string[];
-    } = {},
   ) {
     this.origin = endpoint(baseURL);
     if (
@@ -125,13 +142,18 @@ export class F4Uploader implements CaptureUploadGateway {
             ? { ok: true, value }
             : fail("unavailable");
         }
-        // Do not relay remote errors or response bodies (which may contain secrets).
-        await response.body?.cancel();
+        // Never relay remote messages or bodies: only the closed problem code
+        // enum is read, to separate permanent from retryable item failures.
+        const code = await problemCode(response);
         if (response.status === 401) return fail("unauthorized");
         if (response.status === 403) return fail("forbidden");
-        if (response.status === 409) return fail("stale");
+        if (response.status === 409)
+          return fail(code === "conflict" ? "conflict" : "stale");
+        if (response.status === 410 || code === "deleted")
+          return fail("deleted");
         if (response.status === 400 || response.status === 413)
           return fail("invalid_input");
+        if (code === "incomplete") return fail("incomplete");
         result = fail("unavailable");
       } catch {
         result = fail(signal.aborted ? "cancelled" : "unavailable");
@@ -176,8 +198,6 @@ export class F4Uploader implements CaptureUploadGateway {
         allowedModelRoutes: x.allowed_model_routes,
         spoolLimitBytes: x.spool_limit_bytes,
         expiresAt: Date.now() + POLICY_FRESHNESS_MS,
-        localExcludedPaths: this.localExclusions.paths,
-        localExcludedFields: this.localExclusions.fields,
       },
     };
   }

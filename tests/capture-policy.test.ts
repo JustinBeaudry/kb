@@ -19,6 +19,11 @@ describe("capture policy", () => {
     expect(JSON.stringify(result)).not.toContain(secret);
     expect(JSON.stringify(result)).not.toContain("unknown-token");
     expect(JSON.stringify(result)).not.toContain("secret🔑");
+    // The multiline secret must also be absent in its JSON-escaped form.
+    expect(JSON.stringify(result)).not.toContain(
+      JSON.stringify(secret).slice(1, -1),
+    );
+    expect(JSON.stringify(result)).not.toContain("跨界\\nsecret");
   });
   test("server and local exclusions narrow scope using slash directory boundaries", () => {
     for (const excluded of ["src", "src/", "src/file.ts"])

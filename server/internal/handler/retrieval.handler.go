@@ -14,7 +14,7 @@ type RetrievalService interface {
 }
 
 func NewRetrievalServer(i IdentityService, c CaptureService, t CheckpointService, m MemoryService, r RetrievalService, l *slog.Logger) (*echo.Echo, error) {
-	return configuredMemoryServer(i, c, t, m, r, l)
+	return configuredMemoryServer(i, c, t, m, r, nil, l)
 }
 func retrievalAPI(r domain.RetrievalResult) RetrievalResult {
 	out := RetrievalResult{Action: optionalString(r.Action), SchemaVersion: "3", Chunks: make([]EvidenceChunk, 0, len(r.Chunks)), Truncated: r.Truncated, Continuation: optionalString(r.Continuation), Visited: r.Visited, NoResults: r.NoResults}

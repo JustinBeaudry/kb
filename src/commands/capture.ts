@@ -88,14 +88,15 @@ export default defineCommand({
         args.spool,
         parseSpoolLimit(args["spool-limit-bytes"]),
       );
+      const options = {
+        localExcludedPaths: args["exclude-paths"]?.split(","),
+        localExcludedFields: args["exclude-fields"]?.split(","),
+      };
       const connection = new CaptureConnectionService(
         new NativeCredentials(),
         spool,
-        (token) =>
-          new F4Uploader(args.endpoint ?? "", token, 3, {
-            paths: args["exclude-paths"]?.split(","),
-            fields: args["exclude-fields"]?.split(","),
-          }),
+        (token) => new F4Uploader(args.endpoint ?? "", token, 3),
+        options,
       );
       // Pause/resume/status need no credential access or server availability.
       if (args.action === "status") {

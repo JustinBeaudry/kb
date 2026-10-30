@@ -13,7 +13,7 @@ type PolicyService interface {
 }
 
 func NewPolicyServer(i IdentityService, c CaptureService, t CheckpointService, m MemoryService, r RetrievalService, p PolicyService, l *slog.Logger) (*echo.Echo, error) {
-	return configuredMemoryServer(i, c, t, m, r, l, p)
+	return configuredMemoryServer(i, c, t, m, r, p, l)
 }
 func (h *IdentityHandler) GetPolicy(ctx context.Context, request GetPolicyRequestObject) (GetPolicyResponseObject, error) {
 	p, err := h.policy.Get(ctx, principal(ctx), request.Project)

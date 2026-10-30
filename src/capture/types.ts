@@ -13,6 +13,8 @@ export type CaptureError = {
     | "forbidden"
     | "stale"
     | "conflict"
+    | "deleted"
+    | "incomplete"
     | "unavailable"
     | "cancelled";
 };
@@ -52,7 +54,15 @@ export type GapReason =
   | "excluded"
   | "policy_changed"
   | "policy_unavailable"
-  | "invalid_input";
+  | "invalid_input"
+  /** The server permanently refused the item (conflict, deleted, invalid). */
+  | "rejected"
+  /** Item-level server failures repeated MAX_HEAD_FAILURES times. */
+  | "undeliverable"
+  /** A crash interrupted a local append before it was committed. */
+  | "interrupted"
+  /** The queued payload could not be read back intact. */
+  | "corrupt";
 export type Gap = { sequence: number; reason: GapReason };
 export type FilterOutcome =
   | { kind: "accepted"; event: FilteredEvent }
@@ -69,6 +79,25 @@ export type SpoolBatch = {
   totalLosses: number;
   paused: boolean;
 };
+/** "paused_draining": the marker is durably saved, but another dispatch lease
+ * (possibly in another process) still has one request in flight. Any error
+ * result from pause means the marker was NOT saved. */
+export type PauseState = "paused" | "paused_draining";
+/** Server-issued policy fields persisted for offline enqueue. */
+export type CachedPolicy = {
+  revision: string;
+  paused: boolean;
+  excludedPaths: string[];
+  excludedFields: string[];
+  allowedModelRoutes: string[];
+  spoolLimitBytes: number;
+  fetchedAt: number;
+};
+export type CaptureOptions = {
+  localExcludedPaths?: readonly string[];
+  localExcludedFields?: readonly string[];
+  now?: () => number;
+};
 export type CaptureStatus = {
   paused: boolean;
   queued: number;
@@ -84,7 +113,19 @@ export interface CaptureSpool {
     event: FilteredEvent,
     limitBytes?: number,
   ): Promise<Result<Receipt, CaptureError>>;
+  /** Head batch; an unreadable or invalid head is quarantined with a gap. */
   readBatch(): Promise<Result<SpoolBatch, CaptureError>>;
+  /** Metadata only: never reads queued payloads. */
+  status(): Promise<Result<CaptureStatus, CaptureError>>;
+  /** Count one item-level delivery failure for a queued event; returns the total. */
+  recordFailure(id: string): Promise<Result<number, CaptureError>>;
+  cachedPolicy(
+    projectID: string,
+  ): Promise<Result<CachedPolicy | undefined, CaptureError>>;
+  cachePolicy(
+    projectID: string,
+    policy: CachedPolicy,
+  ): Promise<Result<void, CaptureError>>;
   acknowledge(id: string): Promise<Result<void, CaptureError>>;
   recordGap(
     sequence: number,
@@ -113,6 +154,12 @@ export const MAX_SPOOL_BYTES = 16 * 1024 * 1024 * 1024;
 /** Collector-local freshness of a fetched policy. The server remains the only
  * authority: an expired or missing policy withholds sending and keeps the queue. */
 export const POLICY_FRESHNESS_MS = 60_000;
+/** Maximum age of the persisted last server policy used to filter offline
+ * enqueues. Older or never-fetched policy withholds content (never permissive).
+ * Sending always requires a fresh server read, so nothing leaves under it. */
+export const POLICY_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+/** Item-level failures (stale, incomplete, forbidden) before quarantine. */
+export const MAX_HEAD_FAILURES = 5;
 export interface CredentialStore {
   get(profile: string): Promise<Result<string, CaptureError>>;
   set(profile: string, bearer: string): Promise<Result<void, CaptureError>>;

@@ -2,14 +2,17 @@ import { createHash } from "node:crypto";
 import { isFilteredEvent } from "./policy";
 import {
   SecureSpoolDirectory,
+  UnsafeStorage,
   type SpoolIO,
 } from "../repositories/capture-spool.repository";
 import {
   DEFAULT_SPOOL_BYTES,
   MAX_EVENT_BYTES,
   MAX_SPOOL_BYTES,
+  type CachedPolicy,
   type CaptureError,
   type CaptureSpool,
+  type CaptureStatus,
   type FilteredEvent,
   type Gap,
   type GapReason,
@@ -17,7 +20,14 @@ import {
   type Result,
   type SpoolBatch,
 } from "./types";
-type Entry = { file: string; bytes: number; sequence: number };
+type Entry = {
+  file: string;
+  bytes: number;
+  sequence: number;
+  /** Item-level delivery failures recorded for this queued event. */
+  failures?: number;
+};
+const entryKeys = ["file", "bytes", "sequence", "failures"];
 type Pending = Entry & { operation: "append" | "remove"; reason?: GapReason };
 type State = {
   version: 1;
@@ -53,6 +63,10 @@ const reasons: readonly GapReason[] = [
   "policy_changed",
   "policy_unavailable",
   "invalid_input",
+  "rejected",
+  "undeliverable",
+  "interrupted",
+  "corrupt",
 ];
 const record = (x: unknown): x is Record<string, unknown> =>
   !!x && typeof x === "object" && !Array.isArray(x);
@@ -66,7 +80,8 @@ function entry(x: unknown): boolean {
     /^[a-f0-9]{64}\.json$/.test(x.file) &&
     count(x.bytes) &&
     Number(x.bytes) <= MAX_EVENT_BYTES &&
-    count(x.sequence)
+    count(x.sequence) &&
+    (x.failures === undefined || count(x.failures))
   );
 }
 /** The journal is our own durable format: every field and key is validated
@@ -88,9 +103,7 @@ function state(raw: string | null): State {
     typeof x.paused !== "boolean" ||
     !Array.isArray(x.entries) ||
     x.entries.length > 4096 ||
-    !x.entries.every(
-      (e) => record(e) && entry(e) && only(e, ["file", "bytes", "sequence"]),
-    ) ||
+    !x.entries.every((e) => record(e) && entry(e) && only(e, entryKeys)) ||
     new Set(x.entries.map((e) => (record(e) ? e.file : undefined))).size !==
       x.entries.length ||
     !Array.isArray(x.gaps) ||
@@ -111,7 +124,7 @@ function state(raw: string | null): State {
     !(
       record(p) &&
       entry(p) &&
-      only(p, ["file", "bytes", "sequence", "operation", "reason"]) &&
+      only(p, [...entryKeys, "operation", "reason"]) &&
       (p.operation === "append" || p.operation === "remove") &&
       (p.reason === undefined || reasons.includes(p.reason as GapReason))
     )
@@ -120,14 +133,60 @@ function state(raw: string | null): State {
   // SAFETY: every key and value of the persisted state was validated above.
   return x as State;
 }
+const POLICY_CACHE_BYTES = 4 * 1024 * 1024;
+const POLICY_CACHE_PROJECTS = 16;
+const strings = (x: unknown): x is string[] =>
+  Array.isArray(x) &&
+  x.length <= 256 &&
+  x.every((v) => typeof v === "string" && v.length <= 4096);
+function cachedPolicy(x: unknown): x is CachedPolicy {
+  return (
+    record(x) &&
+    only(x, [
+      "revision",
+      "paused",
+      "excludedPaths",
+      "excludedFields",
+      "allowedModelRoutes",
+      "spoolLimitBytes",
+      "fetchedAt",
+    ]) &&
+    typeof x.revision === "string" &&
+    x.revision.length > 0 &&
+    x.revision.length <= 256 &&
+    typeof x.paused === "boolean" &&
+    strings(x.excludedPaths) &&
+    strings(x.excludedFields) &&
+    strings(x.allowedModelRoutes) &&
+    count(x.spoolLimitBytes) &&
+    count(x.fetchedAt)
+  );
+}
+/** Corrupt or unparseable cache content is ignored (treated as never fetched);
+ * an unsafe cache file still fails closed through UnsafeStorage. */
+async function policies(io: SpoolIO): Promise<Record<string, CachedPolicy>> {
+  try {
+    const raw = await io.read("policy", POLICY_CACHE_BYTES);
+    if (raw === null) return {};
+    const x: unknown = JSON.parse(raw);
+    if (!record(x)) return {};
+    const out: Record<string, CachedPolicy> = Object.create(null);
+    for (const [k, v] of Object.entries(x)) if (cachedPolicy(v)) out[k] = v;
+    return out;
+  } catch (e) {
+    if (e instanceof UnsafeStorage) throw e;
+    return {};
+  }
+}
 export class DiskSpool implements CaptureSpool {
   private readonly directory: SecureSpoolDirectory;
   constructor(
     readonly path: string,
     private readonly limit = DEFAULT_SPOOL_BYTES,
+    lockWaitMs?: number,
   ) {
     if (!validLimit(limit)) throw Error("spool limit");
-    this.directory = new SecureSpoolDirectory(path);
+    this.directory = new SecureSpoolDirectory(path, lockWaitMs);
   }
   async withDispatch<T>(
     operation: () => Promise<Result<T, CaptureError>>,
@@ -142,15 +201,13 @@ export class DiskSpool implements CaptureSpool {
       const s = state(await io.read("state", 2 * 1024 * 1024));
       if (s.pending) {
         const pending = s.pending;
-        const raw = await io.read(pending.file, MAX_EVENT_BYTES);
-        if (raw !== null) io.remove(pending.file);
+        await io.removeIfPresent(pending.file);
         if (pending.operation === "remove") {
           s.entries = s.entries.filter((e) => e.file !== pending.file);
           if (pending.reason) loss(s, pending.sequence, pending.reason);
         } else {
-          const temp = await io.read("event-next", MAX_EVENT_BYTES);
-          if (temp !== null) io.remove("event-next");
-          loss(s, pending.sequence, "invalid_input");
+          await io.removeIfPresent("event-next");
+          loss(s, pending.sequence, "interrupted");
         }
         delete s.pending;
         await io.write("state", JSON.stringify(s));
@@ -203,18 +260,37 @@ export class DiskSpool implements CaptureSpool {
   async readBatch(): Promise<Result<SpoolBatch, CaptureError>> {
     return this.transaction(async (s, io) => {
       const events: FilteredEvent[] = [];
-      for (const e of s.entries.slice(0, 1)) {
-        const raw = await io.read(e.file, MAX_EVENT_BYTES);
-        if (raw === null) throw Error("incomplete");
-        const x: unknown = JSON.parse(raw);
-        if (
-          Buffer.byteLength(raw) !== e.bytes ||
-          !isFilteredEvent(x) ||
-          hash(x.id) !== e.file ||
-          x.sequence !== e.sequence
-        )
-          throw Error("event");
-        events.push(x);
+      // A head that cannot be read back intact is quarantined with a metadata-
+      // only gap so one bad entry can never wedge enqueue, status, or flush.
+      while (s.entries.length && !events.length) {
+        const e = s.entries[0];
+        if (!e) break;
+        let valid: FilteredEvent | undefined;
+        try {
+          const raw = await io.read(e.file, MAX_EVENT_BYTES);
+          const x: unknown = raw === null ? undefined : JSON.parse(raw);
+          if (
+            raw !== null &&
+            Buffer.byteLength(raw) === e.bytes &&
+            isFilteredEvent(x) &&
+            hash(x.id) === e.file &&
+            x.sequence === e.sequence
+          )
+            valid = x;
+        } catch (error) {
+          if (error instanceof UnsafeStorage) throw error;
+        }
+        if (valid) {
+          events.push(valid);
+          break;
+        }
+        s.pending = { ...e, operation: "remove", reason: "corrupt" };
+        await io.write("state", JSON.stringify(s));
+        await io.removeIfPresent(e.file);
+        s.entries.shift();
+        loss(s, e.sequence, "corrupt");
+        delete s.pending;
+        await io.write("state", JSON.stringify(s));
       }
       return {
         events,
@@ -223,6 +299,49 @@ export class DiskSpool implements CaptureSpool {
         totalLosses: s.totalLosses,
         paused: s.paused,
       };
+    });
+  }
+  async status(): Promise<Result<CaptureStatus, CaptureError>> {
+    return this.transaction(async (s) => ({
+      paused: s.paused,
+      queued: s.entries.length,
+      gaps: s.gaps,
+      totalLosses: s.totalLosses,
+    }));
+  }
+  async recordFailure(id: string): Promise<Result<number, CaptureError>> {
+    return this.transaction(async (s, io) => {
+      const e = s.entries.find((x) => x.file === hash(id));
+      if (!e) return 0;
+      e.failures = Math.min((e.failures ?? 0) + 1, 1_000_000);
+      await io.write("state", JSON.stringify(s));
+      return e.failures;
+    });
+  }
+  async cachedPolicy(
+    projectID: string,
+  ): Promise<Result<CachedPolicy | undefined, CaptureError>> {
+    return this.transaction(async (_s, io) => (await policies(io))[projectID]);
+  }
+  async cachePolicy(
+    projectID: string,
+    policy: CachedPolicy,
+  ): Promise<Result<void, CaptureError>> {
+    return this.transaction(async (_s, io) => {
+      if (!cachedPolicy(policy)) return;
+      const all = await policies(io);
+      all[projectID] = policy;
+      // Bounded: keep the most recently fetched projects that fit the budget.
+      let kept = Object.entries(all)
+        .sort((a, b) => b[1].fetchedAt - a[1].fetchedAt)
+        .slice(0, POLICY_CACHE_PROJECTS);
+      let data = JSON.stringify(Object.fromEntries(kept));
+      while (kept.length > 1 && Buffer.byteLength(data) > POLICY_CACHE_BYTES) {
+        kept = kept.slice(0, -1);
+        data = JSON.stringify(Object.fromEntries(kept));
+      }
+      if (Buffer.byteLength(data) > POLICY_CACHE_BYTES) return;
+      await io.write("policy", data, "policy-next");
     });
   }
   private async remove(
@@ -235,8 +354,7 @@ export class DiskSpool implements CaptureSpool {
       if (!entry) return;
       s.pending = { ...entry, operation: "remove", reason };
       await io.write("state", JSON.stringify(s));
-      const raw = await io.read(file, MAX_EVENT_BYTES);
-      if (raw !== null) io.remove(file);
+      await io.removeIfPresent(file);
       s.entries = s.entries.filter((e) => e.file !== file);
       if (reason) loss(s, entry.sequence, reason);
       delete s.pending;

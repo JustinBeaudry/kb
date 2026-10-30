@@ -38,6 +38,7 @@ test("status pause and resume work offline through the capture service", async (
   });
   expect((await run({ ...base, action: "pause" })).output).toEqual({
     ok: true,
+    value: "paused",
   });
   const paused = await run({ ...base, action: "status" });
   expect(paused.output).toMatchObject({ ok: true, value: { paused: true } });

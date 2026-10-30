@@ -30,6 +30,7 @@ export function canonicalSourcePath(path: string): boolean {
 }
 export function policyAvailable(
   policy: CapturePolicy | undefined,
+  now = Date.now(),
 ): policy is CapturePolicy {
   return (
     !!policy &&
@@ -37,7 +38,7 @@ export function policyAvailable(
     policy.revision.length > 0 &&
     policy.revision.length <= 256 &&
     Number.isFinite(policy.expiresAt) &&
-    policy.expiresAt > Date.now() &&
+    policy.expiresAt > now &&
     Number.isSafeInteger(policy.spoolLimitBytes) &&
     policy.spoolLimitBytes >= 0
   );
@@ -46,10 +47,25 @@ export function captureMetadata(
   event: CaptureEvent,
   knownSecrets: readonly string[],
 ) {
+  // Rebuild scope from the allowed keys only: unknown harness keys are dropped
+  // here so they can never reach the spool or the server.
+  const raw: unknown = event.scope;
+  const scope =
+    raw && typeof raw === "object" && !Array.isArray(raw)
+      ? {
+          projectID: event.scope.projectID,
+          ...(event.scope.taskID !== undefined
+            ? { taskID: event.scope.taskID }
+            : {}),
+          ...(event.scope.sessionID !== undefined
+            ? { sessionID: event.scope.sessionID }
+            : {}),
+        }
+      : undefined;
   const metadata = {
     id: event.id,
     idempotencyKey: event.idempotencyKey,
-    scope: event.scope,
+    scope,
     kind: event.kind,
     observedAt: event.observedAt,
     sequence: event.sequence,
@@ -94,7 +110,8 @@ export function captureMetadata(
     )
   )
     return null;
-  return metadata;
+  if (!scope) return null;
+  return { ...metadata, scope };
 }
 const eventKeys = new Set([
   "id",
@@ -137,6 +154,7 @@ export function filterEvent(
   event: CaptureEvent,
   policy: CapturePolicy | undefined,
   knownSecrets: readonly string[],
+  now = Date.now(),
 ): FilterOutcome {
   const sequence =
     Number.isSafeInteger(event.sequence) && event.sequence >= 0
@@ -145,7 +163,7 @@ export function filterEvent(
   const withheld = (
     reason: "policy_unavailable" | "paused" | "invalid_input",
   ): FilterOutcome => ({ kind: "withheld", gap: { sequence, reason } });
-  if (!policyAvailable(policy)) return withheld("policy_unavailable");
+  if (!policyAvailable(policy, now)) return withheld("policy_unavailable");
   if (policy.paused) return withheld("paused");
   const metadata = captureMetadata(event, knownSecrets);
   if (!metadata || knownSecrets.some((s) => s && policy.revision.includes(s)))
