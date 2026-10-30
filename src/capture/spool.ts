@@ -10,6 +10,7 @@ import {
   DEFAULT_SPOOL_BYTES,
   MAX_EVENT_BYTES,
   MAX_SPOOL_BYTES,
+  POLICY_FRESHNESS_MS,
   type CachedPolicy,
   type CaptureError,
   type CaptureSpool,
@@ -138,10 +139,10 @@ function state(raw: string | null): State {
   return x as State;
 }
 const POLICY_CACHE_BYTES = 4 * 1024 * 1024;
-/** Unchanged policy is re-persisted at most this often (bounds fsyncs). The
- * offline 24 h age is measured from the persisted fetchedAt, so this lag only
- * makes the cache expire sooner (conservative). */
-const POLICY_CACHE_REWRITE_MS = 15 * 60 * 1000;
+/** Unchanged policy is re-persisted at most once per freshness window: often
+ * enough that enqueue reads the server at most once per POLICY_FRESHNESS_MS,
+ * and never on every guard read (bounds fsyncs to one per minute per project). */
+const POLICY_CACHE_REWRITE_MS = POLICY_FRESHNESS_MS;
 const sameServerPolicy = (a: CachedPolicy, b: CachedPolicy) =>
   JSON.stringify({ ...a, fetchedAt: 0 }) ===
   JSON.stringify({ ...b, fetchedAt: 0 });

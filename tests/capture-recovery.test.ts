@@ -7,6 +7,7 @@ import { F4Uploader } from "../src/capture/uploader";
 import {
   ENQUEUE_DEADLINE_MS,
   MIN_STRIKE_INTERVAL_MS,
+  POLICY_FRESHNESS_MS,
   type CaptureError,
   type CapturePolicy,
   type CaptureUploadGateway,
@@ -522,3 +523,29 @@ test("a lock wait plus a hanging policy refresh still finish within the enqueue 
     await f.cleanup();
   }
 }, 15_000);
+test("online enqueues do at most one policy read per freshness window", async () => {
+  const f = await spoolFixture();
+  let t = Date.now();
+  const clock = () => t;
+  const g = online(clock);
+  try {
+    const s = new CaptureService(f.spool, g.gateway, [], { now: clock });
+    const at = (n: number) => ({
+      ...event(),
+      id: `event-${n}`,
+      idempotencyKey: `event-${n}`,
+      sequence: n,
+    });
+    await s.enqueue(at(1));
+    expect(g.reads()).toBe(1);
+    t += POLICY_FRESHNESS_MS + 1000;
+    await s.enqueue(at(2)); // stale cache: one refresh, persisted
+    for (let i = 3; i <= 6; i++) {
+      t += 5000;
+      await s.enqueue(at(i));
+    }
+    expect(g.reads()).toBe(2);
+  } finally {
+    await f.cleanup();
+  }
+});
