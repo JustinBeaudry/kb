@@ -37,6 +37,8 @@ const DIRECTORY =
  * hard link) is tampering, not corruption. It fails closed and is never
  * quarantined automatically. */
 export class UnsafeStorage extends Error {}
+/** A file larger than the caller's bound: its content is invalid, not unsafe. */
+export class BoundedRead extends Error {}
 let library: ReturnType<typeof native> | undefined;
 let opener: ReturnType<typeof compileOpener> | undefined;
 function compileOpener() {
@@ -93,6 +95,8 @@ export class SecureSpoolDirectory {
   async within<T>(
     fn: (io: SpoolIO) => Promise<T>,
     lockName: "lock" | "dispatch" = "lock",
+    /** Optional absolute (Date.now) deadline that can only shorten the wait. */
+    deadlineAt?: number,
   ): Promise<Result<T, CaptureError>> {
     let fd = -1,
       lock = -1;
@@ -134,7 +138,10 @@ export class SecureSpoolDirectory {
         ),
       );
       privateFile(await info(lock));
-      const deadline = Date.now() + (lockName === "lock" ? this.lockWaitMs : 0);
+      const deadline = Math.min(
+        Date.now() + (lockName === "lock" ? this.lockWaitMs : 0),
+        deadlineAt ?? Number.POSITIVE_INFINITY,
+      );
       // LOCK_EX | LOCK_NB, polled: a blocking flock would stall the JS thread.
       while (n.flock(lock, 2 | 4) !== 0) {
         if (Date.now() >= deadline)
@@ -181,7 +188,7 @@ export class SpoolIO {
     try {
       const s = await info(opened);
       privateFile(s);
-      if (s.size > max) throw Error("bounded");
+      if (s.size > max) throw new BoundedRead("bounded");
       return await Bun.file(opened).text();
     } finally {
       n.close(opened);

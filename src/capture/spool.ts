@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { isFilteredEvent } from "./policy";
 import {
   SecureSpoolDirectory,
+  BoundedRead,
   UnsafeStorage,
   type SpoolIO,
 } from "../repositories/capture-spool.repository";
@@ -26,8 +27,10 @@ type Entry = {
   sequence: number;
   /** Item-level delivery failures recorded for this queued event. */
   failures?: number;
+  /** Collector time (ms) of the last counted failure. */
+  struckAt?: number;
 };
-const entryKeys = ["file", "bytes", "sequence", "failures"];
+const entryKeys = ["file", "bytes", "sequence", "failures", "struckAt"];
 type Pending = Entry & { operation: "append" | "remove"; reason?: GapReason };
 type State = {
   version: 1;
@@ -81,7 +84,8 @@ function entry(x: unknown): boolean {
     count(x.bytes) &&
     Number(x.bytes) <= MAX_EVENT_BYTES &&
     count(x.sequence) &&
-    (x.failures === undefined || count(x.failures))
+    (x.failures === undefined || count(x.failures)) &&
+    (x.struckAt === undefined || count(x.struckAt))
   );
 }
 /** The journal is our own durable format: every field and key is validated
@@ -134,6 +138,13 @@ function state(raw: string | null): State {
   return x as State;
 }
 const POLICY_CACHE_BYTES = 4 * 1024 * 1024;
+/** Unchanged policy is re-persisted at most this often (bounds fsyncs). The
+ * offline 24 h age is measured from the persisted fetchedAt, so this lag only
+ * makes the cache expire sooner (conservative). */
+const POLICY_CACHE_REWRITE_MS = 15 * 60 * 1000;
+const sameServerPolicy = (a: CachedPolicy, b: CachedPolicy) =>
+  JSON.stringify({ ...a, fetchedAt: 0 }) ===
+  JSON.stringify({ ...b, fetchedAt: 0 });
 const POLICY_CACHE_PROJECTS = 16;
 const strings = (x: unknown): x is string[] =>
   Array.isArray(x) &&
@@ -196,28 +207,34 @@ export class DiskSpool implements CaptureSpool {
   }
   private async transaction<T>(
     fn: (s: State, io: SpoolIO) => Promise<T>,
+    deadlineAt?: number,
   ): Promise<Result<T, CaptureError>> {
-    return this.directory.within(async (io) => {
-      const s = state(await io.read("state", 2 * 1024 * 1024));
-      if (s.pending) {
-        const pending = s.pending;
-        await io.removeIfPresent(pending.file);
-        if (pending.operation === "remove") {
-          s.entries = s.entries.filter((e) => e.file !== pending.file);
-          if (pending.reason) loss(s, pending.sequence, pending.reason);
-        } else {
-          await io.removeIfPresent("event-next");
-          loss(s, pending.sequence, "interrupted");
+    return this.directory.within(
+      async (io) => {
+        const s = state(await io.read("state", 2 * 1024 * 1024));
+        if (s.pending) {
+          const pending = s.pending;
+          await io.removeIfPresent(pending.file);
+          if (pending.operation === "remove") {
+            s.entries = s.entries.filter((e) => e.file !== pending.file);
+            if (pending.reason) loss(s, pending.sequence, pending.reason);
+          } else {
+            await io.removeIfPresent("event-next");
+            loss(s, pending.sequence, "interrupted");
+          }
+          delete s.pending;
+          await io.write("state", JSON.stringify(s));
         }
-        delete s.pending;
-        await io.write("state", JSON.stringify(s));
-      }
-      return fn(s, io);
-    });
+        return fn(s, io);
+      },
+      "lock",
+      deadlineAt,
+    );
   }
   async appendFiltered(
     event: FilteredEvent,
     limitBytes = this.limit,
+    deadlineAt?: number,
   ): Promise<Result<Receipt, CaptureError>> {
     const result = await this.transaction(
       async (s, io): Promise<Result<Receipt, CaptureError>> => {
@@ -254,6 +271,7 @@ export class DiskSpool implements CaptureSpool {
         await io.write("state", JSON.stringify(s));
         return { ok: true, value: { id: event.id, state: "queued" } };
       },
+      deadlineAt,
     );
     return result.ok ? result.value : result;
   }
@@ -278,7 +296,11 @@ export class DiskSpool implements CaptureSpool {
           )
             valid = x;
         } catch (error) {
-          if (error instanceof UnsafeStorage) throw error;
+          // Only invalid content is quarantined. Unsafe entries fail closed, and
+          // transient I/O errors (fstat/read after open) keep the payload and
+          // surface as storage_unavailable.
+          if (!(error instanceof BoundedRead || error instanceof SyntaxError))
+            throw error;
         }
         if (valid) {
           events.push(valid);
@@ -301,35 +323,63 @@ export class DiskSpool implements CaptureSpool {
       };
     });
   }
-  async status(): Promise<Result<CaptureStatus, CaptureError>> {
-    return this.transaction(async (s) => ({
-      paused: s.paused,
-      queued: s.entries.length,
-      gaps: s.gaps,
-      totalLosses: s.totalLosses,
-    }));
+  async status(
+    deadlineAt?: number,
+  ): Promise<Result<CaptureStatus, CaptureError>> {
+    return this.transaction(
+      async (s) => ({
+        paused: s.paused,
+        queued: s.entries.length,
+        gaps: s.gaps,
+        totalLosses: s.totalLosses,
+      }),
+      deadlineAt,
+    );
   }
-  async recordFailure(id: string): Promise<Result<number, CaptureError>> {
+  async recordFailure(
+    id: string,
+    at: number,
+    minIntervalMs: number,
+  ): Promise<Result<number, CaptureError>> {
     return this.transaction(async (s, io) => {
       const e = s.entries.find((x) => x.file === hash(id));
       if (!e) return 0;
+      // Strikes inside the interval are not counted (nor persisted).
+      if (e.struckAt !== undefined && at - e.struckAt < minIntervalMs)
+        return e.failures ?? 0;
       e.failures = Math.min((e.failures ?? 0) + 1, 1_000_000);
+      e.struckAt = Math.max(0, Math.floor(at));
       await io.write("state", JSON.stringify(s));
       return e.failures;
     });
   }
   async cachedPolicy(
     projectID: string,
+    deadlineAt?: number,
   ): Promise<Result<CachedPolicy | undefined, CaptureError>> {
-    return this.transaction(async (_s, io) => (await policies(io))[projectID]);
+    return this.transaction(
+      async (_s, io) => (await policies(io))[projectID],
+      deadlineAt,
+    );
   }
   async cachePolicy(
     projectID: string,
     policy: CachedPolicy,
+    deadlineAt?: number,
   ): Promise<Result<void, CaptureError>> {
     return this.transaction(async (_s, io) => {
       if (!cachedPolicy(policy)) return;
       const all = await policies(io);
+      const previous = all[projectID];
+      // Rewrite (with its fsyncs) only when contents change, or to advance a
+      // fetchedAt older than POLICY_CACHE_REWRITE_MS; not on every guard read.
+      if (
+        previous &&
+        sameServerPolicy(previous, policy) &&
+        policy.fetchedAt - previous.fetchedAt < POLICY_CACHE_REWRITE_MS &&
+        policy.fetchedAt >= previous.fetchedAt
+      )
+        return;
       all[projectID] = policy;
       // Bounded: keep the most recently fetched projects that fit the budget.
       let kept = Object.entries(all)
@@ -342,7 +392,7 @@ export class DiskSpool implements CaptureSpool {
       }
       if (Buffer.byteLength(data) > POLICY_CACHE_BYTES) return;
       await io.write("policy", data, "policy-next");
-    });
+    }, deadlineAt);
   }
   private async remove(
     id: string,
@@ -367,11 +417,11 @@ export class DiskSpool implements CaptureSpool {
   discard(id: string, reason: GapReason) {
     return this.remove(id, reason);
   }
-  recordGap(sequence: number, reason: GapReason) {
+  recordGap(sequence: number, reason: GapReason, deadlineAt?: number) {
     return this.transaction(async (s, io) => {
       loss(s, sequence, reason);
       await io.write("state", JSON.stringify(s));
-    });
+    }, deadlineAt);
   }
   setPaused(paused: boolean) {
     return this.transaction(async (s, io) => {

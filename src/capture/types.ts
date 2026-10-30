@@ -104,32 +104,49 @@ export type CaptureStatus = {
   gaps: Gap[];
   totalLosses: number;
 };
-export type FlushReport = { sent: number; gaps: Gap[]; totalLosses: number };
+export type FlushReport = {
+  sent: number;
+  gaps: Gap[];
+  totalLosses: number;
+  /** Last item-level server error seen, including for items dropped. */
+  lastError?: CaptureError["code"];
+};
 export interface CaptureSpool {
   withDispatch<T>(
     operation: () => Promise<Result<T, CaptureError>>,
   ): Promise<Result<T, CaptureError>>;
+  /** deadlineAt (Date.now ms) can only shorten the bounded state-lock wait. */
   appendFiltered(
     event: FilteredEvent,
     limitBytes?: number,
+    deadlineAt?: number,
   ): Promise<Result<Receipt, CaptureError>>;
   /** Head batch; an unreadable or invalid head is quarantined with a gap. */
   readBatch(): Promise<Result<SpoolBatch, CaptureError>>;
   /** Metadata only: never reads queued payloads. */
-  status(): Promise<Result<CaptureStatus, CaptureError>>;
-  /** Count one item-level delivery failure for a queued event; returns the total. */
-  recordFailure(id: string): Promise<Result<number, CaptureError>>;
+  status(deadlineAt?: number): Promise<Result<CaptureStatus, CaptureError>>;
+  /** Count one item-level delivery failure at collector time `at`, only if at
+   * least minIntervalMs passed since the last counted one; returns the total. */
+  recordFailure(
+    id: string,
+    at: number,
+    minIntervalMs: number,
+  ): Promise<Result<number, CaptureError>>;
   cachedPolicy(
     projectID: string,
+    deadlineAt?: number,
   ): Promise<Result<CachedPolicy | undefined, CaptureError>>;
+  /** Persists only when contents change (or to refresh an old fetchedAt). */
   cachePolicy(
     projectID: string,
     policy: CachedPolicy,
+    deadlineAt?: number,
   ): Promise<Result<void, CaptureError>>;
   acknowledge(id: string): Promise<Result<void, CaptureError>>;
   recordGap(
     sequence: number,
     reason: GapReason,
+    deadlineAt?: number,
   ): Promise<Result<void, CaptureError>>;
   setPaused(paused: boolean): Promise<Result<void, CaptureError>>;
   discard(id: string, reason: GapReason): Promise<Result<void, CaptureError>>;
@@ -160,6 +177,13 @@ export const POLICY_FRESHNESS_MS = 60_000;
 export const POLICY_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 /** Item-level failures (stale, incomplete, forbidden) before quarantine. */
 export const MAX_HEAD_FAILURES = 5;
+/** Minimum spacing between counted strikes for one queued item, so frequent
+ * hook flushes cannot burn through MAX_HEAD_FAILURES quickly: dropping an item
+ * needs failures spanning at least (MAX_HEAD_FAILURES - 1) intervals (4 min). */
+export const MIN_STRIKE_INTERVAL_MS = 60_000;
+/** One overall enqueue deadline shared by every state-lock wait and the
+ * opportunistic policy refresh. On expiry enqueue returns an explicit busy. */
+export const ENQUEUE_DEADLINE_MS = 2500;
 export interface CredentialStore {
   get(profile: string): Promise<Result<string, CaptureError>>;
   set(profile: string, bearer: string): Promise<Result<void, CaptureError>>;

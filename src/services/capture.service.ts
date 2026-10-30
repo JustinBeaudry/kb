@@ -5,7 +5,9 @@ import {
   policyAvailable,
 } from "../capture/policy";
 import {
+  ENQUEUE_DEADLINE_MS,
   MAX_HEAD_FAILURES,
+  MIN_STRIKE_INTERVAL_MS,
   POLICY_CACHE_MAX_AGE_MS,
   POLICY_FRESHNESS_MS,
   type CachedPolicy,
@@ -49,6 +51,8 @@ const rejected: readonly CaptureError["code"][] = [
   "deleted",
   "invalid_input",
 ];
+/** Kept from the enqueue deadline for recording the outcome under the lock. */
+const ENQUEUE_RESERVE_MS = 250;
 /** Services own policy decisions; leaf ports own all disk and network effects. */
 export class CaptureService {
   private paused = false;
@@ -75,6 +79,7 @@ export class CaptureService {
   private async current(
     project: string,
     signal?: AbortSignal,
+    deadlineAt?: number,
   ): Promise<Result<CapturePolicy, CaptureError>> {
     try {
       const result = await this.uploader.policy(
@@ -89,15 +94,19 @@ export class CaptureService {
         return failure("policy_unavailable");
       const p = result.value;
       // Opportunistic: a cache write failure never blocks capture or sending.
-      await this.spool.cachePolicy(project, {
-        revision: p.revision,
-        paused: p.paused,
-        excludedPaths: [...p.excludedPaths],
-        excludedFields: [...p.excludedFields],
-        allowedModelRoutes: [...p.allowedModelRoutes],
-        spoolLimitBytes: p.spoolLimitBytes,
-        fetchedAt: this.now(),
-      });
+      await this.spool.cachePolicy(
+        project,
+        {
+          revision: p.revision,
+          paused: p.paused,
+          excludedPaths: [...p.excludedPaths],
+          excludedFields: [...p.excludedFields],
+          allowedModelRoutes: [...p.allowedModelRoutes],
+          spoolLimitBytes: p.spoolLimitBytes,
+          fetchedAt: this.now(),
+        },
+        deadlineAt,
+      );
       return { ok: true, value: this.local(p) };
     } catch {
       return failure("policy_unavailable");
@@ -113,12 +122,20 @@ export class CaptureService {
    * denied refresh or a missing/too-old cache withholds (never permissive). */
   private async enqueuePolicy(
     project: string,
+    deadlineAt: number,
   ): Promise<Result<CapturePolicy, CaptureError>> {
-    const stored = await this.spool.cachedPolicy(project);
+    const stored = await this.spool.cachedPolicy(project, deadlineAt);
+    if (!stored.ok && stored.error.code === "busy") return stored;
     const c = stored.ok ? stored.value : undefined;
     const fresh = c && this.cached(c, POLICY_FRESHNESS_MS);
     if (fresh) return { ok: true, value: fresh };
-    const read = await this.current(project, AbortSignal.timeout(1000));
+    // The refresh gets what is left of the enqueue deadline (at most 1 s),
+    // keeping a small reserve to record the outcome.
+    const budget = Math.min(1000, deadlineAt - Date.now() - ENQUEUE_RESERVE_MS);
+    const read =
+      budget > 0
+        ? await this.current(project, AbortSignal.timeout(budget), deadlineAt)
+        : failure("policy_unavailable");
     if (read.ok || denied.includes(read.error.code)) return read;
     const fallback = c && this.cached(c, POLICY_CACHE_MAX_AGE_MS);
     return fallback ? { ok: true, value: fallback } : read;
@@ -128,24 +145,32 @@ export class CaptureService {
     reason: GapReason,
     state: Receipt["state"],
     id = event.id,
+    deadlineAt?: number,
   ): Promise<Result<Receipt, CaptureError>> {
-    const gap = await this.spool.recordGap(event.sequence, reason);
+    const gap = await this.spool.recordGap(event.sequence, reason, deadlineAt);
     return gap.ok ? { ok: true, value: { id, state } } : gap;
   }
+  /** One overall deadline (ENQUEUE_DEADLINE_MS) covers every state-lock wait
+   * and the policy refresh, so capture never stalls the harness. When the
+   * deadline passes, the remaining lock attempts are single tries; if one
+   * still cannot get the lock, enqueue returns an explicit `busy` (no gap can be
+   * recorded without that lock). */
   async enqueue(event: CaptureEvent): Promise<Result<Receipt, CaptureError>> {
+    const deadlineAt = Date.now() + ENQUEUE_DEADLINE_MS;
+    const withheld = (
+      reason: GapReason,
+      state: Receipt["state"],
+      id?: string,
+    ) => this.withheld(event, reason, state, id ?? event.id, deadlineAt);
     try {
       if (!captureMetadata(event, this.knownSecrets))
-        return await this.withheld(
-          event,
-          "invalid_input",
-          "withheld",
-          "withheld",
-        );
-      const status = await this.spool.status();
+        return await withheld("invalid_input", "withheld", "withheld");
+      const status = await this.spool.status(deadlineAt);
       if (!status.ok) return status;
       if (this.paused || status.value.paused)
-        return await this.withheld(event, "paused", "withheld");
-      const p = await this.enqueuePolicy(event.scope.projectID);
+        return await withheld("paused", "withheld");
+      const p = await this.enqueuePolicy(event.scope.projectID, deadlineAt);
+      if (!p.ok && p.error.code === "busy") return p;
       const outcome = filterEvent(
         event,
         p.ok ? p.value : undefined,
@@ -153,18 +178,19 @@ export class CaptureService {
         this.now(),
       );
       if (outcome.kind !== "accepted")
-        return await this.withheld(event, outcome.gap.reason, outcome.kind);
+        return await withheld(outcome.gap.reason, outcome.kind);
       // Never persist anything readBatch would later reject.
       if (!isFilteredEvent(outcome.event))
-        return await this.withheld(event, "invalid_input", "withheld");
+        return await withheld("invalid_input", "withheld");
       // A concurrent pause is checked again by the repository under its lock.
       return await this.spool.appendFiltered(
         outcome.event,
         p.ok ? p.value.spoolLimitBytes : 0,
+        deadlineAt,
       );
     } catch {
       // Unexpected exceptions still leave an explicit metadata-only loss.
-      return await this.withheld(event, "invalid_input", "withheld").catch(() =>
+      return await withheld("invalid_input", "withheld").catch(() =>
         failure("invalid_input"),
       );
     }
@@ -246,16 +272,25 @@ export class CaptureService {
     return batch.ok && batch.value.events[0]?.id !== id;
   }
   /** Decide whether a failed head lets flush continue, or stops it. */
+  /** `fromItem` is true only for the item's own stage/complete/append
+   * responses. Guard failures (policy read 401/403/unavailable, pause,
+   * cancellation, storage) are caller-level: the queue is kept, no strike. */
   private async headFailed(
     e: FilteredEvent,
     error: CaptureError,
+    fromItem: boolean,
   ): Promise<Result<"continue", CaptureError>> {
     if (error.code === "stale" && (await this.removed(e.id)))
       return { ok: true, value: "continue" };
+    if (!fromItem) return { ok: false, error };
     let reason: GapReason | undefined;
     if (rejected.includes(error.code)) reason = "rejected";
     else if (itemFailures.includes(error.code)) {
-      const failures = await this.spool.recordFailure(e.id);
+      const failures = await this.spool.recordFailure(
+        e.id,
+        this.now(),
+        MIN_STRIKE_INTERVAL_MS,
+      );
       if (!failures.ok) return failures;
       if (failures.value >= MAX_HEAD_FAILURES) reason = "undeliverable";
     }
@@ -269,30 +304,44 @@ export class CaptureService {
     this.controller = new AbortController();
     const combined = AbortSignal.any([signal, this.controller.signal]);
     let sent = 0;
+    let lastError: CaptureError["code"] | undefined;
+    const report = (gaps: FlushReport["gaps"], totalLosses: number) => ({
+      ok: true as const,
+      value: {
+        sent,
+        gaps,
+        totalLosses,
+        ...(lastError ? { lastError } : {}),
+      },
+    });
     try {
       return await this.spool.withDispatch(async () => {
         // Bound one invocation even when another producer continuously adds events.
         for (let examined = 0; examined < 4096; examined++) {
           const batch = await this.spool.readBatch();
           if (!batch.ok) return batch;
-          const report = {
-            sent,
-            gaps: batch.value.gaps,
-            totalLosses: batch.value.totalLosses,
-          };
+          const done = report(batch.value.gaps, batch.value.totalLosses);
           if (this.paused || batch.value.paused || !batch.value.events.length)
-            return { ok: true, value: report };
+            return done;
           if (combined.aborted) return failure("cancelled");
           const e = batch.value.events[0];
-          if (!e) return { ok: true, value: report };
-          const checked = await this.guard(e, combined);
+          if (!e) return done;
+          // Track whether a failure came from the guard (caller-level) or from
+          // the item's own server responses.
+          let guardFailed = false;
+          const guard = async () => {
+            const allowed = await this.guard(e, combined);
+            if (!allowed.ok) guardFailed = true;
+            return allowed;
+          };
+          const checked = await guard();
           const send = checked.ok
-            ? await this.uploader.send(e, combined, () =>
-                this.guard(e, combined),
-              )
+            ? await this.uploader.send(e, combined, guard)
             : checked;
           if (!send.ok) {
-            const next = await this.headFailed(e, send.error);
+            const fromItem = !guardFailed;
+            if (fromItem) lastError = send.error.code;
+            const next = await this.headFailed(e, send.error, fromItem);
             if (next.ok) continue;
             return next;
           }
@@ -301,16 +350,7 @@ export class CaptureService {
           sent++;
         }
         const s = await this.spool.status();
-        return s.ok
-          ? {
-              ok: true,
-              value: {
-                sent,
-                gaps: s.value.gaps,
-                totalLosses: s.value.totalLosses,
-              },
-            }
-          : s;
+        return s.ok ? report(s.value.gaps, s.value.totalLosses) : s;
       });
     } catch {
       // Storage and gateway failures arrive as Results; only a programming

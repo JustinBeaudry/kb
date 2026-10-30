@@ -1,14 +1,16 @@
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
 import { join } from "node:path";
 import { readdir, writeFile } from "node:fs/promises";
 import { CaptureService } from "../src/services/capture.service";
 import { DiskSpool } from "../src/capture/spool";
 import { F4Uploader } from "../src/capture/uploader";
-import type {
-  CaptureError,
-  CapturePolicy,
-  CaptureUploadGateway,
-  FilteredEvent,
+import {
+  ENQUEUE_DEADLINE_MS,
+  MIN_STRIKE_INTERVAL_MS,
+  type CaptureError,
+  type CapturePolicy,
+  type CaptureUploadGateway,
+  type FilteredEvent,
 } from "../src/capture/types";
 import { event, policy, spoolFixture, bytes } from "./fixtures/capture";
 
@@ -19,7 +21,7 @@ const second = () => ({
   idempotencyKey: "event-2",
   sequence: 2,
 });
-function online() {
+function online(clock: () => number = Date.now) {
   let current: CapturePolicy | CaptureError["code"] = policy();
   let reads = 0;
   const sent: FilteredEvent[] = [];
@@ -29,7 +31,7 @@ function online() {
       reads++;
       return typeof current === "string"
         ? { ok: false, error: { code: current } }
-        : { ok: true, value: { ...current, expiresAt: Date.now() + 60_000 } };
+        : { ok: true, value: { ...current, expiresAt: clock() + 60_000 } };
     },
     send: async (e, _s, guard) => {
       const allowed = await guard();
@@ -154,43 +156,209 @@ test("server conflict and deleted heads are discarded with a gap and flush conti
       expect(r.ok && r.value.gaps).toEqual([
         { sequence: 1, reason: "rejected" },
       ]);
+      // The dropped item's server error is surfaced, not hidden behind ok.
+      expect(r.ok && r.value.lastError).toBe(code);
       expect(await bytes(f.spool.path)).not.toContain("hello");
     } finally {
       await f.cleanup();
     }
   }
 });
-test("repeated item-level stale failures quarantine the head after a bound", async () => {
+test("item-level stale strikes count only once per interval and drop the head after the bound", async () => {
+  const f = await spoolFixture();
+  let t = Date.now();
+  const clock = () => t;
+  const g = online(clock);
+  try {
+    const s = new CaptureService(f.spool, g.gateway, [], { now: clock });
+    await s.enqueue(event());
+    await s.enqueue(second());
+    g.failSends("stale");
+    // Rapid flushes inside one interval count as a single strike.
+    for (let i = 0; i < 10; i++)
+      expect(await s.flush(signal())).toEqual({
+        ok: false,
+        error: { code: "stale" },
+      });
+    for (let i = 0; i < 3; i++) {
+      t += MIN_STRIKE_INTERVAL_MS;
+      expect((await s.flush(signal())).ok).toBe(false);
+    }
+    expect(g.sent).toHaveLength(0);
+    let status = await s.status();
+    expect(status.ok && status.value.queued).toBe(2);
+    t += MIN_STRIKE_INTERVAL_MS;
+    const stuck = new CaptureService(
+      f.spool,
+      {
+        ...g.gateway,
+        send: async (e, sig, guard) => {
+          const allowed = await guard();
+          if (!allowed.ok) return allowed;
+          return e.id === "event-1"
+            ? { ok: false, error: { code: "stale" } }
+            : { ok: true, value: undefined };
+        },
+      },
+      [],
+      { now: clock },
+    );
+    const r = await stuck.flush(signal());
+    expect(r).toEqual({
+      ok: true,
+      value: {
+        sent: 1,
+        gaps: [{ sequence: 1, reason: "undeliverable" }],
+        totalLosses: 1,
+        lastError: "stale",
+      },
+    });
+    status = await s.status();
+    expect(status.ok && status.value.queued).toBe(0);
+  } finally {
+    await f.cleanup();
+  }
+});
+test("a project-level 403 from the policy read keeps the queue and never strikes", async () => {
+  for (const code of ["forbidden", "unauthorized"] as const) {
+    const f = await spoolFixture();
+    let t = Date.now();
+    const clock = () => t;
+    const g = online(clock);
+    try {
+      const s = new CaptureService(f.spool, g.gateway, [], { now: clock });
+      await s.enqueue(event());
+      g.set(code);
+      for (let i = 0; i < 8; i++) {
+        t += MIN_STRIKE_INTERVAL_MS;
+        expect(await s.flush(signal())).toEqual({
+          ok: false,
+          error: { code },
+        });
+      }
+      const status = await s.status();
+      expect(status.ok && status.value).toMatchObject({
+        queued: 1,
+        totalLosses: 0,
+      });
+      g.set(policy());
+      const sent = await s.flush(signal());
+      expect(sent.ok && sent.value.sent).toBe(1);
+    } finally {
+      await f.cleanup();
+    }
+  }
+});
+test("item-level forbidden from the item's own response strikes only across the time window", async () => {
+  const f = await spoolFixture();
+  let t = Date.now();
+  const clock = () => t;
+  const g = online(clock);
+  try {
+    const s = new CaptureService(f.spool, g.gateway, [], { now: clock });
+    await s.enqueue(event());
+    g.failSends("forbidden");
+    for (let i = 0; i < 20; i++)
+      expect((await s.flush(signal())).ok).toBe(false);
+    let status = await s.status();
+    expect(status.ok && status.value.queued).toBe(1);
+    for (let i = 0; i < 4; i++) {
+      t += MIN_STRIKE_INTERVAL_MS;
+      await s.flush(signal());
+    }
+    status = await s.status();
+    expect(status.ok && status.value).toMatchObject({
+      queued: 0,
+      gaps: [{ sequence: 1, reason: "undeliverable" }],
+    });
+  } finally {
+    await f.cleanup();
+  }
+});
+test("a transient read error on the head keeps the payload and reports storage_unavailable", async () => {
   const f = await spoolFixture();
   const g = online();
   try {
     const s = new CaptureService(f.spool, g.gateway);
     await s.enqueue(event());
-    await s.enqueue(second());
-    g.failSends("stale");
-    for (let i = 0; i < 4; i++)
-      expect(await s.flush(signal())).toEqual({
+    const original = Bun.file;
+    // Within readBatch, Bun.file call 1 reads the state journal and call 2 the
+    // head payload. Only call 2 fails (simulated EIO after a successful open);
+    // every other call, including writes, gets the real BunFile.
+    let calls = 0;
+    const spy = spyOn(Bun, "file").mockImplementation(((
+      ...args: Parameters<typeof Bun.file>
+    ) =>
+      ++calls === 2
+        ? {
+            text: async () => {
+              throw Error("EIO");
+            },
+          }
+        : original(...args)) as typeof Bun.file); // SAFETY: test double; only text() is used on call 2.
+    try {
+      expect(await f.spool.readBatch()).toEqual({
         ok: false,
-        error: { code: "stale" },
+        error: { code: "storage_unavailable" },
       });
-    expect(g.sent).toHaveLength(0);
-    g.failSends(undefined);
-    const stuck = new CaptureService(f.spool, {
-      ...g.gateway,
-      send: async (e, sig, guard) =>
-        e.id === "event-1"
-          ? { ok: false, error: { code: "stale" } }
-          : g.gateway.send(e, sig, guard),
-    });
-    const r = await stuck.flush(signal());
-    expect(r.ok && r.value.sent).toBe(1);
-    expect(r.ok && r.value.gaps).toEqual([
-      { sequence: 1, reason: "undeliverable" },
+      expect(calls).toBeGreaterThanOrEqual(2);
+    } finally {
+      spy.mockRestore();
+    }
+    const batch = await f.spool.readBatch();
+    expect(batch.ok && batch.value.events.map((e) => e.id)).toEqual([
+      "event-1",
     ]);
+    expect(batch.ok && batch.value.totalLosses).toBe(0);
   } finally {
     await f.cleanup();
   }
 });
+test("unchanged server policy does not rewrite the policy cache on every read", async () => {
+  const f = await spoolFixture();
+  const g = online();
+  try {
+    const s = new CaptureService(f.spool, g.gateway);
+    await s.enqueue(event());
+    const { stat } = await import("node:fs/promises");
+    const before = await stat(join(f.spool.path, "policy"));
+    await s.flush(signal());
+    await s.enqueue(second());
+    await s.flush(signal());
+    const after = await stat(join(f.spool.path, "policy"));
+    expect(after.ino).toBe(before.ino);
+    g.set({ ...policy(), revision: "p2" });
+    // A queued item makes flush read the (changed) server policy.
+    await s.enqueue({
+      ...event(),
+      id: "event-3",
+      idempotencyKey: "event-3",
+      sequence: 3,
+    });
+    await s.flush(signal());
+    expect((await stat(join(f.spool.path, "policy"))).ino).not.toBe(before.ino);
+  } finally {
+    await f.cleanup();
+  }
+});
+test("enqueue has one overall deadline across lock waits and refresh", async () => {
+  const f = await spoolFixture();
+  const g = online();
+  try {
+    const s = new CaptureService(f.spool, g.gateway);
+    expect((await s.status()).ok).toBe(true);
+    const holder = await hold(f.spool.path, 6000);
+    const started = performance.now();
+    const r = await s.enqueue(event());
+    const elapsed = performance.now() - started;
+    expect(r).toEqual({ ok: false, error: { code: "busy" } });
+    expect(elapsed).toBeLessThan(ENQUEUE_DEADLINE_MS + 500);
+    holder.kill();
+    await holder.exited;
+  } finally {
+    await f.cleanup();
+  }
+}, 15_000);
 test("generic server unavailability never quarantines queued data", async () => {
   const f = await spoolFixture();
   const g = online();
@@ -330,3 +498,27 @@ test("F4 gateway reads the closed problem code to separate permanent from retrya
     }
   }
 });
+test("a lock wait plus a hanging policy refresh still finish within the enqueue deadline", async () => {
+  const f = await spoolFixture();
+  try {
+    const s = new CaptureService(f.spool, {
+      policy: (_p, sig) =>
+        new Promise((resolve) =>
+          sig?.addEventListener("abort", () =>
+            resolve({ ok: false, error: { code: "cancelled" } }),
+          ),
+        ),
+      send: async () => ({ ok: true, value: undefined }),
+    });
+    expect((await s.status()).ok).toBe(true);
+    const holder = await hold(f.spool.path, 1900);
+    const started = performance.now();
+    const r = await s.enqueue(event());
+    const elapsed = performance.now() - started;
+    expect(r.ok && r.value.state).toBe("withheld");
+    expect(elapsed).toBeLessThan(ENQUEUE_DEADLINE_MS + 250);
+    await holder.exited;
+  } finally {
+    await f.cleanup();
+  }
+}, 15_000);
