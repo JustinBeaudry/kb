@@ -25,6 +25,7 @@ type IdentityHandler struct {
 	checkpoints CheckpointService
 	memory      MemoryService
 	retrieval   RetrievalService
+	policy      PolicyService
 }
 
 var _ StrictServerInterface = (*IdentityHandler)(nil)
@@ -35,7 +36,7 @@ func NewIdentityServer(identity IdentityService, logger *slog.Logger) (*echo.Ech
 func newMemoryServer(identity IdentityService, capture CaptureService, checkpoints CheckpointService, logger *slog.Logger) (*echo.Echo, error) {
 	return configuredMemoryServer(identity, capture, checkpoints, nil, nil, logger)
 }
-func configuredMemoryServer(identity IdentityService, capture CaptureService, checkpoints CheckpointService, memory MemoryService, retrieval RetrievalService, logger *slog.Logger) (*echo.Echo, error) {
+func configuredMemoryServer(identity IdentityService, capture CaptureService, checkpoints CheckpointService, memory MemoryService, retrieval RetrievalService, logger *slog.Logger, policies ...PolicyService) (*echo.Echo, error) {
 	spec, err := GetSpec()
 	if err != nil {
 		return nil, domain.ErrUnavailable
@@ -75,8 +76,16 @@ func configuredMemoryServer(identity IdentityService, capture CaptureService, ch
 		}
 		return problem(c, domain.ErrInvalidInput)
 	}}))
-	strict := NewStrictHandler(&IdentityHandler{identity: identity, capture: capture, checkpoints: checkpoints, memory: memory, retrieval: retrieval}, nil)
+	var policy PolicyService
+	if len(policies) > 0 {
+		policy = policies[0]
+	}
+	strict := NewStrictHandler(&IdentityHandler{identity: identity, capture: capture, checkpoints: checkpoints, memory: memory, retrieval: retrieval, policy: policy}, nil)
+
 	wrapper := ServerInterfaceWrapper{Handler: strict}
+	if policy != nil {
+		e.GET("/v1/policies/:project", wrapper.GetPolicy)
+	}
 	e.POST("/v1/clients", wrapper.EnrollClient, Capability("clients:manage", nil))
 	e.POST("/v1/clients/:id\\:revoke", wrapper.RevokeClient, Capability("clients:manage", nil))
 	e.GET("/v1/status", wrapper.GetStatus, Capability("status:read", nil))

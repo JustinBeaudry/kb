@@ -359,6 +359,7 @@
     "/v1/policies/{project}": {
       "get": {
         "operationId": "getPolicy",
+        "description": "Read-only current project policy. Requires explicit policy:read and authoritative current project grants. Policy mutation is unavailable.",
         "responses": {
           "200": {
             "description": "Success from an implemented operation only.",
@@ -1651,7 +1652,8 @@
                 "checkpoint:write",
                 "events:append",
                 "artifacts:write",
-                "verification:write"
+                "verification:write",
+                "policy:read"
               ]
             },
             "minItems": 1,
