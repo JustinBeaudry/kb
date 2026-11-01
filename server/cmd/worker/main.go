@@ -38,6 +38,14 @@ func run(parent context.Context, logger *slog.Logger, handlers map[string]platfo
 	if err != nil {
 		return err
 	}
+	journalConfig, err := platform.LoadJournalConfig()
+	if err != nil {
+		return err
+	}
+	journal, err := gateway.NewS3DeletionJournal(journalConfig)
+	if err != nil {
+		return err
+	}
 	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	store, err := graph.Open(ctx, cfg.Graph)
@@ -49,12 +57,24 @@ func run(parent context.Context, logger *slog.Logger, handlers map[string]platfo
 		defer cancel()
 		_ = store.Close(cleanup)
 	}()
+	objectConfig, err := platform.LoadObjectConfig()
+	if err != nil {
+		return err
+	}
+	objects, err := gateway.NewS3(objectConfig)
+	if err != nil {
+		return err
+	}
+	lifecycle := service.NewLifecycleService(store, repository.NewLifecycleRepository(store), repository.NewIdentityRepository(store), repository.NewJobsRepository(store), objects, journal, time.Now)
+	if err = lifecycle.Recover(ctx); err != nil {
+		return err
+	}
 	jobs := service.NewJobsService(store, repository.NewJobsRepository(store))
 	worker := platform.Worker{ID: os.Getenv("KB_WORKER_ID"), Kinds: kinds, Jobs: jobs, RunJob: platform.DispatchJobs(handlers), Logger: logger}
 	return worker.Run(ctx)
 }
 
-// runCapture composes the only implemented durable handler. Intelligence owns
+// runCapture composes durable capture and lifecycle handlers. Intelligence owns
 // evidence.extract later; it is deliberately absent from the claimed kinds.
 func runCapture(parent context.Context, logger *slog.Logger) error {
 	cfg, err := platform.LoadConfig()
@@ -66,6 +86,14 @@ func runCapture(parent context.Context, logger *slog.Logger) error {
 		return err
 	}
 	objects, err := gateway.NewS3(objectConfig)
+	if err != nil {
+		return err
+	}
+	journalConfig, err := platform.LoadJournalConfig()
+	if err != nil {
+		return err
+	}
+	journal, err := gateway.NewS3DeletionJournal(journalConfig)
 	if err != nil {
 		return err
 	}
@@ -83,11 +111,19 @@ func runCapture(parent context.Context, logger *slog.Logger) error {
 	repo := repository.NewEvidenceRepository(store)
 	jobsRepo := repository.NewJobsRepository(store)
 	jobs := service.NewJobsService(store, jobsRepo)
+	lifecycle := service.NewLifecycleService(store, repository.NewLifecycleRepository(store), repository.NewIdentityRepository(store), jobsRepo, objects, journal, time.Now)
+	if err = lifecycle.Recover(ctx); err != nil {
+		return err
+	}
 	capture := service.NewCaptureService(store, repo, jobsRepo, objects)
 	handlers := map[string]platform.RunJob{"capture.reconcile": func(ctx context.Context, job domain.Job, lease domain.Lease) error {
 		return capture.Reconcile(ctx, job, lease, jobs)
+	}, "lifecycle.purge": func(ctx context.Context, job domain.Job, lease domain.Lease) error {
+		return lifecycle.Purge(ctx, job, lease, jobs)
+	}, "lifecycle.reconcile": func(ctx context.Context, job domain.Job, lease domain.Lease) error {
+		return lifecycle.ReconcilePolicy(ctx, job, lease, jobs)
 	}}
-	worker := platform.Worker{ID: os.Getenv("KB_WORKER_ID"), Kinds: []string{"capture.reconcile"}, Jobs: jobs, RunJob: platform.DispatchJobs(handlers), Logger: logger}
+	worker := platform.Worker{ID: os.Getenv("KB_WORKER_ID"), Kinds: []string{"capture.reconcile", "lifecycle.purge", "lifecycle.reconcile"}, Jobs: jobs, RunJob: platform.DispatchJobs(handlers), Logger: logger}
 	sweepCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	stopped := make(chan struct{})
@@ -101,7 +137,13 @@ func runCapture(parent context.Context, logger *slog.Logger) error {
 				return
 			case <-timer.C:
 				checkCtx, stop := context.WithTimeout(sweepCtx, 30*time.Second)
-				err := capture.Sweep(checkCtx, 100)
+				err := lifecycle.Recover(checkCtx)
+				if err == nil {
+					_, err = lifecycle.Expire(checkCtx, time.Now().UTC())
+				}
+				if err == nil {
+					err = capture.Sweep(checkCtx, 100)
+				}
 				stop()
 				if err != nil {
 					logger.Warn("capture_reconciliation_incomplete", "reason", "objects_or_policy_unavailable")

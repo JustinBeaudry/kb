@@ -668,3 +668,22 @@ func TestCaptureTransientAuditDoesNotRestoreConcurrentKnownMissing(t *testing.T)
 	assert.False(t, r.artifacts[a.ID].ObjectAvailable)
 	assert.Positive(t, r.checked[a.ID])
 }
+
+func TestOrdinaryCaptureCannotBindOwnerPreparedDerivation(t *testing.T) {
+	s, r, o, p, m := captureFixture(t)
+	m.DerivationID = "owner-reservation"
+	_, err := s.Stage(t.Context(), p, m, bytes.NewBufferString("exit_code=0"))
+	require.ErrorIs(t, err, domain.ErrForbidden)
+	assert.Empty(t, r.artifacts)
+	assert.Empty(t, o.data)
+}
+
+func TestReadyStageRetryDoesNotUploadAgain(t *testing.T) {
+	s, _, objects, p, input := captureFixture(t)
+	ready := readyCapture(t, s, p, input)
+	objects.fail = true
+	repeated, err := s.Stage(t.Context(), p, input, bytes.NewBufferString("exit_code=0"))
+	require.NoError(t, err)
+	assert.Equal(t, ready.ID, repeated.ID)
+	assert.Equal(t, ready.Generation, repeated.Generation)
+}

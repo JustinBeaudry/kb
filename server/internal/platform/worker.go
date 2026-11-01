@@ -95,6 +95,12 @@ func (w *Worker) Run(ctx context.Context) error {
 			continue
 		}
 		if err := w.execute(ctx, job, lease, maxRun); err != nil {
+			// Repository adapters normalize canceled I/O into unavailable. A
+			// shutdown racing final settlement is still a graceful worker stop;
+			// an unfinished lease remains recoverable by the next worker.
+			if ctx.Err() != nil {
+				return nil
+			}
 			return err
 		}
 	}

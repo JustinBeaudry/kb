@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/JustinBeaudry/kb/server/internal/domain"
+	"github.com/JustinBeaudry/kb/server/internal/platform/graph"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
@@ -64,6 +65,31 @@ func TestServerLoopbackAuthenticationAndGracefulShutdown(t *testing.T) {
 	t.Setenv("KB_S3_BUCKET", "evidence")
 	t.Setenv("KB_S3_ACCESS_KEY", "fixture")
 	t.Setenv("KB_S3_SECRET_KEY", "fixture-only")
+	store, err := graph.Open(t.Context(), graph.Config{URI: "bolt://" + host + ":" + port.Port(), Database: "neo4j", User: "neo4j", Secret: secret})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close(context.Background())) })
+	t.Run("missing deletion journal refuses startup", func(t *testing.T) {
+		t.Setenv("KB_JOURNAL_ENDPOINT", "")
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+		t.Cleanup(cancel)
+		err := run(ctx, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+		assert.ErrorIs(t, err, domain.ErrInvalidInput)
+	})
+	journal := journalFixture(t)
+	t.Run("missing external head refuses startup", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+		t.Cleanup(cancel)
+		err := run(ctx, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+		require.Error(t, err)
+		assert.NotErrorIs(t, err, context.DeadlineExceeded)
+		connection, dialErr := net.DialTimeout("tcp", address, time.Second)
+		if connection != nil {
+			_ = connection.Close()
+		}
+		assert.Error(t, dialErr)
+	})
+	_, err = journal.Initialize(t.Context())
+	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	t.Cleanup(cancel)
 	var logs strings.Builder

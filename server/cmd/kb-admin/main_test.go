@@ -134,7 +134,7 @@ func (f *fakeHostIdentity) ListHost(context.Context, int, string) (service.Clien
 func TestHostAdminEnrollRevokeListUsesPersistedOwner(t *testing.T) {
 	f := &fakeHostIdentity{credential: service.ClientCredential{Bearer: "fixture-scoped-secret"}}
 	factory := func(context.Context, bool) (administration, func(), error) {
-		return administration{identity: f}, func() {}, nil
+		return administration{identity: f, recovery: &fakeHostRecovery{}}, func() {}, nil
 	}
 	destination, err := os.CreateTemp(t.TempDir(), "credential")
 	require.NoError(t, err)
@@ -156,7 +156,7 @@ func TestHostAdminListNeverReturnsCredentials(t *testing.T) {
 	f := &fakeHostIdentity{credential: service.ClientCredential{Bearer: "fixture-scoped-secret"}}
 	var out bytes.Buffer
 	require.NoError(t, runAdmin(t.Context(), []string{"list"}, &out, strings.NewReader(""), func(context.Context, bool) (administration, func(), error) {
-		return administration{identity: f}, func() {}, nil
+		return administration{identity: f, recovery: &fakeHostRecovery{}}, func() {}, nil
 	}))
 	assert.JSONEq(t, `{"Clients":null}`, out.String())
 	assert.NotContains(t, out.String(), "Bearer")
@@ -189,7 +189,7 @@ func TestHostAdminJSONDispatchPreservesExactConfirmation(t *testing.T) {
 	f := &fakeHostAdjudication{}
 	factory := func(_ context.Context, objects bool) (administration, func(), error) {
 		require.True(t, objects)
-		return administration{adjudication: f}, func() {}, nil
+		return administration{adjudication: f, recovery: &fakeHostRecovery{}}, func() {}, nil
 	}
 	var out bytes.Buffer
 	require.NoError(t, runAdmin(t.Context(), []string{"verify", "--preview"}, &out, strings.NewReader(`{"CandidateRevision":"revision","ExpectedCandidateHead":"head","TargetText":"selected text"}`), factory))
@@ -234,7 +234,7 @@ func TestHostAdminInvalidationPreviewReturnsConfirmationWithoutMutation(t *testi
 	f := &fakeHostAdjudication{}
 	var out bytes.Buffer
 	factory := func(context.Context, bool) (administration, func(), error) {
-		return administration{adjudication: f}, func() {}, nil
+		return administration{adjudication: f, recovery: &fakeHostRecovery{}}, func() {}, nil
 	}
 	require.NoError(t, runAdmin(t.Context(), []string{"invalidate", "--preview"}, &out, strings.NewReader(`{"Revision":"support"}`), factory))
 	assert.Equal(t, 1, f.invalidationCalls)
@@ -258,7 +258,7 @@ func TestHostAdminRejectPreviewIsReadOnlyAndBindsRejectAction(t *testing.T) {
 	f := &fakeHostAdjudication{}
 	var out bytes.Buffer
 	factory := func(context.Context, bool) (administration, func(), error) {
-		return administration{adjudication: f}, func() {}, nil
+		return administration{adjudication: f, recovery: &fakeHostRecovery{}}, func() {}, nil
 	}
 	require.NoError(t, runAdmin(t.Context(), []string{"reject", "--preview"}, &out, strings.NewReader(`{"CandidateRevision":"candidate","ExpectedCandidateHead":"head"}`), factory))
 	assert.Equal(t, 1, f.previewCalls)
@@ -266,4 +266,42 @@ func TestHostAdminRejectPreviewIsReadOnlyAndBindsRejectAction(t *testing.T) {
 	assert.Equal(t, "reject", f.draft.Action)
 	assert.Equal(t, "candidate", f.draft.CandidateRevision)
 	assert.Contains(t, out.String(), `"Digest":"digest"`)
+}
+
+func TestHostLifecycleCommandsReachInjectedComposition(t *testing.T) {
+	cases := []struct {
+		name  string
+		args  []string
+		input string
+	}{
+		{"deletion preview", []string{"delete", "--preview"}, `{"ProjectID":"project","IDs":["artifact"]}`},
+		{"deletion execution", []string{"delete"}, `{"ProjectID":"project","IDs":["artifact"],"ExpectedSelectionDigest":"confirmed","IdempotencyKey":"operation"}`},
+		{"deletion status", []string{"deletion-status"}, `{"ID":"operation"}`},
+		{"policy inspection", []string{"policy"}, `{"ProjectID":"project"}`},
+		{"policy update", []string{"policy-update"}, `{"ProjectID":"project","ExpectedRevision":"old","Policy":{"Revision":"new"}}`},
+		{"journal initialization", []string{"journal-init"}, ""},
+		{"journal check", []string{"journal-check"}, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			called := false
+			var out bytes.Buffer
+			err := runAdmin(t.Context(), tc.args, &out, strings.NewReader(tc.input), func(_ context.Context, objects bool) (administration, func(), error) {
+				called = true
+				require.True(t, objects)
+				return administration{}, nil, domain.ErrUnavailable
+			})
+			assert.ErrorIs(t, err, domain.ErrUnavailable)
+			assert.True(t, called)
+			assert.Empty(t, out.String())
+		})
+	}
+}
+
+func TestHostLifecycleHelpExplainsExactConfirmationAndJournalRecovery(t *testing.T) {
+	var out bytes.Buffer
+	require.NoError(t, run(t.Context(), []string{"help"}, &out))
+	for _, want := range []string{"delete --preview", "ExpectedSelectionDigest", "same-project identical-byte", "deletion-status", "policy-update", "ExpectedRevision", "journal-init", "journal-check", "never initializes"} {
+		assert.Contains(t, out.String(), want)
+	}
 }

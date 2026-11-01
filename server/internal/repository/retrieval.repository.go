@@ -81,7 +81,7 @@ func (r *RetrievalRepository) Seeds(ctx context.Context, tx domain.Tx, scope dom
 		params["artifact"] = strings.TrimPrefix(query, "@artifact:")
 		where = "(" + where + ") AND EXISTS { MATCH (c)-[:EVIDENCE]->(:Artifact {id:$artifact}) }"
 	} else {
-		exact, e := r.query(ctx, tx, `MATCH (c:ClaimRevision) WHERE (`+where+`) AND (c.id=$exact OR c.claimID=$exact) RETURN c.data ORDER BY c.id LIMIT $limit`, params)
+		exact, e := r.query(ctx, tx, `MATCH (c:ClaimRevision) WHERE c.data IS NOT NULL AND (`+where+`) AND (c.id=$exact OR c.claimID=$exact) RETURN c.data ORDER BY c.id LIMIT $limit`, params)
 		if e != nil {
 			return nil, e
 		}
@@ -92,7 +92,7 @@ func (r *RetrievalRepository) Seeds(ctx context.Context, tx domain.Tx, scope dom
 	}
 	// LIMIT executes before JSON decoding. Returned records, including those later
 	// rejected by eligibility, count against the service's examined-record bound.
-	rows, e := r.query(ctx, tx, `MATCH (c:ClaimRevision) WHERE `+where+` RETURN c.data ORDER BY c.id LIMIT $limit`, params)
+	rows, e := r.query(ctx, tx, `MATCH (c:ClaimRevision) WHERE c.data IS NOT NULL AND (`+where+`) RETURN c.data ORDER BY c.id LIMIT $limit`, params)
 	return decodeClaims(rows, e)
 }
 
@@ -135,7 +135,7 @@ func (r *RetrievalRepository) Neighbors(ctx context.Context, tx domain.Tx, ids, 
 			return nil, domain.ErrInvalidInput
 		}
 	}
-	rows, e := r.query(ctx, tx, `UNWIND $ids AS id MATCH (c:ClaimRevision {id:id})-[r:SUPPORTS|CONTRADICTS|SUPERSEDES|RELATED]-(n:ClaimRevision) WHERE type(r) IN $kinds RETURN n.data LIMIT $limit`, map[string]any{"ids": ids, "kinds": kinds, "limit": limit})
+	rows, e := r.query(ctx, tx, `UNWIND $ids AS id MATCH (c:ClaimRevision {id:id})-[r:SUPPORTS|CONTRADICTS|SUPERSEDES|RELATED]-(n:ClaimRevision) WHERE type(r) IN $kinds AND n.data IS NOT NULL RETURN n.data LIMIT $limit`, map[string]any{"ids": ids, "kinds": kinds, "limit": limit})
 	return decodeClaims(rows, e)
 }
 func decodeClaims(rows []*neo4j.Record, e error) ([]domain.ClaimRevision, error) {
@@ -164,7 +164,7 @@ type eligibilityRecord struct {
 }
 
 func (r *RetrievalRepository) records(ctx context.Context, tx domain.Tx, ids []string) (map[string]eligibilityRecord, error) {
-	rows, e := r.query(ctx, tx, `UNWIND $ids AS id MATCH (c:ClaimRevision {id:id}) CALL (c) { OPTIONAL MATCH (p:Publication {claimRevision:c.id,valid:true}) RETURN p LIMIT 2 } RETURN c.data,c.status,coalesce(c.valid,false),EXISTS { MATCH (:Tombstone {id:c.id}) } OR EXISTS { MATCH (:Tombstone {id:c.claimID}) },c.clientID,CASE WHEN size(p.supportRevisions)<=1000 THEN p.supportRevisions ELSE null END,p.sharingScope,p.generalizedText`, map[string]any{"ids": ids})
+	rows, e := r.query(ctx, tx, `UNWIND $ids AS id MATCH (c:ClaimRevision {id:id}) WHERE c.data IS NOT NULL CALL (c) { OPTIONAL MATCH (p:Publication {claimRevision:c.id,valid:true}) RETURN p LIMIT 2 } RETURN c.data,c.status,coalesce(c.valid,false),EXISTS { MATCH (:Tombstone {id:c.id}) } OR EXISTS { MATCH (:Tombstone {id:c.claimID}) } OR EXISTS {MATCH (:SessionTombstone {projectID:c.projectID,id:c.sessionID})} OR EXISTS {MATCH (:TaskTombstone {projectID:c.projectID,id:c.taskID})},c.clientID,CASE WHEN size(p.supportRevisions)<=1000 THEN p.supportRevisions ELSE null END,p.sharingScope,p.generalizedText`, map[string]any{"ids": ids})
 	if e != nil {
 		return nil, e
 	}
@@ -206,7 +206,7 @@ func (r *RetrievalRepository) sources(ctx context.Context, tx domain.Tx, claims 
 			return false, nil
 		}
 		for _, ref := range c.Evidence {
-			rows, e := r.query(ctx, tx, `MATCH (a:Artifact {id:$id}) OPTIONAL MATCH (p:CapturePolicy {projectID:a.projectID}) RETURN a.data,a.state,coalesce(a.available,false),p.data,EXISTS { MATCH (:Tombstone {id:a.id}) }`, map[string]any{"id": ref.ArtifactID})
+			rows, e := r.query(ctx, tx, `MATCH (a:Artifact {id:$id}) OPTIONAL MATCH (p:CapturePolicy {projectID:a.projectID}) RETURN a.data,a.state,coalesce(a.available,false),p.data,(EXISTS { MATCH (:Tombstone {id:a.id}) } OR EXISTS {MATCH (:SourceTombstone {projectID:a.projectID,digest:a.digest})} OR EXISTS {MATCH (:SessionTombstone {projectID:a.projectID,id:a.sessionID})} OR EXISTS {MATCH (:TaskTombstone {projectID:a.projectID,id:a.taskID})}),EXISTS {MATCH (:PolicyEligibility {artifactID:a.id,generation:a.generation,digest:a.digest,policyRevision:p.revision,eligible:true})}`, map[string]any{"id": ref.ArtifactID})
 			if e != nil {
 				return false, e
 			}
@@ -219,7 +219,7 @@ func (r *RetrievalRepository) sources(ctx context.Context, tx domain.Tx, claims 
 				return false, nil
 			}
 			v := rows[0].Values
-			if v[1] != string(domain.ArtifactReady) || v[2] != true || v[4] == true || a.Digest != ref.Digest || a.SourceLocator != ref.Locator || a.Scope != c.Scope || p.Revision == "" || p.Revision != a.PolicyRevision || p.Paused {
+			if v[1] != string(domain.ArtifactReady) || v[2] != true || v[4] == true || a.Digest != ref.Digest || a.SourceLocator != ref.Locator || a.Scope != c.Scope || p.Revision == "" || (p.Revision != a.PolicyRevision && v[5] != true) || p.Paused {
 				return false, nil
 			}
 			for _, excluded := range p.ExcludedPaths {

@@ -3,6 +3,7 @@ package gateway
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/JustinBeaudry/kb/server/internal/domain"
@@ -25,8 +27,10 @@ func (S3Config) String() string   { return "S3Config([redacted])" }
 func (S3Config) GoString() string { return "S3Config([redacted])" }
 
 type S3 struct {
-	client *s3.Client
-	bucket string
+	client          *s3.Client
+	bucket          string
+	qualificationMu sync.Mutex
+	qualified       bool
 }
 
 func NewS3(c S3Config) (*S3, error) {
@@ -53,7 +57,17 @@ func (g *S3) Put(ctx context.Context, key string, body io.Reader, digest string)
 	if int64(len(data)) > domain.MaxArtifactBytes {
 		return domain.ErrBudget
 	}
-	_, err = g.client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(g.bucket), Key: aws.String(key), Body: bytes.NewReader(data), ContentLength: aws.Int64(int64(len(data))), ChecksumSHA256: aws.String(base64.StdEncoding.EncodeToString(sum))})
+	actual := sha256.Sum256(data)
+	if !bytes.Equal(actual[:], sum) {
+		return domain.ErrInvalidInput
+	}
+	if err = g.qualifyEvidenceFence(ctx); err != nil {
+		return err
+	}
+	_, err = g.client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(g.bucket), Key: aws.String(key), Body: bytes.NewReader(data), ContentLength: aws.Int64(int64(len(data))), ChecksumSHA256: aws.String(base64.StdEncoding.EncodeToString(sum)), IfNoneMatch: aws.String("*")})
+	if evidencePrecondition(err) {
+		return g.matchExistingEvidence(ctx, key, data)
+	}
 	if err != nil {
 		return domain.ErrUnavailable
 	}
@@ -68,14 +82,23 @@ func (g *S3) Open(ctx context.Context, key string) (io.ReadCloser, error) {
 		}
 		return nil, domain.ErrUnavailable
 	}
+	if out.Metadata["kb-deleted"] == "1" {
+		_ = out.Body.Close()
+		return nil, domain.ErrIncomplete
+	}
 	return &safeS3Reader{body: out.Body}, nil
 }
+
+// Delete leaves a zero-byte reserved tombstone rather than removing the key.
+// Conditional-create Put can never resurrect source bytes behind this fence.
 func (g *S3) Delete(ctx context.Context, key string) error {
-	_, err := g.client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(g.bucket), Key: aws.String(key)})
-	if err != nil {
-		return domain.ErrUnavailable
+	if key == "" {
+		return domain.ErrInvalidInput
 	}
-	return nil
+	if err := g.qualifyEvidenceFence(ctx); err != nil {
+		return err
+	}
+	return g.writeEvidenceTombstone(ctx, key)
 }
 
 // Body failures can also include request URLs in vendor errors. Normalize the

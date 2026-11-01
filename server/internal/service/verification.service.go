@@ -44,6 +44,9 @@ type VerificationRepository interface {
 	AdvanceRevisionEpoch(context.Context, Tx) error
 }
 type PublicationRepository interface {
+	ReserveDerivation(context.Context, Tx, string, domain.ExcerptLineage) error
+	FinalizeDerivation(context.Context, Tx, domain.ExcerptLineage) error
+	PinPublicationSupport(context.Context, Tx, string, []string, []domain.Artifact) error
 	PutTarget(context.Context, Tx, domain.ClaimRevision, string) error
 	PutPublication(context.Context, Tx, domain.Publication) error
 	PutExcerptLineage(context.Context, Tx, domain.ExcerptLineage) error
@@ -163,7 +166,7 @@ func (s *VerificationService) artifact(ctx context.Context, tx Tx, ref domain.Ev
 	if err != nil {
 		return a, err
 	}
-	if p.Paused || p.Revision == "" || p.Revision != a.PolicyRevision {
+	if p.Paused || p.Revision == "" || (p.Revision != a.PolicyRevision && p.Revision != a.CurrentPolicyRevision) {
 		return a, domain.ErrStale
 	}
 	if err = validateSource(p, a.SourcePath); err != nil {
@@ -231,6 +234,7 @@ func (s *VerificationService) snapshot(ctx context.Context, tx Tx, d Adjudicatio
 	}
 	visiting := map[string]bool{}
 	visited := map[string]bool{}
+	artifactBindings := map[string]domain.Artifact{}
 	var visit func(domain.RevisionState, bool) error
 	visit = func(state domain.RevisionState, root bool) error {
 		c := state.Claim
@@ -267,7 +271,17 @@ func (s *VerificationService) snapshot(ctx context.Context, tx Tx, d Adjudicatio
 			if e != nil {
 				return e
 			}
-			snap.Artifacts = append(snap.Artifacts, a)
+			if prior, exists := artifactBindings[a.ID]; exists {
+				if prior.Generation != a.Generation || prior.Digest != a.Digest {
+					return domain.ErrStale
+				}
+			} else {
+				if len(artifactBindings) >= domain.MaxDeletionEntries {
+					return domain.ErrBudget
+				}
+				artifactBindings[a.ID] = a
+				snap.Artifacts = append(snap.Artifacts, a)
+			}
 		}
 		for _, id := range c.DependsOn {
 			dep, e := s.repo.LoadRevision(ctx, tx, id)
@@ -420,8 +434,35 @@ func (s *VerificationService) AdjudicateHost(ctx context.Context, input Adjudica
 			if !utf8.Valid(excerpt) || TokenDigest(string(excerpt)) != selection.ExpectedExcerptDigest {
 				return AdjudicationResult{}, domain.ErrInvalidInput
 			}
+
+			var origin domain.Origin
+			for _, r := range snap.Candidate.Claim.Evidence {
+				if r.ArtifactID == selection.ArtifactID {
+					origin = r.Origin
+					break
+				}
+			}
+			pin := domain.ExcerptLineage{ID: captureID(decisionID, i), DecisionID: decisionID, InputDigest: input.ExpectedDigest, SourceArtifactID: source.ID, SourceRevision: selection.SourceRevision, SupportRevision: d.CandidateRevision, SourceDigest: source.Digest, SourceGeneration: source.Generation, Start: selection.Start, End: selection.End, ExcerptDigest: selection.ExpectedExcerptDigest, SourceOrigin: origin}
+			// Reserve provenance under the owner lock before any derived Put.
+			// Deletion can now fence even an in-flight, unpublished excerpt.
+			if e = s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
+				current, e := s.snapshot(ctx, tx, d)
+				if e != nil {
+					return e
+				}
+				digest, e := snapshotDigest(d, current)
+				if e != nil {
+					return e
+				}
+				if digest != input.ExpectedDigest {
+					return domain.ErrStale
+				}
+				return s.publications.ReserveDerivation(ctx, tx, d.ProjectID, pin)
+			}); e != nil {
+				return AdjudicationResult{}, e
+			}
 			locator := "excerpt:" + captureID(decisionID, i, selection.ExpectedExcerptDigest)
-			a, e := s.capture.StageHost(ctx, ArtifactInput{Scope: domain.Scope{ProjectID: d.ProjectID}, Digest: selection.ExpectedExcerptDigest, Bytes: int64(len(excerpt)), PolicyRevision: snap.Policy.Revision, SourceLocator: locator, SourcePath: source.SourcePath}, bytes.NewReader(excerpt))
+			a, e := s.capture.StageHost(ctx, ArtifactInput{Scope: domain.Scope{ProjectID: d.ProjectID}, Digest: selection.ExpectedExcerptDigest, Bytes: int64(len(excerpt)), PolicyRevision: snap.Policy.Revision, SourceLocator: locator, SourcePath: source.SourcePath, DerivationID: pin.ID}, bytes.NewReader(excerpt))
 			if e != nil {
 				return AdjudicationResult{}, e
 			}
@@ -434,14 +475,9 @@ func (s *VerificationService) AdjudicateHost(ctx context.Context, input Adjudica
 			}
 			refs = append(refs, ref)
 			prepared = append(prepared, a)
-			var origin domain.Origin
-			for _, r := range snap.Candidate.Claim.Evidence {
-				if r.ArtifactID == selection.ArtifactID {
-					origin = r.Origin
-					break
-				}
-			}
-			lineage = append(lineage, domain.ExcerptLineage{ID: captureID(decisionID, i), DecisionID: decisionID, InputDigest: input.ExpectedDigest, SourceArtifactID: source.ID, SourceRevision: selection.SourceRevision, SupportRevision: d.CandidateRevision, SourceDigest: source.Digest, SourceGeneration: source.Generation, Start: selection.Start, End: selection.End, ExcerptArtifactID: a.ID, ExcerptDigest: a.Digest, ExcerptGeneration: a.Generation, SourceOrigin: origin})
+			pin.ExcerptArtifactID = a.ID
+			pin.ExcerptGeneration = a.Generation
+			lineage = append(lineage, pin)
 		}
 	}
 	targetRevision := ""
@@ -513,8 +549,14 @@ func (s *VerificationService) AdjudicateHost(ctx context.Context, input Adjudica
 			if e = s.publications.PutPublication(ctx, tx, domain.Publication{ID: captureID(decisionID, "publication"), ClaimRevision: targetRevision, Revision: newRevision(), SharingScope: "project", SupportRevisions: supports, PolicyRevision: snap.Policy.Revision}); e != nil {
 				return e
 			}
+			if e = s.publications.PinPublicationSupport(ctx, tx, captureID(decisionID, "publication"), supports, snap.Artifacts); e != nil {
+				return e
+			}
 			for _, pin := range lineage {
 				if e = s.publications.PutExcerptLineage(ctx, tx, pin); e != nil {
+					return e
+				}
+				if e = s.publications.FinalizeDerivation(ctx, tx, pin); e != nil {
 					return e
 				}
 			}

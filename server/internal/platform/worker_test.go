@@ -91,6 +91,7 @@ func TestWorkerDispatchLifecycle(t *testing.T) {
 		{name: "handler failure stores safe reason", handlerErr: domain.ErrConflict, wantReason: "handler_failed"},
 		{name: "unknown handler stores explicit reason", handlerErr: platform.ErrUnknownJobKind, wantReason: "unsupported_kind"},
 		{name: "completion lease loss is discarded", completeErr: domain.ErrStale},
+		{name: "shutdown during settlement stops gracefully", completeErr: domain.ErrUnavailable},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())

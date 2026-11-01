@@ -11,6 +11,7 @@ import (
 	"github.com/JustinBeaudry/kb/server/internal/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"io"
 	"slices"
 	"strings"
 	"sync"
@@ -89,6 +90,50 @@ func TestOwnerPublicationCreatesDistinctProjectTarget(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, result.TargetRevision)
 	assert.NotEqual(t, candidate.Revision, result.TargetRevision)
+	t.Run("TestPreparedReservationBindsExactOriginalProvenance", func(t *testing.T) {
+		require.NoError(t, store.Within(t.Context(), func(ctx context.Context, tx domain.Tx) error {
+			n, err := store.Unwrap(tx)
+			if err != nil {
+				return err
+			}
+			result, err := n.Run(ctx, `MATCH (d:PreparedDerivation {sourceArtifactID:$source,state:'finalized'}) RETURN d.finalLineage`, map[string]any{"source": artifact.ID})
+			if err != nil {
+				return err
+			}
+			rows, err := result.Collect(ctx)
+			require.NoError(t, err)
+			require.Len(t, rows, 1)
+			data, ok := rows[0].Values[0].(string)
+			require.True(t, ok)
+			var lineage domain.ExcerptLineage
+			require.NoError(t, json.Unmarshal([]byte(data), &lineage))
+			changed := lineage
+			changed.SourceRevision = "forged-original-revision"
+			assert.ErrorIs(t, pubRepo.FinalizeDerivation(ctx, tx, changed), domain.ErrDeleted)
+			lineage.ExcerptArtifactID = ""
+			lineage.ExcerptGeneration = ""
+			assert.ErrorIs(t, pubRepo.ReserveDerivation(ctx, tx, "other-project", lineage), domain.ErrConflict)
+			return nil
+		}))
+	})
+	t.Run("TestPublicationRetainsCompleteF5SupportBindings", func(t *testing.T) {
+		require.NoError(t, store.Within(t.Context(), func(ctx context.Context, tx domain.Tx) error {
+			n, err := store.Unwrap(tx)
+			if err != nil {
+				return err
+			}
+			result, err := n.Run(ctx, `MATCH (p:Publication {claimRevision:$target})-[:REQUIRES_REVISION]->(c:ClaimRevision) OPTIONAL MATCH (p)-[pin:REQUIRES_ARTIFACT]->(a:Artifact) RETURN collect(DISTINCT c.id),collect(DISTINCT [a.id,pin.generation,pin.digest])`, map[string]any{"target": result.TargetRevision})
+			if err != nil {
+				return err
+			}
+			rows, err := result.Collect(ctx)
+			require.NoError(t, err)
+			require.Len(t, rows, 1)
+			assert.Contains(t, rows[0].Values[0], candidate.Revision)
+			assert.Contains(t, rows[0].Values[1], []any{artifact.ID, artifact.Generation, artifact.Digest})
+			return nil
+		}))
+	})
 	replay, err := verify.AdjudicateHost(t.Context(), service.AdjudicationInput{AdjudicationDraft: draft, ExpectedDigest: preview.Digest})
 	require.NoError(t, err)
 	assert.Equal(t, result, replay)
@@ -354,6 +399,94 @@ func TestOwnerPublicationCreatesDistinctProjectTarget(t *testing.T) {
 		memoryMutation(t, store, `MATCH (c:Client {id:'host-owner:legacy'}) DELETE c`, nil)
 	})
 
+	t.Run("TestDeletionInvalidatesPreparedExcerptBeforeUploadSettlement", func(t *testing.T) {
+		journal := independentLifecycleJournal(t)
+		_, e := journal.Initialize(t.Context())
+		require.NoError(t, e)
+		d := freshDraft("delete-prepared")
+		pre, e := verify.PreviewHost(t.Context(), d)
+		require.NoError(t, e)
+		barrier := &preparedUploadBarrier{ObjectStore: objects, started: make(chan struct{}), release: make(chan struct{})}
+		racingHost := service.NewHostCaptureService(store, evidence, jobs, barrier, owners)
+		racing := service.NewVerificationService(store, verifyRepo, pubRepo, owners, evidence, racingHost)
+		done := make(chan error, 1)
+		go func() {
+			_, err := racing.AdjudicateHost(t.Context(), service.AdjudicationInput{AdjudicationDraft: d, ExpectedDigest: pre.Digest})
+			done <- err
+		}()
+		select {
+		case <-barrier.started:
+		case <-time.After(20 * time.Second):
+			t.Fatal("excerpt upload did not reach durable reservation")
+		}
+		defer barrier.releaseUpload()
+		var excerptID string
+		require.NoError(t, store.Within(t.Context(), func(ctx context.Context, tx domain.Tx) error {
+			n, err := store.Unwrap(tx)
+			if err != nil {
+				return err
+			}
+			result, err := n.Run(ctx, `MATCH (d:PreparedDerivation {sourceArtifactID:$source,state:'prepared'})-[:PINS_EXCERPT]->(e:Artifact) RETURN d.supportRevision,e.id,e.generation ORDER BY e.id`, map[string]any{"source": artifact.ID})
+			if err != nil {
+				return err
+			}
+			rows, err := result.Collect(ctx)
+			require.NoError(t, err)
+			require.NotEmpty(t, rows)
+			for _, row := range rows {
+				if row.Values[0] == d.CandidateRevision {
+					excerptID, _ = row.Values[1].(string)
+				}
+			}
+			require.NotEmpty(t, excerptID, "F4 stage must bind reservation before external Put")
+			return nil
+		}))
+		lifecycle := service.NewLifecycleService(store, repository.NewLifecycleRepository(store), owners, jobs, objects, journal, time.Now)
+		selection := domain.DeleteSelection{ProjectID: "demo", IDs: []string{artifact.ID}, IdempotencyKey: "delete-prepared-source"}
+		preview, e := lifecycle.PreviewHost(t.Context(), selection)
+		require.NoError(t, e)
+		assert.Contains(t, preview.Manifest.IDs, excerptID)
+		selection.ExpectedSelectionDigest = preview.SelectionDigest
+		receipt, e := lifecycle.DeleteHost(t.Context(), selection)
+		require.NoError(t, e)
+		assert.Equal(t, "purge_pending", receipt.State)
+		barrier.releaseUpload()
+		require.ErrorIs(t, <-done, domain.ErrDeleted)
+		require.NoError(t, store.Within(t.Context(), func(ctx context.Context, tx domain.Tx) error {
+			_, _, err := evidence.Artifact(ctx, tx, excerptID)
+			assert.ErrorIs(t, err, domain.ErrDeleted)
+			n, err := store.Unwrap(tx)
+			if err != nil {
+				return err
+			}
+			result, err := n.Run(ctx, `MATCH (d:PreparedDerivation {supportRevision:$support}) RETURN d.state`, map[string]any{"support": d.CandidateRevision})
+			if err != nil {
+				return err
+			}
+			rows, err := result.Collect(ctx)
+			require.NoError(t, err)
+			require.Len(t, rows, 1)
+			assert.Equal(t, "deleted", rows[0].Values[0])
+			return nil
+		}))
+	})
+}
+
+type preparedUploadBarrier struct {
+	service.ObjectStore
+	started, release chan struct{}
+	once             sync.Once
+}
+
+func (b *preparedUploadBarrier) releaseUpload() { b.once.Do(func() { close(b.release) }) }
+func (b *preparedUploadBarrier) Put(ctx context.Context, key string, body io.Reader, digest string) error {
+	close(b.started)
+	select {
+	case <-b.release:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	return b.ObjectStore.Put(ctx, key, body, digest)
 }
 
 type failLineageRepository struct{ service.PublicationRepository }

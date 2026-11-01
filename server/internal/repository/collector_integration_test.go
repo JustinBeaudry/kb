@@ -2,6 +2,7 @@ package repository_test
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -219,9 +220,10 @@ func warmObjects(t *testing.T, objects service.ObjectStore) {
 	deadline := time.Now().Add(90 * time.Second)
 	for {
 		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
-		err := objects.Put(ctx, "collector-fixture-ready", strings.NewReader("synthetic"), service.TokenDigest("synthetic"))
+		probeKey := "collector-fixture-ready-" + rand.Text()
+		err := objects.Put(ctx, probeKey, strings.NewReader("synthetic"), service.TokenDigest("synthetic"))
 		if err == nil {
-			err = objects.Delete(ctx, "collector-fixture-ready")
+			err = objects.Delete(ctx, probeKey)
 		}
 		cancel()
 		if err == nil {

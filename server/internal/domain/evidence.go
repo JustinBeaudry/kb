@@ -68,6 +68,7 @@ type Artifact struct {
 	UploadLeaseID                         string    `json:"-"`
 	UploadLeaseUntil                      time.Time `json:"-"`
 	ObjectAvailable                       bool      `json:"-"`
+	CurrentPolicyRevision                 string    `json:"-"`
 	Scope                                 Scope
 	Bytes                                 int64
 	State                                 ArtifactState

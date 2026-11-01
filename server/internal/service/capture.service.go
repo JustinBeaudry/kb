@@ -19,6 +19,7 @@ import (
 const MaxArtifactBytes = domain.MaxArtifactBytes
 
 type ArtifactInput struct {
+	DerivationID                              string
 	Scope                                     domain.Scope
 	Digest                                    string
 	Bytes                                     int64
@@ -27,7 +28,12 @@ type ArtifactInput struct {
 type ObjectStore interface {
 	Put(context.Context, string, io.Reader, string) error
 	Open(context.Context, string) (io.ReadCloser, error)
+	// Delete removes source bytes and durably fences later Put calls to the
+	// same generation key, including requests whose prior outcome is unknown.
 	Delete(context.Context, string) error
+}
+type PreparedDerivationBinder interface {
+	BindDerivedArtifact(context.Context, Tx, string, domain.Artifact) error
 }
 type EvidenceRepository interface {
 	Policy(context.Context, Tx, string) (domain.Policy, error)
@@ -90,7 +96,7 @@ func (s *CaptureService) policy(ctx context.Context, tx Tx, a domain.Artifact) e
 	if p.Revision == "" || p.Paused {
 		return domain.ErrForbidden
 	}
-	if p.Revision != a.PolicyRevision {
+	if p.Revision != a.PolicyRevision && p.Revision != a.CurrentPolicyRevision {
 		return domain.ErrStale
 	}
 	if p.SpoolLimitBytes < a.Bytes {
@@ -99,6 +105,9 @@ func (s *CaptureService) policy(ctx context.Context, tx Tx, a domain.Artifact) e
 	return validateSource(p, a.SourcePath)
 }
 func (s *CaptureService) Stage(ctx context.Context, p domain.Principal, m ArtifactInput, body io.Reader) (domain.Artifact, error) {
+	if m.DerivationID != "" {
+		return domain.Artifact{}, domain.ErrForbidden
+	}
 	if err := Authorize(p, "artifacts:write", []string{m.Scope.ProjectID}); err != nil {
 		return domain.Artifact{}, err
 	}
@@ -144,6 +153,13 @@ func (s *CaptureService) stage(ctx context.Context, actor string, m ArtifactInpu
 			case domain.ArtifactAbandoning:
 				return domain.ErrIncomplete
 			case domain.ArtifactReady:
+				if m.DerivationID != "" {
+					binder, ok := s.repo.(PreparedDerivationBinder)
+					if !ok {
+						return domain.ErrUnavailable
+					}
+					return binder.BindDerivedArtifact(ctx, tx, m.DerivationID, a)
+				}
 				return nil
 			}
 			if a.UploadLeaseUntil.After(time.Now().UTC()) {
@@ -163,10 +179,24 @@ func (s *CaptureService) stage(ctx context.Context, actor string, m ArtifactInpu
 		if err = s.repo.SaveArtifact(ctx, tx, a, actor); err != nil {
 			return err
 		}
+		if m.DerivationID != "" {
+			binder, ok := s.repo.(PreparedDerivationBinder)
+			if !ok {
+				return domain.ErrUnavailable
+			}
+			if err = binder.BindDerivedArtifact(ctx, tx, m.DerivationID, a); err != nil {
+				return err
+			}
+		}
 		return s.enqueue(ctx, tx, a, "capture.reconcile")
 	})
 	if err != nil {
 		return domain.Artifact{}, err
+	}
+	// The immutable ready generation already exists. Retrying Stage must not
+	// issue an untracked Put that could race an owner deletion.
+	if a.State == domain.ArtifactReady {
+		return a, nil
 	}
 	putCtx, cancel := context.WithTimeout(ctx, CapturePutTimeout)
 	putErr := s.objects.Put(putCtx, a.ObjectKey, bytes.NewReader(data), a.Digest)
@@ -182,6 +212,15 @@ func (s *CaptureService) stage(ctx context.Context, actor string, m ArtifactInpu
 		current, _, err := s.repo.Artifact(ctx, tx, a.ID)
 		if err != nil {
 			return err
+		}
+		if m.DerivationID != "" {
+			binder, ok := s.repo.(PreparedDerivationBinder)
+			if !ok {
+				return domain.ErrUnavailable
+			}
+			if err = binder.BindDerivedArtifact(ctx, tx, m.DerivationID, current); err != nil {
+				return err
+			}
 		}
 		if current.ObjectKey != a.ObjectKey {
 			return domain.ErrStale

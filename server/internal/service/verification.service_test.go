@@ -6,6 +6,7 @@ import (
 	"github.com/JustinBeaudry/kb/server/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"io"
 	"slices"
 	"testing"
 	"time"
@@ -63,12 +64,15 @@ func TestInvalidationPreviewRequiresValidSupportAndBindsExactState(t *testing.T)
 }
 
 type verificationRepoFixture struct {
-	states       map[string]domain.RevisionState
-	heads        map[string]string
-	decisions    map[string]domain.OwnerDecision
-	publications []domain.Publication
-	lineage      []domain.ExcerptLineage
-	epoch        int
+	reserved, finalized []domain.ExcerptLineage
+	pinnedRevisions     []string
+	pinnedArtifacts     []domain.Artifact
+	states              map[string]domain.RevisionState
+	heads               map[string]string
+	decisions           map[string]domain.OwnerDecision
+	publications        []domain.Publication
+	lineage             []domain.ExcerptLineage
+	epoch               int
 }
 
 func (f *verificationRepoFixture) LoadRevision(_ context.Context, _ Tx, id string) (domain.RevisionState, error) {
@@ -404,4 +408,58 @@ func TestOwnerTargetMustNarrowEveryEvidenceApplicabilityAcrossClosure(t *testing
 			})
 		}
 	}
+}
+
+func TestPreparedDerivationReservedBeforeExcerptUploadAndFullSupportPinned(t *testing.T) {
+	s, f, d := verificationFixture(t)
+	root := f.states[d.CandidateRevision]
+	dep := root
+	dep.Claim.Revision = "dependency"
+	dep.Claim.ClaimID = "dependency-claim"
+	dep.Status = domain.ClaimVerified
+	dep.Valid = true
+	f.states[dep.Claim.Revision] = dep
+	root.Claim.DependsOn = []string{dep.Claim.Revision}
+	f.states[root.Claim.Revision] = root
+	capture := s.capture.(*HostCaptureService).capture
+	capture.objects = &reservationCheckingObjects{ObjectStore: capture.objects, check: func() { require.Len(t, f.reserved, 1, "reservation must commit before external object upload") }}
+	pre, err := s.PreviewHost(t.Context(), d)
+	require.NoError(t, err)
+	_, err = s.AdjudicateHost(t.Context(), AdjudicationInput{d, pre.Digest})
+	require.NoError(t, err)
+	require.Len(t, f.reserved, 1)
+	assert.Len(t, f.finalized, 1)
+	assert.ElementsMatch(t, []string{"candidate", "dependency"}, f.pinnedRevisions)
+	require.Len(t, f.pinnedArtifacts, 1, "duplicate shared support evidence pins one exact generation")
+	assert.Equal(t, root.Claim.Evidence[0].ArtifactID, f.pinnedArtifacts[0].ID)
+	assert.NotEqual(t, f.lineage[0].SourceRevision, f.lineage[0].SupportRevision)
+}
+
+type reservationCheckingObjects struct {
+	ObjectStore
+	check func()
+}
+
+func (o *reservationCheckingObjects) Put(ctx context.Context, key string, body io.Reader, digest string) error {
+	o.check()
+	return o.ObjectStore.Put(ctx, key, body, digest)
+}
+func (f *verificationRepoFixture) ReserveDerivation(_ context.Context, _ Tx, _ string, l domain.ExcerptLineage) error {
+	f.reserved = append(f.reserved, l)
+	return nil
+}
+func (f *verificationRepoFixture) FinalizeDerivation(_ context.Context, _ Tx, l domain.ExcerptLineage) error {
+	f.finalized = append(f.finalized, l)
+	return nil
+}
+func (f *verificationRepoFixture) PinPublicationSupport(_ context.Context, _ Tx, _ string, revisions []string, artifacts []domain.Artifact) error {
+	f.pinnedRevisions = slices.Clone(revisions)
+	f.pinnedArtifacts = slices.Clone(artifacts)
+	return nil
+}
+
+// This fixture mocks the graph repository boundary; real generation/state
+// binding and deletion races are covered by publication integration tests.
+func (r *captureRepo) BindDerivedArtifact(context.Context, Tx, string, domain.Artifact) error {
+	return nil
 }

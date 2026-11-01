@@ -109,7 +109,7 @@ func (s *MemoryService) Submit(ctx context.Context, p domain.Principal, input do
 			if e != nil {
 				return e
 			}
-			if policy.Paused || policy.Revision == "" || policy.Revision != a.PolicyRevision {
+			if policy.Paused || policy.Revision == "" || (policy.Revision != a.PolicyRevision && policy.Revision != a.CurrentPolicyRevision) {
 				return domain.ErrStale
 			}
 			if e = validateSource(policy, a.SourcePath); e != nil {

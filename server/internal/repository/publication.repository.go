@@ -43,6 +43,18 @@ func (r *PublicationRepository) PutTarget(ctx context.Context, tx domain.Tx, c d
 	if len(rows) != 1 {
 		return domain.ErrConflict
 	}
+	for _, dependency := range c.DependsOn {
+		rows, err = r.query(ctx, tx, `MATCH (c:ClaimRevision {id:$id}),(d:ClaimRevision {id:$dependency}) WHERE d.valid=true AND d.status='verified' AND NOT EXISTS {MATCH (:Tombstone {id:d.id})} AND NOT EXISTS {MATCH (:Tombstone {id:d.claimID})} MERGE (c)-[:DEPENDS_ON]->(d) RETURN d.id`, map[string]any{"id": c.Revision, "dependency": dependency})
+		if err != nil {
+			return err
+		}
+		if len(rows) != 1 {
+			return domain.ErrDeleted
+		}
+	}
+	if _, err = r.query(ctx, tx, `MATCH (c:ClaimRevision {id:$id}) SET c.dependencyProjectionVersion=1`, map[string]any{"id": c.Revision}); err != nil {
+		return err
+	}
 	for _, entity := range c.EntityIDs {
 		if _, err = r.query(ctx, tx, `MATCH (c:ClaimRevision {id:$id}) MERGE (e:Entity {projectID:$project,id:$entity}) MERGE (c)-[:ABOUT]->(e)`, map[string]any{"id": c.Revision, "project": c.Scope.ProjectID, "entity": entity}); err != nil {
 			return err

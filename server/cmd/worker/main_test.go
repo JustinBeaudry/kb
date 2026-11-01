@@ -9,10 +9,12 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/JustinBeaudry/kb/server/internal/domain"
+	"github.com/JustinBeaudry/kb/server/internal/gateway"
 	"github.com/JustinBeaudry/kb/server/internal/platform"
 	"github.com/JustinBeaudry/kb/server/internal/platform/graph"
 	"github.com/JustinBeaudry/kb/server/internal/repository"
@@ -76,6 +78,16 @@ func TestWorkerCompositionGracefulStop(t *testing.T) {
 	store, err := graph.Open(t.Context(), graph.Config{URI: "bolt://" + host + ":" + port.Port(), Database: "neo4j", User: "neo4j", Secret: secret})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, store.Close(context.Background())) })
+	journal := journalFixture(t)
+	t.Run("missing external head refuses work", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+		t.Cleanup(cancel)
+		err := runCapture(ctx, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+		require.Error(t, err)
+		assert.NotErrorIs(t, err, context.DeadlineExceeded)
+	})
+	_, err = journal.Initialize(t.Context())
+	require.NoError(t, err)
 	jobs := service.NewJobsService(store, repository.NewJobsRepository(store))
 	require.NoError(t, jobs.Enqueue(t.Context(), domain.Job{ID: "composition-job", Kind: "registered", InputDigest: "composition-digest", PolicyRevision: "p1", DueAt: time.Now().UTC()}))
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
@@ -103,6 +115,46 @@ func TestWorkerCompositionGracefulStop(t *testing.T) {
 	case <-time.After(6 * time.Second):
 		t.Fatal("composition did not stop gracefully")
 	}
+	t.Run("capture worker drains durable lifecycle purge", func(t *testing.T) {
+		owners := repository.NewIdentityRepository(store)
+		identity := service.NewIdentityService(store, owners, gateway.NostrIdentity{})
+		credential, err := identity.Setup(t.Context(), domain.OwnerIdentity{ID: "owner", PublicKey: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"}, service.EnrollInput{ClientID: "collector", Role: domain.RoleCollector, ProjectIDs: []string{"demo"}, Capabilities: []string{"artifacts:write"}})
+		require.NoError(t, err)
+		objectConfig, err := platform.LoadObjectConfig()
+		require.NoError(t, err)
+		objects, err := gateway.NewS3(objectConfig)
+		require.NoError(t, err)
+		jobsRepo := repository.NewJobsRepository(store)
+		lifecycle := service.NewLifecycleService(store, repository.NewLifecycleRepository(store), owners, jobsRepo, objects, journal, time.Now)
+		_, err = lifecycle.UpdatePolicyHost(t.Context(), "demo", "", domain.Policy{Revision: "p1", SpoolLimitBytes: service.MaxArtifactBytes})
+		require.NoError(t, err)
+		capture := service.NewCaptureService(store, repository.NewEvidenceRepository(store), jobsRepo, objects)
+		text := "synthetic worker purge evidence"
+		artifact, err := capture.Stage(t.Context(), credential.Principal, service.ArtifactInput{Scope: domain.Scope{ProjectID: "demo", TaskID: "task", SessionID: "session"}, Digest: service.TokenDigest(text), Bytes: int64(len(text)), PolicyRevision: "p1", SourceLocator: "worker-fixture", SourcePath: "fixture.txt"}, strings.NewReader(text))
+		require.NoError(t, err)
+		_, err = capture.Complete(t.Context(), credential.Principal, artifact.ID, artifact.Digest)
+		require.NoError(t, err)
+		selection := domain.DeleteSelection{ProjectID: "demo", IDs: []string{artifact.ID}, IdempotencyKey: "worker-delete"}
+		preview, err := lifecycle.PreviewHost(t.Context(), selection)
+		require.NoError(t, err)
+		selection.ExpectedSelectionDigest = preview.SelectionDigest
+		receipt, err := lifecycle.DeleteHost(t.Context(), selection)
+		require.NoError(t, err)
+		require.Equal(t, "purge_pending", receipt.State)
+		workerCtx, stopWorker := context.WithTimeout(t.Context(), 30*time.Second)
+		result := make(chan error, 1)
+		go func() { result <- runCapture(workerCtx, slog.New(slog.NewJSONHandler(io.Discard, nil))) }()
+		t.Cleanup(func() { stopWorker(); require.NoError(t, <-result) })
+		require.Eventually(t, func() bool {
+			status, err := lifecycle.DeletionStatusHost(t.Context(), receipt.ID)
+			return err == nil && status.State == "purge_complete"
+		}, 20*time.Second, 100*time.Millisecond)
+		body, err := objects.Open(t.Context(), artifact.ObjectKey)
+		if body != nil {
+			require.NoError(t, body.Close())
+		}
+		assert.ErrorIs(t, err, domain.ErrIncomplete)
+	})
 	t.Setenv("KB_WORKER_ID", "")
 	t.Setenv("KB_S3_ENDPOINT", "http://127.0.0.1:8333")
 	t.Setenv("KB_S3_REGION", "local")

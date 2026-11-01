@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/JustinBeaudry/kb/server/internal/domain"
 	"github.com/JustinBeaudry/kb/server/internal/platform/graph"
+	"time"
 )
 
 type CheckpointRepository struct{ store *graph.Store }
@@ -66,13 +67,13 @@ func (r *CheckpointRepository) Save(ctx context.Context, tx domain.Tx, c domain.
 		return err
 	}
 	data, _ := json.Marshal(c)
-	res, err := native.Run(ctx, `MERGE (t:TaskCheckpointOwner {projectID:$project,taskID:$task}) ON CREATE SET t.clientID=$client WITH t WHERE t.clientID=$client AND NOT EXISTS { MATCH (:Tombstone {id:$id}) } SET t.headID=$id,t.headRevision=$revision MERGE (c:Checkpoint {id:$id}) SET c.data=$data,c.clientID=$client RETURN c.id`, map[string]any{"id": c.ID, "revision": c.Revision, "data": string(data), "client": client, "project": c.Scope.ProjectID, "task": c.Scope.TaskID})
+	res, err := native.Run(ctx, `MERGE (t:TaskCheckpointOwner {projectID:$project,taskID:$task}) ON CREATE SET t.clientID=$client WITH t WHERE t.clientID=$client AND NOT EXISTS { MATCH (:Tombstone {id:$id}) } AND NOT EXISTS {MATCH (:Tombstone {id:$revision})} AND NOT EXISTS {MATCH (:SessionTombstone {projectID:$project,id:$session})} AND NOT EXISTS {MATCH (:TaskTombstone {projectID:$project,id:$task})} SET t.headID=$id,t.headRevision=$revision MERGE (c:Checkpoint {id:$id}) SET c.data=$data,c.clientID=$client,c.projectID=$project,c.taskID=$task,c.sessionID=$session,c.ingestedAt=coalesce(c.ingestedAt,$now) MERGE (activity:TaskActivity {identityDigest:$taskIdentity}) ON CREATE SET activity.projectID=$project,activity.taskID=$task SET activity.lastActivityAt=$now RETURN c.id`, map[string]any{"session": c.Scope.SessionID, "taskIdentity": domain.LifecycleIdentityDigest(c.Scope.ProjectID, c.Scope.TaskID), "now": time.Now().UTC().UnixNano(), "id": c.ID, "revision": c.Revision, "data": string(data), "client": client, "project": c.Scope.ProjectID, "task": c.Scope.TaskID})
 	if err != nil {
 		return domain.ErrUnavailable
 	}
 	_, err = res.Single(ctx)
 	if err != nil {
-		return domain.ErrUnavailable
+		return domain.ErrDeleted
 	}
 	return nil
 }

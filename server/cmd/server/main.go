@@ -33,6 +33,14 @@ func run(parent context.Context, logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	journalConfig, err := platform.LoadJournalConfig()
+	if err != nil {
+		return err
+	}
+	journal, err := gateway.NewS3DeletionJournal(journalConfig)
+	if err != nil {
+		return err
+	}
 	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	store, err := graph.Open(ctx, cfg.Graph)
@@ -50,6 +58,10 @@ func run(parent context.Context, logger *slog.Logger) error {
 	}
 	objects, err := gateway.NewS3(objectConfig)
 	if err != nil {
+		return err
+	}
+	lifecycle := service.NewLifecycleService(store, repository.NewLifecycleRepository(store), repository.NewIdentityRepository(store), repository.NewJobsRepository(store), objects, journal, time.Now)
+	if err = lifecycle.Recover(ctx); err != nil {
 		return err
 	}
 	capture := service.NewCaptureService(store, repository.NewEvidenceRepository(store), repository.NewJobsRepository(store), objects)

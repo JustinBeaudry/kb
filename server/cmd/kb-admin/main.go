@@ -48,6 +48,31 @@ in its returned confirmation JSON before execution.
 Adjudication input is strict owner-controlled JSON, read from stdin by default.
 Preview is read-only; execution requires exact expected HEAD and digest.
 Never put target text, evidence content or credentials in argv.
+
+kb-admin delete --preview [--input PATH|-]
+kb-admin delete [--input PATH|-]
+kb-admin deletion-status [--input PATH|-]
+kb-admin policy [--input PATH|-]
+kb-admin policy-update [--input PATH|-]
+kb-admin journal-init
+kb-admin journal-check
+Lifecycle input is strict bounded JSON, read from stdin by default.
+Deletion preview accepts {"ProjectID":"project","IDs":["exact ID"]}, also SessionIDs/TaskIDs.
+It returns the bounded expanded Manifest, including same-project identical-byte copies
+and derivatives, and SelectionDigest. Review that complete manifest, then execute with
+the same selection, ExpectedSelectionDigest set to SelectionDigest, and a new
+IdempotencyKey. Changed expansion fails stale; retry an unknown outcome with the same
+selection and idempotency key. Status accepts {"ID":"operation ID"}.
+Policy inspection accepts {"ProjectID":"project"}; policy-update accepts
+{"ProjectID":"project","ExpectedRevision":"current revision","Policy":{...}}.
+Inspect before CAS update; policy durations use integer nanoseconds in JSON.
+Journal commands require independent protected journal configuration and persisted host
+owner authority. journal-init is only for a fresh installation;
+journal-check never initializes a missing journal. Startup/restore never initializes it.
+Source operations require journal recovery first. Exact deletion execution and receipt
+status remain privileged repair/diagnosis paths while readiness is blocked.
+Journal keys/config are never output.
+Successful deletion excludes active data; BackupState expiry_pending remains until O2.
 `
 
 func main() {
@@ -71,6 +96,10 @@ func safeError(err error) string {
 		prefix = command.command + ": "
 	}
 	switch {
+	case errors.Is(err, domain.ErrStale):
+		return prefix + "stale: expected state changed; preview or inspect current state before retry"
+	case errors.Is(err, domain.ErrUnknownOutcome):
+		return prefix + "unknown_outcome: retry the exact request with the same idempotency key or inspect status"
 	case errors.Is(err, domain.ErrConflict):
 		return prefix + "conflict: setup already initialized or expected state changed; check controlled service state"
 	case errors.Is(err, domain.ErrInvalidInput):
@@ -95,16 +124,22 @@ type hostAdjudication interface {
 type administration struct {
 	identity     hostIdentity
 	adjudication hostAdjudication
+	lifecycle    hostLifecycle
+	recovery     hostRecovery
 }
 type adminFactory func(context.Context, bool) (administration, func(), error)
 
 const maxAdminInput = 1 << 20
 
 func run(ctx context.Context, args []string, output io.Writer) error {
-	err := runAdmin(ctx, args, output, os.Stdin, composeAdministration)
+	factory := composeAdministration
+	if len(args) > 0 && lifecycleCommand(args[0]) {
+		factory = composeLifecycleAdministration
+	}
+	err := runAdmin(ctx, args, output, os.Stdin, factory)
 	if err != nil && len(args) > 0 {
 		switch args[0] {
-		case "setup", "enroll", "revoke", "list", "verify", "reject", "invalidate", "recover":
+		case "setup", "enroll", "revoke", "list", "verify", "reject", "invalidate", "recover", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check":
 			return commandError{command: args[0], cause: err}
 		}
 	}
@@ -120,7 +155,7 @@ func runAdmin(ctx context.Context, args []string, output io.Writer, stdin io.Rea
 		return domain.ErrUnavailable
 	}
 	switch command {
-	case "setup", "enroll", "revoke", "list", "verify", "reject", "invalidate":
+	case "setup", "enroll", "revoke", "list", "verify", "reject", "invalidate", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check":
 	default:
 		return domain.ErrInvalidInput
 	}
@@ -147,9 +182,10 @@ func runAdmin(ctx context.Context, args []string, output io.Writer, stdin io.Rea
 	case "list":
 		flags.IntVar(&limit, "limit", 50, "page size")
 		flags.StringVar(&after, "after", "", "cursor")
+	case "journal-init", "journal-check":
 	default:
 		flags.StringVar(&inputPath, "input", "-", "JSON file or stdin")
-		if command == "verify" || command == "reject" || command == "invalidate" {
+		if command == "verify" || command == "reject" || command == "invalidate" || command == "delete" {
 			flags.BoolVar(&preview, "preview", false, "preview only")
 		}
 	}
@@ -175,6 +211,12 @@ func runAdmin(ctx context.Context, args []string, output io.Writer, stdin io.Rea
 	var decision service.AdjudicationInput
 	var invalidation service.InvalidationInput
 	var invalidationPreview struct{ Revision string }
+	var lifecycleInput lifecycleInput
+	if lifecycleCommand(command) && command != "journal-init" && command != "journal-check" {
+		if err := readAdminInput(inputPath, stdin, lifecycleInput.target(command)); err != nil {
+			return err
+		}
+	}
 	if command == "verify" || command == "reject" || command == "invalidate" {
 		reader := stdin
 		if inputPath != "-" {
@@ -213,11 +255,22 @@ func runAdmin(ctx context.Context, args []string, output io.Writer, stdin io.Rea
 			}
 		}
 	}
-	admin, closeAdmin, err := factory(ctx, command == "verify" || command == "reject" || command == "invalidate")
+	admin, closeAdmin, err := factory(ctx, command != "setup")
 	if err != nil {
 		return err
 	}
 	defer closeAdmin()
+	if requiresRecovery(command, preview) {
+		if admin.recovery == nil {
+			return domain.ErrUnavailable
+		}
+		if err := admin.recovery.Recover(ctx); err != nil {
+			return err
+		}
+	}
+	if lifecycleCommand(command) {
+		return runLifecycle(ctx, command, preview, lifecycleInput, admin.lifecycle, output)
+	}
 	switch command {
 	case "setup", "enroll":
 		enrollment := service.EnrollInput{ClientID: clientID, Role: domain.Role(role), ProjectIDs: []string{project}, Capabilities: strings.Split(capabilities, ",")}
@@ -311,6 +364,12 @@ func composeAdministration(ctx context.Context, withObjects bool) (administratio
 			closeStore()
 			return administration{}, nil, err
 		}
+		lifecycle, err := composeLifecycleService(store, objects)
+		if err != nil {
+			closeStore()
+			return administration{}, nil, err
+		}
+		admin.recovery = lifecycle
 		evidence := repository.NewEvidenceRepository(store)
 		capture := service.NewHostCaptureService(store, evidence, repository.NewJobsRepository(store), objects, identities)
 		admin.adjudication = service.NewVerificationService(store, repository.NewVerificationRepository(store), repository.NewPublicationRepository(store), identities, evidence, capture)
