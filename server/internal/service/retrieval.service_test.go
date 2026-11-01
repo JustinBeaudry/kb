@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -42,6 +43,29 @@ func (f *retrievalFixture) Seeds(_ context.Context, _ Tx, _ domain.Scope, _ stri
 	n := min(limit, len(f.claims))
 	f.examined += n
 	return f.claims[:n], nil
+}
+func (f *retrievalFixture) CitationSeeds(_ context.Context, _ Tx, p domain.Principal, scope domain.Scope, mode domain.FetchMode, ref domain.EvidenceRef, limit int) ([]domain.ClaimRevision, bool, error) {
+	if f.fail == "seeds" {
+		return nil, false, domain.ErrUnavailable
+	}
+	var candidates []domain.ClaimRevision
+	for _, c := range f.claims {
+		if c.Scope.ProjectID != scope.ProjectID || (mode == domain.FetchPublication && (c.Scope.TaskID != "" || (c.Status != domain.ClaimVerified && c.Status != domain.ClaimDisputed))) || (mode == domain.FetchWorking && (c.Scope.TaskID != scope.TaskID || c.SubmittedBy != p.ClientID || c.Status != domain.ClaimCandidate)) {
+			continue
+		}
+		if !slices.ContainsFunc(c.Evidence, func(e domain.EvidenceRef) bool {
+			return e.ArtifactID == ref.ArtifactID && e.Digest == ref.Digest && e.Locator == ref.Locator
+		}) {
+			continue
+		}
+		candidates = append(candidates, c)
+	}
+	more := len(candidates) >= limit
+	if len(candidates) > limit {
+		candidates = candidates[:limit]
+	}
+	f.examined += len(candidates)
+	return candidates, more, nil
 }
 func (f *retrievalFixture) Neighbors(_ context.Context, _ Tx, _ []string, _ []string, limit int) ([]domain.ClaimRevision, error) {
 	if f.fail == "neighbors" {
@@ -301,7 +325,7 @@ func TestRetrievalFetchIntegrityAndAuthority(t *testing.T) {
 			m.Scope.TaskID = ""
 			m.Scope.SessionID = ""
 			a := readyCapture(t, capture, p, m)
-			f := &retrievalFixture{snapshot: RetrievalSnapshot{Principal: p}, eligible: map[string]bool{"verified": true}, claims: []domain.ClaimRevision{{ClaimID: "verified", Revision: "verified", Status: domain.ClaimVerified, Scope: m.Scope, Evidence: []domain.EvidenceRef{{ArtifactID: a.ID, Digest: a.Digest, Locator: a.SourceLocator}}}}}
+			f := &retrievalFixture{snapshot: RetrievalSnapshot{Principal: p}, eligible: map[string]bool{"verified": true}, claims: []domain.ClaimRevision{{ClaimID: "verified", Revision: "verified", Status: domain.ClaimVerified, Scope: m.Scope, Evidence: []domain.EvidenceRef{{ArtifactID: a.ID, Digest: a.Digest, Locator: a.SourceLocator, SourceRevision: "source-revision"}}}}}
 			counted := &countRetrievalObjects{ObjectStore: objects}
 			s, e := NewRetrievalService(directTx{}, f, nil, evidence, counted, []byte(strings.Repeat("k", 32)))
 			require.NoError(t, e)
@@ -432,7 +456,7 @@ func TestRetrievalTransientStoragePreservesHealth(t *testing.T) {
 			m.Scope.TaskID = ""
 			m.Scope.SessionID = ""
 			a := readyCapture(t, capture, p, m)
-			f := &retrievalFixture{snapshot: RetrievalSnapshot{Principal: p}, eligible: map[string]bool{"verified": true}, claims: []domain.ClaimRevision{{ClaimID: "verified", Revision: "verified", Status: domain.ClaimVerified, Scope: m.Scope, Evidence: []domain.EvidenceRef{{ArtifactID: a.ID, Digest: a.Digest, Locator: a.SourceLocator}}}}}
+			f := &retrievalFixture{snapshot: RetrievalSnapshot{Principal: p}, eligible: map[string]bool{"verified": true}, claims: []domain.ClaimRevision{{ClaimID: "verified", Revision: "verified", Status: domain.ClaimVerified, Scope: m.Scope, Evidence: []domain.EvidenceRef{{ArtifactID: a.ID, Digest: a.Digest, Locator: a.SourceLocator, SourceRevision: "source-revision"}}}}}
 			s, e := NewRetrievalService(directTx{}, f, nil, evidence, objectFaultStore{ObjectStore: objects, phase: phase}, []byte(strings.Repeat("k", 32)))
 			require.NoError(t, e)
 			_, e = s.Fetch(t.Context(), p, a.ID, a.SourceLocator, 16384)
@@ -440,4 +464,77 @@ func TestRetrievalTransientStoragePreservesHealth(t *testing.T) {
 			assert.True(t, evidence.artifacts[a.ID].ObjectAvailable)
 		})
 	}
+}
+
+func TestWorkingCheckpointDoesNotStrandFirstClaim(t *testing.T) {
+	s, f, p, r := retrievalSetup(t)
+	r.Mode = domain.RetrievalWorking
+	r.Scope.TaskID = "task"
+	r.MaxDepth = 0
+	r.BudgetBytes = 1800
+	f.snapshot.TaskOwner = p.ClientID
+	f.snapshot.TaskHead = "head"
+	f.checkpoint = domain.Checkpoint{ID: "cp", Revision: "head", Scope: r.Scope, Objective: strings.Repeat("c", 600)}
+	f.claims = []domain.ClaimRevision{{ClaimID: "claim", Revision: "rev", Text: strings.Repeat("x", 850), Scope: r.Scope, Status: domain.ClaimCandidate}}
+	f.eligible["rev"] = true
+	first, err := s.Retrieve(t.Context(), p, r)
+	require.NoError(t, err)
+	require.NotNil(t, first.TaskCheckpoint)
+	require.Empty(t, first.Chunks)
+	require.NotEmpty(t, first.Continuation)
+	assert.LessOrEqual(t, wireLen(t, first), r.BudgetBytes)
+	r.Continuation = first.Continuation
+	second, err := s.Retrieve(t.Context(), p, r)
+	require.NoError(t, err)
+	require.Len(t, second.Chunks, 1)
+	assert.Equal(t, "rev", second.Chunks[0].Revision)
+	assert.Empty(t, second.Continuation)
+	assert.LessOrEqual(t, wireLen(t, second), r.BudgetBytes)
+}
+
+func TestWorkingCheckpointContinuationRejectsClaimLargerThanPage(t *testing.T) {
+	s, f, p, r := retrievalSetup(t)
+	r.Mode = domain.RetrievalWorking
+	r.Scope.TaskID = "task"
+	r.MaxDepth = 0
+	r.BudgetBytes = 1800
+	f.snapshot.TaskOwner = p.ClientID
+	f.checkpoint = domain.Checkpoint{ID: "cp", Revision: "head", Scope: r.Scope, Objective: "resume"}
+	f.claims = []domain.ClaimRevision{{ClaimID: "claim", Revision: "rev", Text: strings.Repeat("x", 3000), Scope: r.Scope, Status: domain.ClaimCandidate}}
+	f.eligible["rev"] = true
+	first, err := s.Retrieve(t.Context(), p, r)
+	require.NoError(t, err)
+	require.NotEmpty(t, first.Continuation)
+	r.Continuation = first.Continuation
+	second, err := s.Retrieve(t.Context(), p, r)
+	assert.ErrorIs(t, err, domain.ErrBudget)
+	assert.Empty(t, second.Chunks)
+}
+
+func TestWorkingCheckpointThatFitsOnlyWithoutCursorIsStillReturned(t *testing.T) {
+	s, f, p, r := retrievalSetup(t)
+	r.Mode = domain.RetrievalWorking
+	r.Scope.TaskID = "task"
+	r.MaxDepth = 0
+	r.BudgetBytes = domain.OrientationBudget
+	f.snapshot.TaskOwner = p.ClientID
+	f.snapshot.TaskHead = "head"
+	f.checkpoint = domain.Checkpoint{ID: "cp", Revision: "head", Scope: r.Scope, Objective: strings.Repeat("c", 600)}
+	alone, err := s.Retrieve(t.Context(), p, r)
+	require.NoError(t, err)
+	// Room for the checkpoint and truncation metadata (~130 B), not for a
+	// signed continuation (~400 B).
+	r.BudgetBytes = wireLen(t, alone) + 200
+	f.claims = []domain.ClaimRevision{{ClaimID: "claim", Revision: "rev", Text: strings.Repeat("x", 850), Scope: r.Scope, Status: domain.ClaimCandidate}}
+	f.eligible["rev"] = true
+
+	got, err := s.Retrieve(t.Context(), p, r)
+
+	require.NoError(t, err)
+	require.NotNil(t, got.TaskCheckpoint)
+	assert.Empty(t, got.Chunks)
+	assert.True(t, got.Truncated)
+	assert.Empty(t, got.Continuation)
+	assert.Equal(t, "wire_budget", got.TruncationReason)
+	assert.LessOrEqual(t, wireLen(t, got), r.BudgetBytes)
 }

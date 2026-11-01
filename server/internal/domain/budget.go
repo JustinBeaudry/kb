@@ -13,6 +13,12 @@ const (
 // RetrievalWire measures the public JSON shape, including JSON escaping. HTTP
 // adds one newline. Other transports must independently budget their framing.
 func RetrievalWire(r RetrievalResult) ([]byte, error) {
+	return json.Marshal(RetrievalWireValue(r))
+}
+
+// RetrievalWireValue is the public JSON value measured by RetrievalWire. Other
+// renderers (CLI, MCP) encode this same value inside their own framing.
+func RetrievalWireValue(r RetrievalResult) map[string]any {
 	chunks := make([]any, 0, len(r.Chunks))
 	for _, c := range r.Chunks {
 		refs := make([]any, 0, len(c.Evidence))
@@ -29,6 +35,9 @@ func RetrievalWire(r RetrievalResult) ([]byte, error) {
 		}
 		if c.VerificationOutcome != nil {
 			m["verification_outcome"] = *c.VerificationOutcome
+		}
+		if c.Passage != nil {
+			m["passage"] = map[string]any{"start_byte": c.Passage.StartByte, "end_byte": c.Passage.EndByte, "source_bytes": c.Passage.SourceBytes}
 		}
 		chunks = append(chunks, m)
 	}
@@ -52,7 +61,7 @@ func RetrievalWire(r RetrievalResult) ([]byte, error) {
 			m["task_checkpoint"].(map[string]any)["checkpoint"].(map[string]any)["evidence_references_omitted"] = true
 		}
 	}
-	return json.Marshal(m)
+	return m
 }
 func stringArray(s []string) []string {
 	if s == nil {

@@ -46,11 +46,11 @@ func (g *S3) Put(ctx context.Context, key string, body io.Reader, digest string)
 	if err != nil || len(sum) != 32 || key == "" || body == nil {
 		return domain.ErrInvalidInput
 	}
-	data, err := io.ReadAll(io.LimitReader(body, (8<<20)+1))
+	data, err := io.ReadAll(io.LimitReader(body, domain.MaxArtifactBytes+1))
 	if err != nil {
 		return domain.ErrUnavailable
 	}
-	if len(data) > 8<<20 {
+	if int64(len(data)) > domain.MaxArtifactBytes {
 		return domain.ErrBudget
 	}
 	_, err = g.client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(g.bucket), Key: aws.String(key), Body: bytes.NewReader(data), ContentLength: aws.Int64(int64(len(data))), ChecksumSHA256: aws.String(base64.StdEncoding.EncodeToString(sum))})

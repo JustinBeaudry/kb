@@ -22,6 +22,7 @@ type EligibilityResult = domain.EligibilityResult
 type RetrievalRepository interface {
 	Snapshot(context.Context, Tx, domain.Principal, domain.Scope) (RetrievalSnapshot, error)
 	Seeds(context.Context, Tx, domain.Scope, string, int) ([]domain.ClaimRevision, error)
+	CitationSeeds(context.Context, Tx, domain.Principal, domain.Scope, domain.FetchMode, domain.EvidenceRef, int) ([]domain.ClaimRevision, bool, error)
 	Neighbors(context.Context, Tx, []string, []string, int) ([]domain.ClaimRevision, error)
 	Eligible(context.Context, Tx, domain.Principal, domain.Scope, []string) (EligibilityResult, error)
 }
@@ -57,29 +58,21 @@ type retrievalCursor struct {
 	Offset                    int    `json:"o"`
 }
 
-func (s *RetrievalService) sign(c retrievalCursor) string {
-	data, _ := json.Marshal(c)
+func (s *RetrievalService) sign(c retrievalCursor, passage ...passageCursor) string {
+	var data []byte
+	if len(passage) == 1 {
+		data, _ = json.Marshal(passage[0])
+	} else {
+		data, _ = json.Marshal(c)
+	}
 	mac := hmac.New(sha256.New, s.key)
 	mac.Write(data)
 	return base64.RawURLEncoding.EncodeToString(data) + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 func (s *RetrievalService) cursor(raw string) (retrievalCursor, error) {
 	var c retrievalCursor
-	parts := strings.Split(raw, ".")
-	if len(parts) != 2 || len(raw) > 2048 {
-		return c, domain.ErrStale
-	}
-	data, e := base64.RawURLEncoding.DecodeString(parts[0])
-	if e != nil {
-		return c, domain.ErrStale
-	}
-	sig, e := base64.RawURLEncoding.DecodeString(parts[1])
-	if e != nil {
-		return c, domain.ErrStale
-	}
-	m := hmac.New(sha256.New, s.key)
-	m.Write(data)
-	if !hmac.Equal(sig, m.Sum(nil)) || json.Unmarshal(data, &c) != nil || c.Offset < 0 || c.Offset > 50 {
+	data, e := s.verified(raw)
+	if e != nil || json.Unmarshal(data, &c) != nil || c.Offset < 0 || c.Offset > 50 {
 		return c, domain.ErrStale
 	}
 	return c, nil
@@ -159,7 +152,7 @@ func (s *RetrievalService) Retrieve(ctx context.Context, p domain.Principal, inp
 			return domain.ErrStale
 		}
 		result = domain.RetrievalResult{SchemaVersion: "3", Chunks: []domain.EvidenceChunk{}}
-		if r.Scope.TaskID != "" && (r.Mode == domain.RetrievalWorking || r.Mode == domain.RetrievalOrientation) && s.tasks != nil {
+		if r.Continuation == "" && r.Scope.TaskID != "" && (r.Mode == domain.RetrievalWorking || r.Mode == domain.RetrievalOrientation) && s.tasks != nil {
 			c, owner, e := s.tasks.Latest(ctx, tx, r.Scope)
 			if e != nil {
 				return e
@@ -298,7 +291,13 @@ func (s *RetrievalService) Retrieve(ctx context.Context, p domain.Principal, inp
 				}
 				result.Truncated = true
 				result.TruncationReason = "wire_budget"
-				result.Action = "Use the continuation when present; otherwise narrow the query or use a larger supported budget."
+				result.Action = "Use the continuation with identical parameters; otherwise narrow the query or use a larger supported budget."
+				result.Continuation = s.sign(retrievalCursor{Set: setDigest, Query: query, Auth: snap.AuthEpoch, Knowledge: snap.KnowledgeEpoch, Deletion: snap.DeletionEpoch, Head: snap.TaskHead, Offset: i})
+				// Task state that fits alone is never lost to its own cursor.
+				if wire, _ := domain.RetrievalWire(result); len(wire)+1 > r.BudgetBytes {
+					result.Continuation = ""
+					result.Action = "Narrow the query or use a larger supported budget to see claims beyond task state."
+				}
 				break
 			}
 			result = trial
@@ -371,12 +370,179 @@ func applicabilityRank(a, b domain.Applicability) int {
 	return n
 }
 
-// Fetch exposes only project-wide evidence supporting a currently eligible
-// publication. Task evidence is available only as citations in scoped working
-// retrieval; the ID-only endpoint cannot supply task ownership context.
+// Fetch is the ID-only publication fetch: project-wide evidence supporting a
+// currently eligible publication. Task evidence is never available here.
 func (s *RetrievalService) Fetch(ctx context.Context, p domain.Principal, id, locator string, budget int) (domain.RetrievalResult, error) {
-	if domain.ValidateIDs(id, locator) != nil || budget < 1 || budget > domain.EvidenceBudget {
-		return domain.RetrievalResult{}, domain.ErrInvalidInput
+	return s.FetchEvidence(ctx, p, domain.FetchRequest{ArtifactID: id, Locator: locator, Mode: domain.FetchPublication, BudgetBytes: budget})
+}
+
+type passageCursor struct {
+	Kind                      string `json:"k"`
+	Query                     string `json:"q"`
+	Generation, Digest        string
+	Auth, Knowledge, Deletion uint64
+	Head                      string `json:"h,omitempty"`
+	Offset                    int64  `json:"o"`
+	Start                     int64  `json:"b"`
+}
+
+// verified returns the payload of an HMAC-authenticated cursor.
+func (s *RetrievalService) verified(raw string) ([]byte, error) {
+	parts := strings.Split(raw, ".")
+	if len(parts) != 2 || len(raw) > 2048 {
+		return nil, domain.ErrStale
+	}
+	data, e := base64.RawURLEncoding.DecodeString(parts[0])
+	if e != nil {
+		return nil, domain.ErrStale
+	}
+	sig, e := base64.RawURLEncoding.DecodeString(parts[1])
+	if e != nil {
+		return nil, domain.ErrStale
+	}
+	m := hmac.New(sha256.New, s.key)
+	m.Write(data)
+	if !hmac.Equal(sig, m.Sum(nil)) {
+		return nil, domain.ErrStale
+	}
+	return data, nil
+}
+func normalizedFetch(r domain.FetchRequest) (domain.FetchRequest, error) {
+	if r.Mode == "" {
+		r.Mode = domain.FetchPublication
+	}
+	invalid := domain.ValidateIDs(r.ArtifactID, r.Locator) != nil || r.BudgetBytes < 1 || r.BudgetBytes > domain.EvidenceBudget || r.StartByte < 0 || r.StartByte > MaxArtifactBytes || (r.EndByte != nil && (*r.EndByte < r.StartByte || *r.EndByte > MaxArtifactBytes)) || (r.Continuation != "" && r.StartByte != 0)
+	switch r.Mode {
+	case domain.FetchPublication:
+		invalid = invalid || r.Scope != domain.Scope{}
+	case domain.FetchWorking:
+		invalid = invalid || domain.ValidateIDs(r.Scope.ProjectID, r.Scope.TaskID) != nil
+	default:
+		invalid = true
+	}
+	if invalid {
+		return r, domain.ErrInvalidInput
+	}
+	return r, nil
+}
+
+type fetchAuthority struct {
+	artifact        domain.Artifact
+	client          string
+	ref             domain.EvidenceRef
+	citationBinding string
+	snap            RetrievalSnapshot
+}
+
+// authorizeFetch performs every graph check for one fetch inside a service
+// transaction. It never performs object I/O. ID-only publication fetch allows
+// only project-scoped sources of eligible publications; working mode allows
+// only task sources cited by an eligible candidate this client submitted in a
+// task it currently owns. Artifact ownership alone grants nothing.
+func (s *RetrievalService) authorizeFetch(ctx context.Context, tx Tx, p domain.Principal, r domain.FetchRequest) (fetchAuthority, error) {
+	a, client, e := s.evidence.Artifact(ctx, tx, r.ArtifactID)
+	if e != nil {
+		return fetchAuthority{}, domain.ErrForbidden
+	}
+	scope := a.Scope
+	if r.Mode == domain.FetchWorking {
+		if a.Scope.TaskID == "" || a.Scope.ProjectID != r.Scope.ProjectID || a.Scope.TaskID != r.Scope.TaskID || (r.Scope.SessionID != "" && a.Scope.SessionID != r.Scope.SessionID) {
+			return fetchAuthority{}, domain.ErrForbidden
+		}
+		scope = domain.Scope{ProjectID: r.Scope.ProjectID, TaskID: r.Scope.TaskID}
+	} else if a.Scope.TaskID != "" || a.Scope.SessionID != "" {
+		return fetchAuthority{}, domain.ErrForbidden
+	}
+	project := []string{a.Scope.ProjectID}
+	if Authorize(p, "retrieval:read", project) != nil || Authorize(p, "evidence:read", project) != nil {
+		return fetchAuthority{}, domain.ErrForbidden
+	}
+	snap, e := s.repo.Snapshot(ctx, tx, p, scope)
+	if e != nil {
+		return fetchAuthority{}, e
+	}
+	if Authorize(snap.Principal, "retrieval:read", project) != nil || Authorize(snap.Principal, "evidence:read", project) != nil {
+		return fetchAuthority{}, domain.ErrForbidden
+	}
+	if r.Mode == domain.FetchWorking && snap.TaskOwner != p.ClientID {
+		return fetchAuthority{}, domain.ErrForbidden
+	}
+	if a.State != domain.ArtifactReady || !a.ObjectAvailable || a.Generation == "" {
+		return fetchAuthority{}, domain.ErrUnavailable
+	}
+	if r.Locator != a.SourceLocator {
+		return fetchAuthority{}, domain.ErrForbidden
+	}
+	policy, e := s.evidence.Policy(ctx, tx, a.Scope.ProjectID)
+	if e != nil {
+		return fetchAuthority{}, e
+	}
+	if policy.Paused || policy.Revision == "" || policy.Revision != a.PolicyRevision || validateSource(policy, a.SourcePath) != nil {
+		return fetchAuthority{}, domain.ErrForbidden
+	}
+	candidates, boundReached, e := s.repo.CitationSeeds(ctx, tx, p, scope, r.Mode, domain.EvidenceRef{ArtifactID: r.ArtifactID, Digest: a.Digest, Locator: r.Locator}, domain.MaxGraphVisited)
+	if e != nil {
+		return fetchAuthority{}, e
+	}
+	if len(candidates) > domain.MaxGraphVisited {
+		return fetchAuthority{}, domain.ErrUnavailable
+	}
+	ids := make([]string, 0, len(candidates))
+	for _, c := range candidates {
+		if (r.Mode == domain.FetchPublication && c.Scope.TaskID == "") || (r.Mode == domain.FetchWorking && c.Scope.TaskID == scope.TaskID) {
+			ids = append(ids, c.Revision)
+		}
+	}
+	eligible, e := s.repo.Eligible(ctx, tx, p, scope, ids)
+	if e != nil {
+		return fetchAuthority{}, e
+	}
+	// Keep the eligible reference, not just its opaque source revision. Multiple
+	// claims or references can share a revision but carry different conditions.
+	// Order by source revision, claim identity and reference content so graph
+	// result ordering cannot silently switch the chosen authority between reads.
+	var selected domain.EvidenceRef
+	selectedClaim, selectedRefKey, binding := "", "", ""
+	for _, c := range eligible.Claims {
+		if !applicable(c.Applicability, domain.Applicability{}) {
+			continue
+		}
+		allowed := r.Mode == domain.FetchPublication && c.Scope == a.Scope && (c.Status == domain.ClaimVerified || c.Status == domain.ClaimDisputed) ||
+			r.Mode == domain.FetchWorking && c.Status == domain.ClaimCandidate && c.SubmittedBy == p.ClientID && c.Scope == a.Scope
+		if !allowed {
+			continue
+		}
+		for _, ref := range c.Evidence {
+			if ref.ArtifactID != r.ArtifactID || ref.Digest != a.Digest || ref.Locator != r.Locator || domain.ValidateIDs(ref.SourceRevision) != nil || !applicable(ref.Applicability, domain.Applicability{}) {
+				continue
+			}
+			refKey := captureID(ref)
+			if binding != "" && (ref.SourceRevision > selected.SourceRevision || ref.SourceRevision == selected.SourceRevision && (c.Revision > selectedClaim || c.Revision == selectedClaim && refKey >= selectedRefKey)) {
+				continue
+			}
+			selected, selectedClaim, selectedRefKey = ref, c.Revision, refKey
+			// Hash now, rather than retaining mutable map/pointer aliases across I/O.
+			binding = captureID(c.ClaimID, c.Revision, c.Applicability, ref)
+		}
+	}
+	if binding == "" {
+		if boundReached {
+			return fetchAuthority{}, domain.ErrIncomplete
+		}
+		return fetchAuthority{}, domain.ErrForbidden
+	}
+	return fetchAuthority{artifact: a, client: client, ref: selected, citationBinding: binding, snap: snap}, nil
+}
+
+// FetchEvidence returns a bounded passage of one stored artifact. The immutable
+// artifact digest and base locator are preserved; the passage reports the exact
+// selected UTF-8 byte span. Authority, generation and epochs are checked before
+// and after object I/O; continuations are HMAC-bound to all request parameters,
+// the artifact generation and the epochs current when they were issued.
+func (s *RetrievalService) FetchEvidence(ctx context.Context, p domain.Principal, input domain.FetchRequest) (domain.RetrievalResult, error) {
+	r, e := normalizedFetch(input)
+	if e != nil {
+		return domain.RetrievalResult{}, e
 	}
 	if !slices.Contains(p.Capabilities, "evidence:read") {
 		return domain.RetrievalResult{}, domain.ErrForbidden
@@ -384,72 +550,48 @@ func (s *RetrievalService) Fetch(ctx context.Context, p domain.Principal, id, lo
 	if s.evidence == nil || s.objects == nil {
 		return domain.RetrievalResult{}, domain.ErrUnavailable
 	}
-	var artifact domain.Artifact
-	var sourceClient string
-	var before RetrievalSnapshot
-	load := func(ctx context.Context, tx Tx) error {
-		a, client, e := s.evidence.Artifact(ctx, tx, id)
-		if e != nil {
-			return domain.ErrForbidden
-		}
-		if a.Scope.TaskID != "" || a.Scope.SessionID != "" || (Authorize(p, "retrieval:read", []string{a.Scope.ProjectID}) != nil || Authorize(p, "evidence:read", []string{a.Scope.ProjectID}) != nil) {
-			return domain.ErrForbidden
-		}
-		snap, e := s.repo.Snapshot(ctx, tx, p, a.Scope)
-		if e != nil {
-			return e
-		}
-		if Authorize(snap.Principal, "retrieval:read", []string{a.Scope.ProjectID}) != nil || Authorize(snap.Principal, "evidence:read", []string{a.Scope.ProjectID}) != nil {
-			return domain.ErrForbidden
-		}
-		if a.State != domain.ArtifactReady || !a.ObjectAvailable {
-			return domain.ErrUnavailable
-		}
-		if locator != a.SourceLocator {
-			return domain.ErrForbidden
-		}
-		policy, e := s.evidence.Policy(ctx, tx, a.Scope.ProjectID)
-		if e != nil {
-			return e
-		}
-		if policy.Paused || policy.Revision == "" || policy.Revision != a.PolicyRevision || validateSource(policy, a.SourcePath) != nil {
-			return domain.ErrForbidden
-		}
-		candidates, e := s.repo.Seeds(ctx, tx, a.Scope, "@artifact:"+id, 50)
-		if e != nil {
-			return e
-		}
-		ids := make([]string, 0, len(candidates))
-		for _, c := range candidates {
-			if c.Scope.TaskID == "" {
-				ids = append(ids, c.Revision)
-			}
-		}
-		eligible, e := s.repo.Eligible(ctx, tx, p, a.Scope, ids)
-		if e != nil {
-			return e
-		}
-		allowed := false
-		for _, c := range eligible.Claims {
-			if c.Status == domain.ClaimVerified || c.Status == domain.ClaimDisputed {
-				for _, ref := range c.Evidence {
-					if ref.ArtifactID == id && ref.Digest == a.Digest && ref.Locator == locator {
-						allowed = true
-					}
-				}
-			}
-		}
-		if !allowed {
-			return domain.ErrForbidden
-		}
-		artifact = a
-		sourceClient = client
-		before = snap
-		return nil
+	requestedEnd := int64(-1)
+	if r.EndByte != nil {
+		requestedEnd = *r.EndByte
 	}
-	if e := s.tx.Within(ctx, load); e != nil {
+	var cursor passageCursor
+	start := r.StartByte
+	if r.Continuation != "" {
+		data, e := s.verified(r.Continuation)
+		if e != nil || json.Unmarshal(data, &cursor) != nil || cursor.Kind != "passage" || cursor.Start < 0 || cursor.Offset <= cursor.Start || cursor.Offset > MaxArtifactBytes {
+			return domain.RetrievalResult{}, domain.ErrStale
+		}
+		start = cursor.Start
+	}
+	query := captureID("passage", p.ClientID, r.ArtifactID, r.Locator, r.Mode, r.Scope, r.BudgetBytes, start, requestedEnd)
+	if r.Continuation != "" {
+		if r.EndByte != nil && cursor.Offset > *r.EndByte {
+			return domain.RetrievalResult{}, domain.ErrStale
+		}
+		r.StartByte = cursor.Offset
+	}
+	empty := passageResult(domain.Artifact{ID: r.ArtifactID, SourceLocator: r.Locator, Digest: strings.Repeat("0", 64), Generation: "g"}, "", domain.EvidenceRef{SourceRevision: "g"}, r.Mode, domain.Passage{}, "", "")
+	if wire, _ := domain.RetrievalWire(empty); len(wire)+1 > r.BudgetBytes {
+		return domain.RetrievalResult{}, domain.ErrBudget
+	}
+	var before fetchAuthority
+	if e = s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
+		v, e := s.authorizeFetch(ctx, tx, p, r)
+		if e != nil {
+			return e
+		}
+		if r.Continuation != "" && (cursor.Query != captureID(query, v.citationBinding) || cursor.Generation != v.artifact.Generation || cursor.Digest != v.artifact.Digest || cursor.Auth != v.snap.AuthEpoch || cursor.Knowledge != v.snap.KnowledgeEpoch || cursor.Deletion != v.snap.DeletionEpoch || cursor.Head != v.snap.TaskHead) {
+			return domain.ErrStale
+		}
+		if r.StartByte > v.artifact.Bytes || (r.EndByte != nil && *r.EndByte > v.artifact.Bytes) {
+			return domain.ErrInvalidInput
+		}
+		before = v
+		return nil
+	}); e != nil {
 		return domain.RetrievalResult{}, e
 	}
+	artifact := before.artifact
 	failSource := func() (domain.RetrievalResult, error) {
 		err := s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
 			return s.evidence.Availability(ctx, tx, artifact.ID, artifact.ObjectKey, false)
@@ -458,9 +600,6 @@ func (s *RetrievalService) Fetch(ctx context.Context, p domain.Principal, id, lo
 			return domain.RetrievalResult{}, err
 		}
 		return domain.RetrievalResult{}, domain.ErrUnavailable
-	}
-	if artifact.Bytes > int64(budget) {
-		return domain.RetrievalResult{}, domain.ErrBudget
 	}
 	reader, e := s.objects.Open(ctx, artifact.ObjectKey)
 	if e != nil {
@@ -474,34 +613,112 @@ func (s *RetrievalService) Fetch(ctx context.Context, p domain.Principal, id, lo
 	if e != nil {
 		return domain.RetrievalResult{}, domain.ErrUnavailable
 	}
+	// Integrity covers the whole immutable object even when one passage is returned.
 	if int64(len(data)) != artifact.Bytes || TokenDigest(string(data)) != artifact.Digest {
 		return failSource()
 	}
 	if closeErr != nil {
 		return domain.RetrievalResult{}, domain.ErrUnavailable
 	}
-	if !utf8.Valid(data) {
-		return domain.RetrievalResult{}, domain.ErrIncomplete
-	}
-	previous := artifact
-	initial := before
 	if e = s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
-		if e := load(ctx, tx); e != nil {
+		after, e := s.authorizeFetch(ctx, tx, p, r)
+		if e != nil {
 			return e
 		}
-		if !sameEpoch(initial, before) || artifact.ObjectKey != previous.ObjectKey {
+		if !sameEpoch(before.snap, after.snap) || after.citationBinding != before.citationBinding || after.artifact.ObjectKey != artifact.ObjectKey || after.artifact.Generation != artifact.Generation || after.artifact.Digest != artifact.Digest {
 			return domain.ErrStale
 		}
 		return nil
 	}); e != nil {
 		return domain.RetrievalResult{}, e
 	}
-	result := domain.RetrievalResult{SchemaVersion: "3", Chunks: []domain.EvidenceChunk{{RecordID: id, Revision: artifact.Digest, Text: string(data), ClaimStatus: domain.ClaimCandidate, OriginTrust: domain.TrustSubmitted, Evidence: []domain.EvidenceRef{{ArtifactID: id, Digest: artifact.Digest, Locator: locator, SourceRevision: artifact.Generation, Origin: domain.Origin{ClientID: sourceClient, Trust: domain.TrustSubmitted}}}, Warnings: []string{"source_evidence_is_not_a_verified_claim"}}}}
-	wire, e := domain.RetrievalWire(result)
-	if e != nil || len(wire)+1 > budget {
+	end := int64(len(data))
+	if r.EndByte != nil {
+		end = *r.EndByte
+	}
+	spanStart, end := runeSpan(data, r.StartByte, end)
+	if !utf8.Valid(data[spanStart:end]) {
+		return domain.RetrievalResult{}, domain.ErrIncomplete
+	}
+	next := func(offset int64) string {
+		return s.sign(retrievalCursor{}, passageCursor{Kind: "passage", Query: captureID(query, before.citationBinding), Generation: artifact.Generation, Digest: artifact.Digest, Auth: before.snap.AuthEpoch, Knowledge: before.snap.KnowledgeEpoch, Deletion: before.snap.DeletionEpoch, Head: before.snap.TaskHead, Offset: offset, Start: start})
+	}
+	build := func(cut int64) domain.RetrievalResult {
+		continuation := ""
+		if cut < end {
+			continuation = next(cut)
+		}
+		return passageResult(artifact, before.client, before.ref, r.Mode, domain.Passage{StartByte: spanStart, EndByte: cut, SourceBytes: int64(len(data))}, string(data[spanStart:cut]), continuation)
+	}
+	fits := func(v domain.RetrievalResult) bool {
+		wire, e := domain.RetrievalWire(v)
+		return e == nil && len(wire)+1 <= r.BudgetBytes
+	}
+	if whole := build(end); fits(whole) {
+		return whole, nil
+	}
+	// Largest rune-aligned cut that fits with its own signed continuation.
+	best := spanStart
+	lo, hi := spanStart+1, end-1
+	for lo <= hi {
+		mid := lo + (hi-lo)/2
+		cut := mid
+		for cut > spanStart && !utf8.RuneStart(data[cut]) {
+			cut--
+		}
+		if cut > spanStart && fits(build(cut)) {
+			best = max(best, cut)
+			lo = mid + 1
+		} else {
+			hi = mid - 1
+		}
+	}
+	if best == spanStart {
 		return domain.RetrievalResult{}, domain.ErrBudget
 	}
-	return result, nil
+	return build(best), nil
+}
+
+// runeSpan narrows [start,end) to whole UTF-8 runes: a start inside a rune moves
+// forward, an end inside a rune moves back, and an incomplete trailing rune at
+// the object edge (F4 chunks split at byte boundaries) is excluded.
+func runeSpan(data []byte, start, end int64) (int64, int64) {
+	for start < end && !utf8.RuneStart(data[start]) {
+		start++
+	}
+	if end < int64(len(data)) {
+		for end > start && !utf8.RuneStart(data[end]) {
+			end--
+		}
+	}
+	last := end
+	for last > start && end-last < utf8.UTFMax && !utf8.RuneStart(data[last-1]) {
+		last--
+	}
+	if last > start && !utf8.FullRune(data[last-1:end]) {
+		end = last - 1
+	}
+	return start, end
+}
+
+// passageResult reports the selected citation's source revision and
+// conditions; the origin is always the artifact's submitting client.
+func passageResult(a domain.Artifact, client string, ref domain.EvidenceRef, mode domain.FetchMode, span domain.Passage, text, continuation string) domain.RetrievalResult {
+	warnings := []string{"source_evidence_is_not_a_verified_claim"}
+	if mode == domain.FetchWorking {
+		warnings = append(warnings, "unverified_task_evidence")
+	}
+	if span.StartByte != 0 || span.EndByte != span.SourceBytes {
+		warnings = append(warnings, "partial_source_passage")
+	}
+	result := domain.RetrievalResult{SchemaVersion: "3", Chunks: []domain.EvidenceChunk{{RecordID: a.ID, Revision: a.Digest, Text: text, ClaimStatus: domain.ClaimCandidate, OriginTrust: domain.TrustSubmitted, Passage: &span, Evidence: []domain.EvidenceRef{{ArtifactID: a.ID, Digest: a.Digest, Locator: a.SourceLocator, SourceRevision: ref.SourceRevision, Applicability: ref.Applicability, Origin: domain.Origin{ClientID: client, Trust: domain.TrustSubmitted}}}, Warnings: warnings}}}
+	if continuation != "" {
+		result.Truncated = true
+		result.TruncationReason = "wire_budget"
+		result.Continuation = continuation
+		result.Action = "Use the continuation, omit start_byte, and keep other parameters unchanged; or omit the continuation and request start_byte at this passage's end_byte."
+	}
+	return result
 }
 
 // These are the verified target's public conditions, never hidden support/source

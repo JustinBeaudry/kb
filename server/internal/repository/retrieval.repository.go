@@ -95,6 +95,37 @@ func (r *RetrievalRepository) Seeds(ctx context.Context, tx domain.Tx, scope dom
 	rows, e := r.query(ctx, tx, `MATCH (c:ClaimRevision) WHERE `+where+` RETURN c.data ORDER BY c.id LIMIT $limit`, params)
 	return decodeClaims(rows, e)
 }
+
+// CitationSeeds selects only citation records that can possibly authorize this
+// fetch, before applying the fixed record bound. Hitting the bound is treated
+// as potentially incomplete. Eligible remains the authoritative security gate.
+func (r *RetrievalRepository) CitationSeeds(ctx context.Context, tx domain.Tx, p domain.Principal, scope domain.Scope, mode domain.FetchMode, ref domain.EvidenceRef, limit int) ([]domain.ClaimRevision, bool, error) {
+	if limit < 1 || limit > domain.MaxGraphVisited || domain.ValidateIDs(scope.ProjectID, ref.ArtifactID, ref.Digest, ref.Locator) != nil {
+		return nil, false, domain.ErrInvalidInput
+	}
+	where := ""
+	switch mode {
+	case domain.FetchPublication:
+		if scope.TaskID != "" {
+			return nil, false, domain.ErrInvalidInput
+		}
+		where = `coalesce(c.taskID,'')='' AND c.status IN ['verified','disputed'] AND coalesce(c.valid,false) AND EXISTS { MATCH (:Publication {claimRevision:c.id,valid:true}) }`
+	case domain.FetchWorking:
+		if domain.ValidateIDs(scope.TaskID, p.ClientID) != nil {
+			return nil, false, domain.ErrInvalidInput
+		}
+		where = `c.taskID=$task AND c.clientID=$client AND c.status='candidate'`
+	default:
+		return nil, false, domain.ErrInvalidInput
+	}
+	rows, err := r.query(ctx, tx, `MATCH (a:Artifact {id:$artifact})<-[ref:EVIDENCE]-(c:ClaimRevision) WHERE c.projectID=$project AND ref.digest=$digest AND ref.locator=$locator AND `+where+` WITH DISTINCT c ORDER BY c.id LIMIT $limit RETURN c.data`, map[string]any{"artifact": ref.ArtifactID, "project": scope.ProjectID, "task": scope.TaskID, "client": p.ClientID, "digest": ref.Digest, "locator": ref.Locator, "limit": limit})
+	if err != nil {
+		return nil, false, err
+	}
+	boundReached := len(rows) == limit
+	claims, err := decodeClaims(rows, nil)
+	return claims, boundReached, err
+}
 func (r *RetrievalRepository) Neighbors(ctx context.Context, tx domain.Tx, ids, kinds []string, limit int) ([]domain.ClaimRevision, error) {
 	if limit < 1 || limit > 50 || len(ids) > 50 {
 		return nil, domain.ErrInvalidInput

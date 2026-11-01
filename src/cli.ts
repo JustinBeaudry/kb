@@ -10,6 +10,7 @@ const main = defineCommand({
   },
   subCommands: {
     capture: () => import("./commands/capture").then((m) => m.default),
+    remote: () => import("./commands/remote").then((m) => m.default),
     init: () => import("./commands/init").then((m) => m.default),
     doctor: () => import("./commands/doctor").then((m) => m.default),
     uninstall: () => import("./commands/uninstall").then((m) => m.default),

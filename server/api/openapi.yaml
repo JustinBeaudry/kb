@@ -312,8 +312,72 @@
               "maximum": 16384,
               "default": 16384
             }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/FetchMode"
+            }
+          },
+          {
+            "name": "project_id",
+            "in": "query",
+            "description": "Working mode only; rejected in publication mode.",
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueID"
+            }
+          },
+          {
+            "name": "task_id",
+            "in": "query",
+            "description": "Working mode only; rejected in publication mode.",
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueID"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "query",
+            "description": "Working mode only; rejected in publication mode.",
+            "schema": {
+              "$ref": "#/components/schemas/OpaqueID"
+            }
+          },
+          {
+            "name": "start_byte",
+            "in": "query",
+            "description": "Inclusive stored-artifact byte offset; a start inside a UTF-8 rune moves forward. Not combined with continuation.",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0,
+              "maximum": 8388608,
+              "default": 0
+            }
+          },
+          {
+            "name": "end_byte",
+            "in": "query",
+            "description": "Exclusive stored-artifact byte offset; an end inside a UTF-8 rune moves back. Defaults to the artifact end.",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0,
+              "maximum": 8388608
+            }
+          },
+          {
+            "name": "continuation",
+            "in": "query",
+            "description": "Signed passage cursor; omit start_byte on continuation and repeat every other parameter unchanged. The cursor retains the original start offset.",
+            "schema": {
+              "type": "string",
+              "maxLength": 2048
+            }
           }
-        ]
+        ],
+        "description": "Bounded passage of one stored artifact. Default publication mode is ID-only: it returns only project-scoped sources of currently eligible publications and never task sources. Working mode is selected only explicitly with project_id and task_id, and returns only task sources cited by an eligible candidate the authenticated client submitted in a task it currently owns; artifact ownership alone grants nothing. Offsets index the stored artifact bytes; the response reports the exact selected UTF-8 span, preserves the artifact digest and base locator, and marks partial passages. Continuations are bound to every parameter, the artifact generation and current epochs."
       }
     },
     "/v1/decisions/{id}:respond": {
@@ -597,6 +661,13 @@
         "minLength": 1,
         "pattern": "\\S",
         "description": "Nonempty opaque identifier. Never a database elementId."
+      },
+      "WriteRevision": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64,
+        "pattern": "\\S",
+        "description": "Revision issued by a write. Never longer than the bound advertised as StatusResult.max_revision_bytes."
       },
       "Role": {
         "type": "string",
@@ -1129,7 +1200,7 @@
             "$ref": "#/components/schemas/OpaqueID"
           },
           "revision": {
-            "$ref": "#/components/schemas/OpaqueID"
+            "$ref": "#/components/schemas/WriteRevision"
           },
           "text": {
             "type": "string"
@@ -1260,7 +1331,7 @@
             "$ref": "#/components/schemas/OpaqueID"
           },
           "revision": {
-            "$ref": "#/components/schemas/OpaqueID"
+            "$ref": "#/components/schemas/WriteRevision"
           },
           "scope": {
             "$ref": "#/components/schemas/Scope"
@@ -1370,6 +1441,9 @@
           "applicability": {
             "$ref": "#/components/schemas/Applicability",
             "description": "Conditions of the independently verified/public target; hidden source/support applicability is never projected here."
+          },
+          "passage": {
+            "$ref": "#/components/schemas/Passage"
           }
         },
         "required": [
@@ -1854,6 +1928,11 @@
               "type": "string"
             },
             "description": "Capabilities granted to this authenticated client; other clients are never listed."
+          },
+          "max_revision_bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Enforced upper bound on every claim and checkpoint revision this server issues (currently 64). Clients must not attempt writes when it is absent (older servers) or exceeds their own limit."
           }
         },
         "required": [
@@ -2076,6 +2155,42 @@
           }
         },
         "description": "Owned task state only; this snapshot conveys no claim verification."
+      },
+      "FetchMode": {
+        "type": "string",
+        "enum": [
+          "publication",
+          "working"
+        ],
+        "default": "publication",
+        "description": "publication is ID-only eligible publication evidence; working is explicit owned task evidence and stays unverified."
+      },
+      "Passage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "start_byte",
+          "end_byte",
+          "source_bytes"
+        ],
+        "properties": {
+          "start_byte": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "end_byte": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "source_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "description": "Exact selected UTF-8 byte span [start_byte,end_byte) of the stored artifact. The text is the whole source only when start_byte is 0 and end_byte equals source_bytes."
       }
     },
     "responses": {

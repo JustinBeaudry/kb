@@ -12,4 +12,7 @@ var (
 	ErrUnavailable  = errors.New("unavailable")
 	ErrDeleted      = errors.New("deleted")
 	ErrInvalidInput = errors.New("invalid input")
+	// ErrUnknownOutcome reports a write whose request may have committed but
+	// whose receipt was lost or invalid. Callers reconcile; they never retry blind.
+	ErrUnknownOutcome = errors.New("unknown outcome")
 )

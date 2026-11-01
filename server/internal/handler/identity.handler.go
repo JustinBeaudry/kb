@@ -26,10 +26,20 @@ type IdentityHandler struct {
 	memory      MemoryService
 	retrieval   RetrievalService
 	policy      PolicyService
+	status      StatusService
 }
 
 var _ StrictServerInterface = (*IdentityHandler)(nil)
 
+type StatusService interface {
+	Status(context.Context, domain.Principal) (domain.Status, error)
+}
+
+// NewServer composes every implemented route, including the authoritative
+// status service that MCP and HTTP share.
+func NewServer(i IdentityService, c CaptureService, t CheckpointService, m MemoryService, r RetrievalService, p PolicyService, s StatusService, l *slog.Logger) (*echo.Echo, error) {
+	return configuredServer(i, c, t, m, r, p, s, l)
+}
 func NewIdentityServer(identity IdentityService, logger *slog.Logger) (*echo.Echo, error) {
 	return newMemoryServer(identity, nil, nil, logger)
 }
@@ -37,6 +47,9 @@ func newMemoryServer(identity IdentityService, capture CaptureService, checkpoin
 	return configuredMemoryServer(identity, capture, checkpoints, nil, nil, nil, logger)
 }
 func configuredMemoryServer(identity IdentityService, capture CaptureService, checkpoints CheckpointService, memory MemoryService, retrieval RetrievalService, policy PolicyService, logger *slog.Logger) (*echo.Echo, error) {
+	return configuredServer(identity, capture, checkpoints, memory, retrieval, policy, nil, logger)
+}
+func configuredServer(identity IdentityService, capture CaptureService, checkpoints CheckpointService, memory MemoryService, retrieval RetrievalService, policy PolicyService, status StatusService, logger *slog.Logger) (*echo.Echo, error) {
 	spec, err := GetSpec()
 	if err != nil {
 		return nil, domain.ErrUnavailable
@@ -76,7 +89,7 @@ func configuredMemoryServer(identity IdentityService, capture CaptureService, ch
 		}
 		return problem(c, domain.ErrInvalidInput)
 	}}))
-	strict := NewStrictHandler(&IdentityHandler{identity: identity, capture: capture, checkpoints: checkpoints, memory: memory, retrieval: retrieval, policy: policy}, nil)
+	strict := NewStrictHandler(&IdentityHandler{identity: identity, capture: capture, checkpoints: checkpoints, memory: memory, retrieval: retrieval, policy: policy, status: status}, nil)
 
 	wrapper := ServerInterfaceWrapper{Handler: strict}
 	if policy != nil {
@@ -129,6 +142,18 @@ func (h *IdentityHandler) RevokeClient(ctx context.Context, request RevokeClient
 }
 func (h *IdentityHandler) GetStatus(ctx context.Context, _ GetStatusRequestObject) (GetStatusResponseObject, error) {
 	p := principal(ctx)
+	if h.status != nil {
+		s, err := h.status.Status(ctx, p)
+		if err != nil {
+			return nil, err
+		}
+		out := GetStatus200JSONResponse{SchemaVersion: "3", ConnectionState: StatusResultConnectionState(s.ConnectionState), AuthorizedProjectIds: stringsAPI(s.AuthorizedProjectIDs), AuthorizedCapabilities: stringsAPI(s.AuthorizedCapabilities), CapabilityGaps: stringsAPI(s.CapabilityGaps)}
+		if s.MaxRevisionBytes > 0 {
+			out.MaxRevisionBytes = &s.MaxRevisionBytes
+		}
+		return out, nil
+	}
+	// Compositions without the graph-backed status service report request grants.
 	gaps := []string{"recovery_unavailable"}
 	if h.retrieval == nil {
 		gaps = append(gaps, "retrieval_unavailable")

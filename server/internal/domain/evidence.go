@@ -2,6 +2,9 @@ package domain
 
 import "time"
 
+// MaxArtifactBytes bounds one stored evidence artifact (capture chunk size).
+const MaxArtifactBytes int64 = 8 << 20
+
 type EventKind string
 
 const (

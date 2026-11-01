@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-const MaxArtifactBytes int64 = 8 << 20
+const MaxArtifactBytes = domain.MaxArtifactBytes
 
 type ArtifactInput struct {
 	Scope                                     domain.Scope

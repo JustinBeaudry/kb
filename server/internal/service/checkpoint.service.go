@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"crypto/rand"
 	"github.com/JustinBeaudry/kb/server/internal/domain"
 	"time"
 )
@@ -61,7 +60,7 @@ func (s *CheckpointService) Put(ctx context.Context, p domain.Principal, expecte
 		if previous.Revision != expected {
 			return domain.ErrConflict
 		}
-		c.Revision = rand.Text()
+		c.Revision = newRevision()
 		c.UpdatedAt = time.Now().UTC()
 		return s.repo.Save(ctx, tx, c, p.ClientID)
 	})

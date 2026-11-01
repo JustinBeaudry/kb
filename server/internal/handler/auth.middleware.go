@@ -72,27 +72,42 @@ func requestMetadata(logger *slog.Logger) echo.MiddlewareFunc {
 	}
 }
 func problem(c echo.Context, err error) error {
-	status, code, message, action := http.StatusServiceUnavailable, "unavailable", "Operation unavailable.", "Consult the service runbook and retry later."
+	p := problemFor(err)
+	return writeProblem(c, p.status, p.code, p.message, p.action)
+}
+
+type problemDetail struct {
+	status                int
+	code, message, action string
+}
+
+// problemFor is the single closed mapping from domain errors to safe codes,
+// shared by HTTP problems and MCP tool errors. Remote or wrapped error text is
+// never exposed.
+func problemFor(err error) problemDetail {
 	switch {
 	case errors.Is(err, domain.ErrUnauthorized):
-		status, code, message, action = 401, "unauthorized", "Credential unavailable.", "Reconnect this profile through owner enrollment."
+		return problemDetail{401, "unauthorized", "Credential unavailable.", "Reconnect this profile through owner enrollment."}
 	case errors.Is(err, domain.ErrForbidden):
-		status, code, message, action = 403, "forbidden", "Operation not authorized.", "Use an authorized project and capability."
+		return problemDetail{403, "forbidden", "Operation not authorized.", "Use an authorized project and capability."}
 	case errors.Is(err, domain.ErrInvalidInput):
-		status, code, message, action = 400, "invalid_input", "Invalid request.", "Check the documented request schema."
+		return problemDetail{400, "invalid_input", "Invalid request.", "Check the documented request schema."}
 	case errors.Is(err, domain.ErrStale):
-		status, code, message, action = 409, "stale", "Results changed.", "Rerun the original scoped retrieval without its continuation."
+		return problemDetail{409, "stale", "Results changed.", "Rerun the original scoped retrieval without its continuation."}
 	case errors.Is(err, domain.ErrBudget):
-		status, code, message, action = 413, "budget", "Output exceeds the requested budget.", "Rerun with a larger budget within the documented limit."
+		return problemDetail{413, "budget", "Output exceeds the requested budget.", "Rerun with a larger budget within the documented limit."}
 	case errors.Is(err, domain.ErrIncomplete):
-		status, code, message, action = 503, "incomplete", "Evidence is incomplete.", "Complete capture or retry when the source is available."
+		return problemDetail{503, "incomplete", "Evidence is incomplete.", "Complete capture or retry when the source is available."}
 	case errors.Is(err, domain.ErrDeleted):
 		// Permanent: owner deletion must not look like a retryable outage.
-		status, code, message, action = 410, "deleted", "Record deleted.", "Do not retry; capture a new event if still needed."
+		return problemDetail{410, "deleted", "Record deleted.", "Do not retry; capture a new event if still needed."}
+	case errors.Is(err, domain.ErrUnknownOutcome):
+		// Only remote write adapters produce this; the server never does.
+		return problemDetail{http.StatusBadGateway, "unknown_outcome", "The write may have committed.", "The write may have committed but its receipt was lost. Reread current state (working retrieval or checkpoint) before retrying; a retry with expected_revision fails safely on conflict."}
 	case errors.Is(err, domain.ErrConflict):
-		status, code, message, action = 409, "conflict", "Operation conflicts with current state.", "Refresh state before retrying."
+		return problemDetail{409, "conflict", "Operation conflicts with current state.", "Refresh state before retrying."}
 	}
-	return writeProblem(c, status, code, message, action)
+	return problemDetail{http.StatusServiceUnavailable, "unavailable", "Operation unavailable.", "Consult the service runbook and retry later."}
 }
 func writeProblem(c echo.Context, status int, code, message, action string) error {
 	id, _ := c.Get("request_id").(string)

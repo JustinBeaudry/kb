@@ -2,6 +2,11 @@ package domain
 
 import "time"
 
+// MaxRevisionBytes bounds every claim and checkpoint revision the server
+// issues. Servers advertise it in status so clients can size write receipts
+// before mutating.
+const MaxRevisionBytes = 64
+
 type Applicability struct {
 	RepositoryRevision, DirtyDigest, Environment string
 	Versions                                     map[string]string

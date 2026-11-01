@@ -10,7 +10,7 @@ import (
 
 type RetrievalService interface {
 	Retrieve(context.Context, domain.Principal, domain.RetrievalRequest) (domain.RetrievalResult, error)
-	Fetch(context.Context, domain.Principal, string, string, int) (domain.RetrievalResult, error)
+	FetchEvidence(context.Context, domain.Principal, domain.FetchRequest) (domain.RetrievalResult, error)
 }
 
 func NewRetrievalServer(i IdentityService, c CaptureService, t CheckpointService, m MemoryService, r RetrievalService, l *slog.Logger) (*echo.Echo, error) {
@@ -31,6 +31,9 @@ func retrievalAPI(r domain.RetrievalResult) RetrievalResult {
 		if c.VerificationOutcome != nil {
 			v := VerificationOutcome(*c.VerificationOutcome)
 			item.VerificationOutcome = &v
+		}
+		if c.Passage != nil {
+			item.Passage = &Passage{StartByte: c.Passage.StartByte, EndByte: c.Passage.EndByte, SourceBytes: c.Passage.SourceBytes}
 		}
 		out.Chunks = append(out.Chunks, item)
 	}
@@ -103,7 +106,18 @@ func (h *IdentityHandler) SearchMemory(ctx context.Context, request SearchMemory
 }
 func (h *IdentityHandler) FetchEvidence(ctx context.Context, request FetchEvidenceRequestObject) (FetchEvidenceResponseObject, error) {
 	budget := valueOr(request.Params.BudgetBytes, 16384)
-	result, e := h.retrieval.Fetch(ctx, principal(ctx), request.Id, stringValue(request.Params.Locator), budget)
+	q := request.Params
+	r := domain.FetchRequest{ArtifactID: request.Id, Locator: stringValue(q.Locator), Mode: domain.FetchPublication, BudgetBytes: budget, EndByte: q.EndByte, Continuation: stringValue(q.Continuation)}
+	if q.Mode != nil {
+		r.Mode = domain.FetchMode(*q.Mode)
+	}
+	if q.StartByte != nil {
+		r.StartByte = *q.StartByte
+	}
+	// Scope parameters pass through unchanged; the service accepts them only in
+	// explicit working mode and rejects them for ID-only publication fetch.
+	r.Scope = domain.Scope{ProjectID: stringValue(q.ProjectId), TaskID: stringValue(q.TaskId), SessionID: stringValue(q.SessionId)}
+	result, e := h.retrieval.FetchEvidence(ctx, principal(ctx), r)
 	if e != nil {
 		return nil, e
 	}

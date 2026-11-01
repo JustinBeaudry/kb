@@ -428,3 +428,99 @@ func (r *retrievalTransportReader) Close() error {
 	}
 	return e
 }
+
+// The artifact citation query must narrow on scope, candidate ownership and
+// publication status before its bounded record selection. Irrelevant links do
+// not consume the authorization candidate budget.
+func TestFetchCitationSelectionUsesEligibleScopeBeforeLimit(t *testing.T) {
+	store, jobs, _ := jobsGraph(t)
+	objects := captureS3(t)
+	evidence := repository.NewEvidenceRepository(store)
+	repo := repository.NewRetrievalRepository(store)
+	capture := service.NewCaptureService(store, evidence, jobs, objects)
+	identity := service.NewIdentityService(store, repository.NewIdentityRepository(store), gateway.NostrIdentity{})
+	collector, err := identity.Setup(t.Context(), domain.OwnerIdentity{ID: "owner", PublicKey: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"}, service.EnrollInput{ClientID: "collector", Role: domain.RoleCollector, ProjectIDs: []string{"demo"}, Capabilities: []string{"artifacts:write"}})
+	require.NoError(t, err)
+	agent, err := identity.Enroll(t.Context(), domain.Principal{OwnerID: "owner", Role: domain.RoleOwner}, service.EnrollInput{ClientID: "agent", Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"retrieval:read", "evidence:read", "candidate:write"}})
+	require.NoError(t, err)
+	seedCapturePolicy(t, store, domain.Policy{Revision: "p1", SpoolLimitBytes: service.MaxArtifactBytes})
+	svc, err := service.NewRetrievalService(store, repo, nil, evidence, objects, bytes.Repeat([]byte{1}, 32))
+	require.NoError(t, err)
+	memory := service.NewMemoryService(store, repository.NewMemoryRepository(store), repo, evidence, capture)
+	for _, task := range []bool{false, true} {
+		t.Run(fmt.Sprintf("working=%t", task), func(t *testing.T) {
+			scope := domain.Scope{ProjectID: "demo"}
+			if task {
+				scope.TaskID = "task"
+				scope.SessionID = "session"
+			}
+			text := fmt.Sprintf("citation fixture working=%t", task)
+			meta := service.ArtifactInput{Scope: scope, Digest: service.TokenDigest(text), Bytes: int64(len(text)), PolicyRevision: "p1", SourceLocator: "source-" + fmt.Sprint(task), SourcePath: "synthetic.txt"}
+			a, e := capture.Stage(t.Context(), collector.Principal, meta, strings.NewReader(text))
+			require.NoError(t, e)
+			_, e = capture.Complete(t.Context(), collector.Principal, a.ID, a.Digest)
+			require.NoError(t, e)
+			// Source revision is an opaque source identifier, not the internal
+			// storage generation, which is absent from the artifact API.
+			ref := domain.EvidenceRef{ArtifactID: a.ID, Digest: a.Digest, Locator: a.SourceLocator, SourceRevision: "repository-revision", Origin: domain.Origin{ClientID: "collector", Trust: domain.TrustSubmitted}}
+			if task {
+				_, e = memory.Submit(t.Context(), agent.Principal, domain.CandidateInput{ClaimID: "zz-task-citation", Text: "owned", Kind: "finding", Scope: scope, Evidence: []domain.EvidenceRef{ref}})
+				require.NoError(t, e)
+			} else {
+				publishFixture(t, store, domain.ClaimRevision{ClaimID: "zz-publication", Revision: "zz-publication", Text: "eligible", Kind: "finding", Scope: scope, Status: domain.ClaimVerified, Evidence: []domain.EvidenceRef{ref}}, nil, "project", "")
+			}
+			// Unrelated candidate citations sort before the eligible revision. In
+			// working mode they have the right task but the wrong submitting client.
+			for i := range 55 {
+				id := fmt.Sprintf("!unrelated-%t-%03d", task, i)
+				claim := domain.ClaimRevision{ClaimID: id, Revision: id, Scope: scope, Status: domain.ClaimCandidate, Evidence: []domain.EvidenceRef{ref}}
+				data, e := json.Marshal(claim)
+				require.NoError(t, e)
+				memoryMutation(t, store, `MATCH (a:Artifact {id:$artifact}) CREATE (c:ClaimRevision {id:$id,claimID:$id,data:$data,status:'candidate',valid:false,projectID:'demo',taskID:$task,clientID:'other',text:'irrelevant',kind:'finding'}) CREATE (c)-[:EVIDENCE {digest:$digest,locator:$locator}]->(a)`, map[string]any{"id": id, "data": string(data), "task": scope.TaskID, "artifact": a.ID, "digest": a.Digest, "locator": a.SourceLocator})
+			}
+			request := domain.FetchRequest{ArtifactID: a.ID, Locator: a.SourceLocator, BudgetBytes: 16384}
+			if task {
+				request.Mode = domain.FetchWorking
+				request.Scope = scope
+			}
+			got, e := svc.FetchEvidence(t.Context(), agent.Principal, request)
+			require.NoError(t, e)
+			require.Len(t, got.Chunks, 1)
+			assert.Equal(t, text, got.Chunks[0].Text)
+
+			// Same-scope/owner citations with invalid dependencies are plausible
+			// until full eligibility is checked. The scan stays bounded and reports
+			// incomplete rather than falsely claiming that no citation exists.
+			if task {
+				memoryMutation(t, store, `MATCH (c:ClaimRevision {claimID:'zz-task-citation'}) DETACH DELETE c`, nil)
+			} else {
+				memoryMutation(t, store, `MATCH (c:ClaimRevision {id:'zz-publication'}) DETACH DELETE c`, nil)
+			}
+			dataRows := make([]map[string]any, 50)
+			for i := range dataRows {
+				id := fmt.Sprintf("bounded-%t-%03d", task, i)
+				claim := domain.ClaimRevision{ClaimID: id, Revision: id, Scope: scope, Evidence: []domain.EvidenceRef{ref}, DependsOn: []string{"missing-dependency"}}
+				if task {
+					claim.Status = domain.ClaimCandidate
+					claim.SubmittedBy = agent.ClientID
+				} else {
+					claim.Status = domain.ClaimVerified
+				}
+				data, err := json.Marshal(claim)
+				require.NoError(t, err)
+				dataRows[i] = map[string]any{"id": id, "data": string(data)}
+			}
+			status := string(domain.ClaimVerified)
+			if task {
+				status = string(domain.ClaimCandidate)
+			}
+			memoryMutation(t, store, `MATCH (a:Artifact {id:$artifact}) UNWIND $rows AS row CREATE (c:ClaimRevision {id:row.id,claimID:row.id,data:row.data,status:$status,valid:true,projectID:'demo',taskID:$task,clientID:$client}) CREATE (c)-[:EVIDENCE {digest:$digest,locator:$locator}]->(a)`, map[string]any{"artifact": a.ID, "rows": dataRows, "status": status, "task": scope.TaskID, "client": agent.ClientID, "digest": a.Digest, "locator": a.SourceLocator})
+			if !task {
+				memoryMutation(t, store, `UNWIND $rows AS row CREATE (:Publication {id:row.id,claimRevision:row.id,valid:true,sharingScope:'project',supportRevisions:['missing-dependency']})`, map[string]any{"rows": dataRows})
+			}
+			got, e = svc.FetchEvidence(t.Context(), agent.Principal, request)
+			assert.ErrorIs(t, e, domain.ErrIncomplete)
+			assert.Empty(t, got.Chunks)
+		})
+	}
+}

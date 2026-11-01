@@ -68,7 +68,7 @@ func (s *MemoryService) Submit(ctx context.Context, p domain.Principal, input do
 			return domain.ClaimRevision{}, e
 		}
 	}
-	c := domain.ClaimRevision{EntityIDs: slices.Clone(input.EntityIDs), SubmittedBy: p.ClientID, ClaimID: input.ClaimID, Revision: rand.Text(), Text: input.Text, Kind: input.Kind, Scope: input.Scope, Evidence: evidence, DependsOn: slices.Clone(input.DependsOn), Applicability: input.Applicability, Status: domain.ClaimCandidate}
+	c := domain.ClaimRevision{EntityIDs: slices.Clone(input.EntityIDs), SubmittedBy: p.ClientID, ClaimID: input.ClaimID, Revision: newRevision(), Text: input.Text, Kind: input.Kind, Scope: input.Scope, Evidence: evidence, DependsOn: slices.Clone(input.DependsOn), Applicability: input.Applicability, Status: domain.ClaimCandidate}
 	err := s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
 		snapshot, e := s.auth.Snapshot(ctx, tx, p, input.Scope)
 		if e != nil {
@@ -138,3 +138,8 @@ func (s *MemoryService) Submit(ctx context.Context, p domain.Principal, input do
 	}
 	return c, nil
 }
+
+// newRevision issues every claim and checkpoint revision. rand.Text is 26
+// base32 characters, inside the domain.MaxRevisionBytes bound that status
+// advertises to remote writers.
+func newRevision() string { return rand.Text() }
