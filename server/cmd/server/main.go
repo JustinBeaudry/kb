@@ -35,6 +35,7 @@ func main() {
 
 type serverRuntime struct {
 	api, health http.Handler
+	readiness   readinessProbe
 	close       func()
 }
 
@@ -120,6 +121,9 @@ func run(parent context.Context, logger *slog.Logger, telemetry ...*platform.Tel
 			initialized <- err
 			return
 		}
+		// Start only after startup admission finished, using the process lifetime
+		// rather than the startup operation's sticky outcome scope.
+		current.startReadiness(ctx, readinessInterval, readinessMaxAge)
 		runtime.Store(current)
 		initialized <- nil
 	}()
@@ -198,5 +202,5 @@ func composeRuntime(ctx context.Context, cfg platform.Config, key []byte, object
 		return nil, err
 	}
 	complete = true
-	return &serverRuntime{api: platform.AdmittedHandler(admission, instance, e), health: handler.NewHealthHandler(service.NewHealthService(admission, store, objects, journal, 5*time.Second, instance)), close: closeStore}, nil
+	return &serverRuntime{api: platform.AdmittedHandler(admission, instance, e), readiness: service.NewHealthService(admission, store, objects, journal, 5*time.Second, instance), close: closeStore}, nil
 }

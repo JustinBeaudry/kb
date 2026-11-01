@@ -77,7 +77,7 @@ On existing or restored installs skip setup/init and follow private status plus 
 
 ## Health, backup and rollback
 
-Railway initial deployment health uses `/livez` so a fresh host can be bootstrapped while unready. Runtime admission and `/readyz` remain authoritative; [Railway healthchecks](https://docs.railway.com/deployments/healthchecks) do not enforce ongoing readiness. Monitor authenticated private status, journal 9000/10000 capacity and backup age. See [observability](observability.md).
+Railway initial deployment health uses `/livez` so a fresh host can be bootstrapped while unready. Runtime admission remains immediately authoritative. Public API `/readyz` reports the last completed admitted background sample, with 30 seconds between probes and a 90-second freshness bound; startup, stopped or stale samples fail closed, and requests never trigger dependency probes. It can lag a maintenance/dependency transition. [Railway healthchecks](https://docs.railway.com/deployments/healthchecks) do not enforce ongoing readiness. Monitor authenticated private status, journal 9000/10000 capacity and backup age. See [observability](observability.md).
 
 Supervisor schedules at a 20-hour interval from the successful snapshot boundary, leaving completion margin for the 24-hour RPO target. It persists catch-up/retry state on the graph volume. Retain authenticated completed archives for 30 days. RPO ≤24h, RTO ≤4h and maintenance duration require measured drills; outages may violate them. Follow [recovery](recovery.md) for explicit backup and fresh-target restore. Never restore the independent journal from an archive. All restored pre-restore scoped clients must be revoked before admission and host reenrollment.
 
