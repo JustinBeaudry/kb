@@ -96,7 +96,7 @@ jobs:
         run: |
           set -euo pipefail
           cd server
-          go test -race -tags acceptance -timeout 45m -json ./internal/acceptance -run TestCompiledMemoryRestoreAcceptance -count=1 | tee acceptance-results.jsonl
+          go test -race -tags acceptance -timeout 45m -json ./internal/acceptance -run '^Test(CompiledMemoryRestoreAcceptance|BackupReadability)' -count=1 | tee acceptance-results.jsonl
           python3 - <<'PYACCEPT'
           import json
           events = [json.loads(line) for line in open('acceptance-results.jsonl')]
