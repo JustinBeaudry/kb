@@ -72,7 +72,7 @@ func Connect(ctx context.Context, cfg Config) (*Store, error) {
 		return nil, domain.ErrInvalidInput
 	}
 	switch parsed.Scheme {
-	case "bolt", "bolt+s", "bolt+ssc", "neo4j", "neo4j+s", "neo4j+ssc":
+	case "bolt", "bolt+s", "neo4j", "neo4j+s":
 	default:
 		return nil, domain.ErrInvalidInput
 	}
