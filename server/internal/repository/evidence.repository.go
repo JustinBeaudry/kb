@@ -53,7 +53,7 @@ func decodeCapture(row *neo4j.Record, index int, dest any) error {
 	return nil
 }
 func (r *EvidenceRepository) Artifact(ctx context.Context, tx domain.Tx, id string) (domain.Artifact, string, error) {
-	rows, err := r.query(ctx, tx, `MATCH (a:Artifact {id:$id}) RETURN a.data,a.clientID,coalesce(a.available,false),coalesce(a.uploadLeaseID,''),coalesce(a.uploadLeaseUntil,0)`, map[string]any{"id": id})
+	rows, err := r.query(ctx, tx, `MATCH (a:Artifact {id:$id}) RETURN a.data,a.clientID,coalesce(a.available,false),coalesce(a.uploadLeaseID,''),coalesce(a.uploadLeaseUntil,0),a.state,EXISTS { MATCH (:Tombstone {id:a.id}) }`, map[string]any{"id": id})
 	if err != nil {
 		return domain.Artifact{}, "", err
 	}
@@ -68,6 +68,14 @@ func (r *EvidenceRepository) Artifact(ctx context.Context, tx domain.Tx, id stri
 	if !ok {
 		return a, "", domain.ErrUnavailable
 	}
+	if rows[0].Values[6] == true {
+		return domain.Artifact{}, "", domain.ErrDeleted
+	}
+	state, ok := rows[0].Values[5].(string)
+	if !ok {
+		return domain.Artifact{}, "", domain.ErrUnavailable
+	}
+	a.State = domain.ArtifactState(state)
 	a.ObjectAvailable, _ = rows[0].Values[2].(bool)
 	a.UploadLeaseID, _ = rows[0].Values[3].(string)
 	if leaseUntil, ok := rows[0].Values[4].(int64); ok && leaseUntil > 0 {

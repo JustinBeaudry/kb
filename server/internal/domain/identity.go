@@ -45,3 +45,9 @@ type ClientRecord struct {
 
 // OwnerIdentity is the enrolled public signing identity, not an access token.
 type OwnerIdentity struct{ ID, PublicKey string }
+
+// ClientMetadata deliberately has no bearer or token digest fields.
+type ClientMetadata struct {
+	Principal Principal
+	RevokedAt *time.Time
+}

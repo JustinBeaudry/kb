@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -33,8 +34,20 @@ credential import; never pass it in argv, print it, or save it in an example.
 The public key must be a valid 64-hex Nostr/BIP-340 secp256k1 x-only point;
 its canonical lowercase form is stored separately from the owner ID.
 No private key is accepted. No owner bearer is minted. Normal clients cannot administer clients or claim trust.
-Component only: do not live-bootstrap before I2 recovery acceptance.
-Recovery: recovery_unavailable until signed Buzz recovery is implemented (I2).
+Host recovery: enroll, revoke and list use the persisted owner identity.
+Backup/restore recovery remains recovery_unavailable until O2.
+
+kb-admin enroll --project PROJECT --credential-fd FD [--client-id ID] [--role agent] [--capabilities LIST]
+kb-admin revoke --client-id ID
+kb-admin list [--limit 50] [--after ID]
+kb-admin verify [--preview] [--input PATH|-]
+kb-admin reject [--preview] [--input PATH|-]
+kb-admin invalidate [--preview] [--input PATH|-]
+Invalidation preview accepts {"Revision":"support revision"}; set a new IdempotencyKey
+in its returned confirmation JSON before execution.
+Adjudication input is strict owner-controlled JSON, read from stdin by default.
+Preview is read-only; execution requires exact expected HEAD and digest.
+Never put target text, evidence content or credentials in argv.
 `
 
 func main() {
@@ -43,65 +56,266 @@ func main() {
 		os.Exit(1)
 	}
 }
+
+type commandError struct {
+	command string
+	cause   error
+}
+
+func (e commandError) Error() string { return e.command + ": administration failed" }
+func (e commandError) Unwrap() error { return e.cause }
 func safeError(err error) string {
+	var command commandError
+	prefix := ""
+	if errors.As(err, &command) {
+		prefix = command.command + ": "
+	}
 	switch {
 	case errors.Is(err, domain.ErrConflict):
-		return "setup_already_initialized: second setup refused; recovery_unavailable"
+		return prefix + "conflict: setup already initialized or expected state changed; check controlled service state"
 	case errors.Is(err, domain.ErrInvalidInput):
-		return "invalid_input: check kb-admin help and protected descriptor prerequisites"
+		return prefix + "invalid_input: check kb-admin help and protected descriptor prerequisites"
 	default:
-		return "recovery_unavailable: setup or credential transfer failed; inspect controlled service state"
+		return prefix + "administration_unavailable: command or credential transfer failed; backup/restore recovery_unavailable"
 	}
 }
+
+type hostIdentity interface {
+	Setup(context.Context, domain.OwnerIdentity, service.EnrollInput) (service.ClientCredential, error)
+	EnrollHost(context.Context, service.EnrollInput) (service.ClientCredential, error)
+	RevokeHost(context.Context, string) error
+	ListHost(context.Context, int, string) (service.ClientPage, error)
+}
+type hostAdjudication interface {
+	PreviewHost(context.Context, service.AdjudicationDraft) (service.AdjudicationPreview, error)
+	AdjudicateHost(context.Context, service.AdjudicationInput) (service.AdjudicationResult, error)
+	PreviewInvalidationHost(context.Context, string) (service.InvalidationInput, error)
+	InvalidateHost(context.Context, service.InvalidationInput) (domain.Receipt, error)
+}
+type administration struct {
+	identity     hostIdentity
+	adjudication hostAdjudication
+}
+type adminFactory func(context.Context, bool) (administration, func(), error)
+
+const maxAdminInput = 1 << 20
+
 func run(ctx context.Context, args []string, output io.Writer) error {
+	err := runAdmin(ctx, args, output, os.Stdin, composeAdministration)
+	if err != nil && len(args) > 0 {
+		switch args[0] {
+		case "setup", "enroll", "revoke", "list", "verify", "reject", "invalidate", "recover":
+			return commandError{command: args[0], cause: err}
+		}
+	}
+	return err
+}
+func runAdmin(ctx context.Context, args []string, output io.Writer, stdin io.Reader, factory adminFactory) error {
 	if len(args) == 0 || args[0] == "help" || args[0] == "--help" {
 		_, err := io.WriteString(output, help)
 		return err
 	}
-	if args[0] == "recover" {
+	command := args[0]
+	if command == "recover" {
 		return domain.ErrUnavailable
 	}
-	if args[0] != "setup" {
+	switch command {
+	case "setup", "enroll", "revoke", "list", "verify", "reject", "invalidate":
+	default:
 		return domain.ErrInvalidInput
 	}
-	flags := flag.NewFlagSet("setup", flag.ContinueOnError)
+	flags := flag.NewFlagSet(command, flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	var ownerID, key, project, role, capabilities string
-	var fd int
-	flags.StringVar(&ownerID, "owner-id", "", "public owner ID")
-	flags.StringVar(&key, "owner-public-key", "", "Buzz/Nostr BIP-340 secp256k1 x-only public key (64 hex characters)")
-	flags.StringVar(&project, "project", "", "registered project ID")
-	flags.StringVar(&role, "role", "agent", "restricted client role")
-	flags.StringVar(&capabilities, "capabilities", "status:read,retrieval:read,evidence:read,candidate:write,checkpoint:write", "comma separated scoped capabilities")
-	flags.IntVar(&fd, "credential-fd", 0, "protected credential output descriptor")
+	var ownerID, key, project, role, capabilities, clientID, after, inputPath string
+	var fd, limit int
+	var preview bool
+	switch command {
+	case "setup", "enroll":
+		if command == "setup" {
+			flags.StringVar(&ownerID, "owner-id", "", "public owner ID")
+			flags.StringVar(&key, "owner-public-key", "", "public signing key")
+		}
+		flags.StringVar(&project, "project", "", "project ID")
+		flags.StringVar(&role, "role", "agent", "scoped role")
+		flags.StringVar(&capabilities, "capabilities", "status:read,retrieval:read,evidence:read,candidate:write,checkpoint:write", "scoped capabilities")
+		flags.IntVar(&fd, "credential-fd", 0, "protected output descriptor")
+		if command == "enroll" {
+			flags.StringVar(&clientID, "client-id", "", "client ID")
+		}
+	case "revoke":
+		flags.StringVar(&clientID, "client-id", "", "client ID")
+	case "list":
+		flags.IntVar(&limit, "limit", 50, "page size")
+		flags.StringVar(&after, "after", "", "cursor")
+	default:
+		flags.StringVar(&inputPath, "input", "-", "JSON file or stdin")
+		if command == "verify" || command == "reject" || command == "invalidate" {
+			flags.BoolVar(&preview, "preview", false, "preview only")
+		}
+	}
 	if err := flags.Parse(args[1:]); err != nil || flags.NArg() != 0 {
 		return domain.ErrInvalidInput
 	}
-	file, err := protectedDescriptor(ctx, fd)
+	var credentialFile *os.File
+	if command == "setup" || command == "enroll" {
+		var err error
+		credentialFile, err = protectedDescriptor(ctx, fd)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = credentialFile.Close() }()
+	}
+	if command == "list" && (limit < 1 || limit > 100) {
+		return domain.ErrInvalidInput
+	}
+	if command == "revoke" && domain.ValidateIDs(clientID) != nil {
+		return domain.ErrInvalidInput
+	}
+	var draft service.AdjudicationDraft
+	var decision service.AdjudicationInput
+	var invalidation service.InvalidationInput
+	var invalidationPreview struct{ Revision string }
+	if command == "verify" || command == "reject" || command == "invalidate" {
+		reader := stdin
+		if inputPath != "-" {
+			file, err := os.Open(inputPath)
+			if err != nil {
+				return domain.ErrInvalidInput
+			}
+			defer func() { _ = file.Close() }()
+			reader = file
+		}
+		var target any = &decision
+		if preview {
+			target = &draft
+		}
+		if command == "invalidate" {
+			target = &invalidation
+			if preview {
+				target = &invalidationPreview
+			}
+		}
+		if err := readAdminJSON(reader, target); err != nil {
+			return err
+		}
+		if command != "invalidate" {
+			action := decision.Action
+			if preview {
+				action = draft.Action
+			}
+			if action != "" && action != command {
+				return domain.ErrInvalidInput
+			}
+			if preview {
+				draft.Action = command
+			} else {
+				decision.Action = command
+			}
+		}
+	}
+	admin, closeAdmin, err := factory(ctx, command == "verify" || command == "reject" || command == "invalidate")
 	if err != nil {
 		return err
 	}
-	defer func() { _ = file.Close() }()
+	defer closeAdmin()
+	switch command {
+	case "setup", "enroll":
+		enrollment := service.EnrollInput{ClientID: clientID, Role: domain.Role(role), ProjectIDs: []string{project}, Capabilities: strings.Split(capabilities, ",")}
+		var credential service.ClientCredential
+		if command == "setup" {
+			credential, err = admin.identity.Setup(ctx, domain.OwnerIdentity{ID: ownerID, PublicKey: key}, enrollment)
+		} else {
+			credential, err = admin.identity.EnrollHost(ctx, enrollment)
+		}
+		if err != nil {
+			return err
+		}
+		_, err = io.WriteString(credentialFile, credential.Bearer+"\n")
+		return err
+	case "revoke":
+		return admin.identity.RevokeHost(ctx, clientID)
+	case "list":
+		page, err := admin.identity.ListHost(ctx, limit, after)
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(output).Encode(page)
+	case "invalidate":
+		if preview {
+			confirmation, err := admin.adjudication.PreviewInvalidationHost(ctx, invalidationPreview.Revision)
+			if err != nil {
+				return err
+			}
+			return json.NewEncoder(output).Encode(confirmation)
+		}
+		receipt, err := admin.adjudication.InvalidateHost(ctx, invalidation)
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(output).Encode(receipt)
+	default:
+		if preview {
+			result, err := admin.adjudication.PreviewHost(ctx, draft)
+			if err != nil {
+				return err
+			}
+			return json.NewEncoder(output).Encode(result)
+		}
+		result, err := admin.adjudication.AdjudicateHost(ctx, decision)
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(output).Encode(result)
+	}
+}
+func readAdminJSON(reader io.Reader, target any) error {
+	raw, err := io.ReadAll(io.LimitReader(reader, maxAdminInput+1))
+	if err != nil || len(raw) > maxAdminInput {
+		return domain.ErrInvalidInput
+	}
+	decoder := json.NewDecoder(strings.NewReader(string(raw)))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		return domain.ErrInvalidInput
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		return domain.ErrInvalidInput
+	}
+	return nil
+}
+func composeAdministration(ctx context.Context, withObjects bool) (administration, func(), error) {
 	cfg, err := platform.LoadConfig()
 	if err != nil {
-		return err
+		return administration{}, nil, err
 	}
 	store, err := graph.Open(ctx, cfg.Graph)
 	if err != nil {
-		return err
+		return administration{}, nil, err
 	}
-	defer func() {
+	closeStore := func() {
 		closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = store.Close(closeCtx)
-	}()
-	credential, err := service.NewIdentityService(store, repository.NewIdentityRepository(store), gateway.NostrIdentity{}).Setup(ctx, domain.OwnerIdentity{ID: ownerID, PublicKey: key}, service.EnrollInput{Role: domain.Role(role), ProjectIDs: []string{project}, Capabilities: strings.Split(capabilities, ",")})
-	if err != nil {
-		return err
 	}
-	// Write only to our duplicate of the inherited protected descriptor.
-	_, err = io.WriteString(file, credential.Bearer+"\n")
-	return err
+	identities := repository.NewIdentityRepository(store)
+	admin := administration{identity: service.NewIdentityService(store, identities, gateway.NostrIdentity{})}
+	if withObjects {
+		objectConfig, err := platform.LoadObjectConfig()
+		if err != nil {
+			closeStore()
+			return administration{}, nil, err
+		}
+		objects, err := gateway.NewS3(objectConfig)
+		if err != nil {
+			closeStore()
+			return administration{}, nil, err
+		}
+		evidence := repository.NewEvidenceRepository(store)
+		capture := service.NewHostCaptureService(store, evidence, repository.NewJobsRepository(store), objects, identities)
+		admin.adjudication = service.NewVerificationService(store, repository.NewVerificationRepository(store), repository.NewPublicationRepository(store), identities, evidence, capture)
+	}
+	return admin, closeStore, nil
 }
 func protectedDescriptor(ctx context.Context, fd int) (*os.File, error) {
 	if ctx.Err() != nil {

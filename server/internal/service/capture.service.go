@@ -99,12 +99,19 @@ func (s *CaptureService) policy(ctx context.Context, tx Tx, a domain.Artifact) e
 	return validateSource(p, a.SourcePath)
 }
 func (s *CaptureService) Stage(ctx context.Context, p domain.Principal, m ArtifactInput, body io.Reader) (domain.Artifact, error) {
-	if domain.ValidateIDs(m.Scope.ProjectID, m.PolicyRevision, m.SourceLocator) != nil || !validDigest(m.Digest) || m.Bytes < 0 || m.Bytes > MaxArtifactBytes || len(m.SourceLocator) > 4096 || len(m.SourcePath) > 4096 || body == nil {
-		return domain.Artifact{}, domain.ErrInvalidInput
-	}
 	if err := Authorize(p, "artifacts:write", []string{m.Scope.ProjectID}); err != nil {
 		return domain.Artifact{}, err
 	}
+	return s.stage(ctx, p.ClientID, m, body, nil)
+}
+
+// stage is the shared F4 pipeline. Host authority is rechecked in each mutation
+// transaction; the actor is an uploader namespace, never a fabricated Client.
+func (s *CaptureService) stage(ctx context.Context, actor string, m ArtifactInput, body io.Reader, check func(context.Context, Tx) error) (domain.Artifact, error) {
+	if domain.ValidateIDs(m.Scope.ProjectID, m.PolicyRevision, m.SourceLocator) != nil || !validDigest(m.Digest) || m.Bytes < 0 || m.Bytes > MaxArtifactBytes || len(m.SourceLocator) > 4096 || len(m.SourcePath) > 4096 || body == nil {
+		return domain.Artifact{}, domain.ErrInvalidInput
+	}
+
 	// Validate one capped chunk before creating persistence or cleanup obligations.
 	data, err := io.ReadAll(io.LimitReader(body, MaxArtifactBytes+1))
 	if err != nil {
@@ -113,10 +120,15 @@ func (s *CaptureService) Stage(ctx context.Context, p domain.Principal, m Artifa
 	if int64(len(data)) != m.Bytes || TokenDigest(string(data)) != m.Digest {
 		return domain.Artifact{}, domain.ErrInvalidInput
 	}
-	id := captureID(p.ClientID, m.Scope, m.Digest, m.Bytes, m.PolicyRevision, m.SourceLocator, m.SourcePath)
+	id := captureID(actor, m.Scope, m.Digest, m.Bytes, m.PolicyRevision, m.SourceLocator, m.SourcePath)
 	a := domain.Artifact{ID: id, Digest: m.Digest, PolicyRevision: m.PolicyRevision, Scope: m.Scope, Bytes: m.Bytes, State: domain.ArtifactStaged, SourceLocator: m.SourceLocator, SourcePath: m.SourcePath}
 	leaseID := rand.Text()
 	err = s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
+		if check != nil {
+			if err := check(ctx, tx); err != nil {
+				return err
+			}
+		}
 		if err := s.policy(ctx, tx, a); err != nil {
 			return err
 		}
@@ -148,7 +160,7 @@ func (s *CaptureService) Stage(ctx context.Context, p domain.Principal, m Artifa
 		a.ExpiresAt = &deadline
 		a.UploadLeaseID = leaseID
 		a.UploadLeaseUntil = time.Now().UTC().Add(CaptureUploadLease)
-		if err = s.repo.SaveArtifact(ctx, tx, a, p.ClientID); err != nil {
+		if err = s.repo.SaveArtifact(ctx, tx, a, actor); err != nil {
 			return err
 		}
 		return s.enqueue(ctx, tx, a, "capture.reconcile")
@@ -162,6 +174,11 @@ func (s *CaptureService) Stage(ctx context.Context, p domain.Principal, m Artifa
 	// Parent cancellation is authoritative; a failed settlement leaves only the
 	// bounded persisted lease, not an unbounded detached cleanup goroutine.
 	err = s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
+		if check != nil {
+			if err := check(ctx, tx); err != nil {
+				return err
+			}
+		}
 		current, _, err := s.repo.Artifact(ctx, tx, a.ID)
 		if err != nil {
 			return err

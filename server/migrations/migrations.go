@@ -19,3 +19,6 @@ var Evidence string
 
 //go:embed 005_memory.cypher
 var Memory string
+
+//go:embed 006_verification.cypher
+var Verification string

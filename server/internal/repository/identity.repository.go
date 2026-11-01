@@ -3,6 +3,7 @@ package repository
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/JustinBeaudry/kb/server/internal/domain"
@@ -75,6 +76,9 @@ func stringList(value any) ([]string, bool) {
 	return out, true
 }
 func (r *IdentityRepository) PutClient(ctx context.Context, tx domain.Tx, c domain.ClientRecord) error {
+	if strings.HasPrefix(c.Principal.ClientID, "host-owner:") {
+		return domain.ErrInvalidInput
+	}
 	rows, err := r.query(ctx, tx, "MATCH (c:Client) WHERE c.id=$id OR c.tokenDigest=$digest RETURN c.id LIMIT 1", map[string]any{"id": c.Principal.ClientID, "digest": c.TokenDigest})
 	if err != nil {
 		return err
@@ -96,12 +100,15 @@ func (r *IdentityRepository) RevokeClient(ctx context.Context, tx domain.Tx, id 
 	return nil
 }
 func (r *IdentityRepository) Owner(ctx context.Context, tx domain.Tx) (domain.OwnerIdentity, error) {
-	rows, err := r.query(ctx, tx, `MATCH (o:OwnerState {id:'owner'}) RETURN o.ownerID,o.ownerPublicKey`, nil)
+	rows, err := r.query(ctx, tx, `MATCH (o:OwnerState {id:'owner'}) RETURN o.ownerID,o.ownerPublicKey,EXISTS {MATCH (c:Client) WHERE c.id STARTS WITH 'host-owner:'}`, nil)
 	if err != nil {
 		return domain.OwnerIdentity{}, err
 	}
 	if len(rows) != 1 {
 		return domain.OwnerIdentity{}, domain.ErrUnavailable
+	}
+	if rows[0].Values[2] == true {
+		return domain.OwnerIdentity{}, domain.ErrForbidden
 	}
 	if rows[0].Values[0] == nil {
 		return domain.OwnerIdentity{}, nil
@@ -122,4 +129,37 @@ func (r *IdentityRepository) PutOwner(ctx context.Context, tx domain.Tx, o domai
 		return domain.ErrConflict
 	}
 	return nil
+}
+
+func (r *IdentityRepository) ListClients(ctx context.Context, tx domain.Tx, owner string, limit int, after string) ([]domain.ClientMetadata, error) {
+	if limit < 1 || limit > 101 {
+		return nil, domain.ErrInvalidInput
+	}
+	rows, err := r.query(ctx, tx, `MATCH (c:Client {ownerID:$owner}),(o:OwnerState {id:'owner'}) WHERE c.id>$after RETURN c.id,c.role,c.projectIDs,c.capabilities,c.revokedAt,o.authEpoch ORDER BY c.id LIMIT $limit`, map[string]any{"owner": owner, "after": after, "limit": limit})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.ClientMetadata, 0, len(rows))
+	for _, row := range rows {
+		v := row.Values
+		id, a := v[0].(string)
+		role, b := v[1].(string)
+		projects, c := stringList(v[2])
+		caps, d := stringList(v[3])
+		epoch, e := v[5].(int64)
+		if !a || !b || !c || !d || !e || epoch < 0 {
+			return nil, domain.ErrUnavailable
+		}
+		m := domain.ClientMetadata{Principal: domain.Principal{ClientID: id, OwnerID: owner, Role: domain.Role(role), ProjectIDs: projects, Capabilities: caps, AuthEpoch: uint64(epoch)}}
+		if v[4] != nil {
+			stamp, ok := v[4].(int64)
+			if !ok {
+				return nil, domain.ErrUnavailable
+			}
+			now := time.Unix(0, stamp).UTC()
+			m.RevokedAt = &now
+		}
+		out = append(out, m)
+	}
+	return out, nil
 }

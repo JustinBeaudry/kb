@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"encoding/json"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -214,4 +216,68 @@ func TestEnrollmentReturnsEpochAfterRevocation(t *testing.T) {
 	credential, err := s.Enroll(t.Context(), owner, EnrollInput{ClientID: "fresh", Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"retrieval:read"}})
 	require.NoError(t, err)
 	assert.Equal(t, uint64(1), credential.Principal.AuthEpoch)
+}
+
+func (f *identityFixture) ListClients(_ context.Context, _ Tx, owner string, limit int, after string) ([]domain.ClientMetadata, error) {
+	var out []domain.ClientMetadata
+	for _, c := range f.clients {
+		if c.Principal.OwnerID == owner && c.Principal.ClientID > after {
+			out = append(out, domain.ClientMetadata{Principal: c.Principal, RevokedAt: c.RevokedAt})
+		}
+	}
+	slices.SortFunc(out, func(a, b domain.ClientMetadata) int {
+		return strings.Compare(a.Principal.ClientID, b.Principal.ClientID)
+	})
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+func TestHostAdminEnrollRevokeListUsesPersistedOwner(t *testing.T) {
+	s, f := newIdentityFixture()
+	_, err := s.EnrollHost(t.Context(), EnrollInput{Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"status:read"}})
+	require.ErrorIs(t, err, domain.ErrForbidden)
+	setupFixture(t, s)
+	c, err := s.EnrollHost(t.Context(), EnrollInput{ClientID: "recovered", Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"status:read"}})
+	require.NoError(t, err)
+	assert.Equal(t, f.owner.ID, c.Principal.OwnerID)
+	require.NoError(t, s.RevokeHost(t.Context(), c.ClientID))
+	page, err := s.ListHost(t.Context(), 1, "")
+	require.NoError(t, err)
+	require.Len(t, page.Clients, 1)
+	assert.Equal(t, "client", page.Clients[0].Principal.ClientID)
+	assert.Equal(t, "client", page.Next)
+	page, err = s.ListHost(t.Context(), 1, page.Next)
+	require.NoError(t, err)
+	require.Len(t, page.Clients, 1)
+	assert.NotNil(t, page.Clients[0].RevokedAt)
+	assert.Empty(t, page.Next)
+}
+func TestHostAdminListNeverReturnsCredentials(t *testing.T) {
+	s, f := newIdentityFixture()
+	c := setupFixture(t, s)
+	page, err := s.ListHost(t.Context(), 50, "")
+	require.NoError(t, err)
+	data, err := json.Marshal(page)
+	require.NoError(t, err)
+	assert.NotContains(t, string(data), c.Bearer)
+	assert.NotContains(t, string(data), f.clients[c.ClientID].TokenDigest)
+	assert.NotContains(t, string(data), "TokenDigest")
+	for _, limit := range []int{0, 101} {
+		_, err = s.ListHost(t.Context(), limit, "")
+		assert.ErrorIs(t, err, domain.ErrInvalidInput)
+	}
+}
+func TestHostOwnerCannotAuthenticateAsBearer(t *testing.T) {
+	s, f := newIdentityFixture()
+	c := setupFixture(t, s)
+	record := f.clients[c.ClientID]
+	record.Principal.Role = domain.RoleOwner
+	f.clients[c.ClientID] = record
+	_, err := s.Authenticate(t.Context(), c.Bearer)
+	assert.ErrorIs(t, err, domain.ErrUnauthorized)
+	_, err = s.EnrollHost(t.Context(), EnrollInput{Role: domain.RoleOwner, ProjectIDs: []string{"demo"}, Capabilities: []string{"status:read"}})
+	assert.ErrorIs(t, err, domain.ErrInvalidInput)
+	_, err = s.EnrollHost(t.Context(), EnrollInput{ClientID: "host-owner:fake", Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"status:read"}})
+	assert.ErrorIs(t, err, domain.ErrInvalidInput)
 }

@@ -27,7 +27,15 @@ type ClientCredential struct {
 func (ClientCredential) String() string   { return "ClientCredential([redacted])" }
 func (ClientCredential) GoString() string { return "ClientCredential([redacted])" }
 
+type ClientPage struct {
+	Clients []domain.ClientMetadata
+	Next    string `json:",omitempty"`
+}
+
+const ownerActorPrefix = "host-owner:"
+
 type IdentityRepository interface {
+	ListClients(context.Context, Tx, string, int, string) ([]domain.ClientMetadata, error)
 	FindToken(context.Context, Tx, string) (ClientRecord, error)
 	PutClient(context.Context, Tx, ClientRecord) error
 	RevokeClient(context.Context, Tx, string) error
@@ -167,7 +175,7 @@ func (s *IdentityService) Revoke(ctx context.Context, owner domain.Principal, id
 	})
 }
 func validateEnrollment(input EnrollInput) error {
-	if input.ClientID != "" && domain.ValidateIDs(input.ClientID) != nil {
+	if strings.HasPrefix(input.ClientID, ownerActorPrefix) || (input.ClientID != "" && domain.ValidateIDs(input.ClientID) != nil) {
 		return domain.ErrInvalidInput
 	}
 	if len(input.ProjectIDs) == 0 || len(input.ProjectIDs) > 50 || len(input.Capabilities) == 0 || len(input.Capabilities) > 20 {
@@ -212,4 +220,73 @@ func Authorize(p domain.Principal, capability string, projects []string) error {
 		return domain.ErrForbidden
 	}
 	return nil
+}
+
+// hostOwner resolves authority from protected service-host execution, never a
+// caller-provided identity or an enrolled client credential.
+func hostOwner(ctx context.Context, tx Tx, repo interface {
+	Owner(context.Context, Tx) (OwnerIdentity, error)
+}) (domain.Principal, error) {
+	owner, err := repo.Owner(ctx, tx)
+	if err != nil {
+		return domain.Principal{}, err
+	}
+	if owner.ID == "" || owner.PublicKey == "" {
+		return domain.Principal{}, domain.ErrForbidden
+	}
+	return domain.Principal{Role: domain.RoleOwner, OwnerID: owner.ID}, nil
+}
+func (s *IdentityService) EnrollHost(ctx context.Context, input EnrollInput) (ClientCredential, error) {
+	var c ClientCredential
+	err := s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
+		owner, err := hostOwner(ctx, tx, s.repo)
+		if err != nil {
+			return err
+		}
+		if err = validateEnrollment(input); err != nil {
+			return err
+		}
+		c, err = s.enroll(ctx, tx, owner.OwnerID, input)
+		return err
+	})
+	if err != nil {
+		return ClientCredential{}, err
+	}
+	return c, nil
+}
+func (s *IdentityService) RevokeHost(ctx context.Context, id string) error {
+	if domain.ValidateIDs(id) != nil {
+		return domain.ErrInvalidInput
+	}
+	return s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
+		if _, err := hostOwner(ctx, tx, s.repo); err != nil {
+			return err
+		}
+		return s.repo.RevokeClient(ctx, tx, id)
+	})
+}
+func (s *IdentityService) ListHost(ctx context.Context, limit int, after string) (ClientPage, error) {
+	if limit < 1 || limit > 100 || (after != "" && domain.ValidateIDs(after) != nil) {
+		return ClientPage{}, domain.ErrInvalidInput
+	}
+	var page ClientPage
+	err := s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
+		owner, err := hostOwner(ctx, tx, s.repo)
+		if err != nil {
+			return err
+		}
+		page.Clients, err = s.repo.ListClients(ctx, tx, owner.OwnerID, limit+1, after)
+		if err != nil {
+			return err
+		}
+		if len(page.Clients) > limit {
+			page.Clients = page.Clients[:limit]
+			page.Next = page.Clients[limit-1].Principal.ClientID
+		}
+		return nil
+	})
+	if err != nil {
+		return ClientPage{}, err
+	}
+	return page, nil
 }

@@ -112,3 +112,40 @@ acceptance claim. Publication records in F5 tests are synthetic setup only.
   eventual MCP protocol frames. HTTP orientation <=4096 bytes; evidence <=16384.
   `server/api/testdata/retrieval-v3.json` supplies safe synthetic HTTP/CLI target
   envelopes; C3 must test its actual renderer and preserve local schema-v2 behavior.
+
+## Implemented host owner adjudication (I1)
+
+`kb-admin` alone composes host owner recovery and adjudication. It resolves the
+persisted owner under OwnerState; no owner bearer, Client, fabricated collector,
+or HTTP authorization exception is created. Client enrollment reserves the
+`host-owner:` uploader namespace. Listing returns bounded metadata without bearer
+or token digest. Host identity recovery is available; backup/restore remains O2.
+
+Owner `verify` previews bind the exact immutable draft, heads, current policy,
+complete support closure, and original source generations using bounded canonical
+JSON. Execution requires that exact digest. The owner supplies public text, kind,
+applicability, EntityIDs and source UTF-8 byte spans explicitly. Conditions cannot
+broaden supporting applicability. Rejection affects only a candidate's indexed
+state; neither action rewrites task JSON/scope/HEAD. A distinct immutable project
+target cites only selected project excerpts; original task evidence stays hidden.
+
+`Verification` stores immutable owner_adjudicated outcome, checked time and
+owner_authenticated decision origin. Excerpts and original uploaded evidence
+remain submitted, with no claimed execution attestation. `OwnerDecision` stores
+owner-scoped key, full request/input digest and original receipt/target revision;
+identical replay precedes all current-state checks and performs no writes.
+`ExcerptLineage` stores source artifact/digest/generation, original evidence
+SourceRevision, separate candidate SupportRevision, exact byte span, excerpt
+artifact/digest/generation, source origin and decision digest. PINS_SOURCE,
+PINS_EXCERPT and PINS_SUPPORT retain both evidence ends and the hidden finding.
+O1 will enforce retention and explicit deletion overriding pins.
+
+Final publication, both verification records, target HEAD CAS, lineage/pins,
+decision receipt and revision epoch commit in one locked transaction. F4 prepares
+objects outside that transaction; unpublished prepared artifacts confer no Fetch
+access. F4 reconciliation/extraction jobs are the only existing supported work;
+I1 creates no speculative publication/index worker kinds. Invalidation previews
+bind exact authoritative support state/head/digest. Execution invalidates the
+support plus every stored complete-closure dependent in database-side updates,
+without collecting an unbounded fanout in Go. F5 still excludes unhealthy or
+policy-ineligible support immediately, even with stale discovery projections.
