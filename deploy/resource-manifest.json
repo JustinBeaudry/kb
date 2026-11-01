@@ -1,7 +1,7 @@
 {
-  "status": "local gates and compiled acceptance passed; provider storage qualified; empty resources provisioned, no application deployment",
+  "status": "live synthetic provider backup/restore qualified on 2026-11-01; production source 03a6c10; current branch verification and merge status are recorded in PR #22",
   "source_base": "8bc567016f676777d7eea2bffa3dc0874311c9cd",
-  "release_commit": null,
+  "release_commit": "03a6c10fc181327ca4a458c356e9c4926a4cbf35",
   "project": "kb-memory",
   "workspace": "personal Applied Labs",
   "region": "us-east4-eqdc4a",
@@ -16,7 +16,9 @@
       "transport": "railway-edge",
       "healthcheck": "/livez",
       "readiness": "/readyz",
-      "runtime_uid": 7474
+      "runtime_uid": 7474,
+      "deployment_id": "bd4d1061-6258-4557-ad8a-828e4b6ac4f7",
+      "observed_deployment_status": "SUCCESS"
     },
     "worker": {
       "replicas": 1,
@@ -27,7 +29,9 @@
       "healthcheck": "/livez",
       "runtime_uid": 7474,
       "worker_id": "kb-memory-worker-1",
-      "instance_identity": "fresh generated process instance; never reuse a lost process permit"
+      "instance_identity": "fresh generated process instance; never reuse a lost process permit",
+      "deployment_id": "5bdc3b91-fee6-4dbb-b0ed-bd4186088a66",
+      "observed_deployment_status": "SUCCESS"
     },
     "graph": {
       "replicas": 1,
@@ -44,15 +48,19 @@
       "volume_gib": 32,
       "healthcheck": "/livez",
       "runtime_uid": 7474,
-      "volume_initialization": "fixed root-only initializer exits before normal uid7474 service; provider mount procedure requires qualification",
-      "new_database_query_language": "CYPHER_25"
+      "volume_initialization": "one-shot root initializer completed; normal PID1 UID 7474 and protected graph roots verified; RAILWAY_RUN_UID absent",
+      "new_database_query_language": "CYPHER_25",
+      "deployment_id": "b9ea6d22-0161-44bd-aa31-4d8aebce7964",
+      "observed_deployment_status": "SUCCESS"
     }
   },
   "buckets": {
     "evidence": {
       "independent_credentials": true,
       "delete_object_or_lifecycle_expiry": false,
-      "deletion_fences": "permanent reserved markers"
+      "deletion_fences": "permanent reserved markers",
+      "active_bucket": "evidence-restore-001-i2zbqf",
+      "previous_bucket": "preserved outside the fresh restore target"
     },
     "journal": {
       "independent_credentials": true,
@@ -104,6 +112,7 @@
   "required_secret_roles": [
     "graph authentication",
     "maintenance infrastructure authority",
+    "retrieval signing authority (API and graph only; absent from worker)",
     "evidence scoped storage",
     "independent journal scoped storage",
     "journal retained authentication keyring",
@@ -116,16 +125,12 @@
     "historical import",
     "Buzz",
     "Hermes",
-    "remote owner administration"
+    "owner administration over application HTTP (protected host administration remains available)"
   ],
   "unqualified_provider_checks": [
-    "actual image architecture and protected mount ownership",
-    "private control/Bolt isolation and no public proxy",
-    "HTTPS edge-to-origin behavior",
-    "independent journal freshness/key recovery",
-    "real encrypted graph plus evidence restore timing",
-    "host exec protected credential transfer",
-    "resource limits applied outside Railway TOML"
+    "continuous 24-hour RPO, four-hour worst-case RTO and 30-day elapsed retention",
+    "held external I/O and lost acknowledgements on the live provider (qualified separately in local compiled acceptance)",
+    "off-device recovery custody and provider disaster independence"
   ],
   "nonsecret_runtime_settings": {
     "api": {
@@ -142,7 +147,8 @@
       "KB_SUPERVISOR_ROOT": "/data/kb",
       "KB_SUPERVISOR_CONTROL_LISTEN": "[::]:8091",
       "PORT": "8091",
-      "KB_BACKUP_MAX_BYTES": "4294967296"
+      "KB_BACKUP_MAX_BYTES": "4294967296",
+      "KB_SUPERVISOR_RESTORE_MODE": "0"
     },
     "all": "set explicit private graph URI and exact maintenance endpoint, explicit virtual addressing for provider buckets; stage actual endpoint/bucket/namespace identities separately with secret file references"
   },
@@ -152,12 +158,11 @@
     "graph": "sha256:23886839a03c414964fe092334c749d2b31d53823118fe4e9759122e26ea239a"
   },
   "provider_deployed_image_digests": {
-    "api": null,
-    "worker": null,
-    "graph": null
+    "api": "sha256:a70d2d8ac9e855697137228a5ba5be87e19be5a7a641ddb8d27a67fbf3facfd4",
+    "graph": "sha256:ced6c7653a6553f421c5df2532e116548dc2a03cf8d7a47155328dceb028dc9f",
+    "worker": "sha256:9f6583a175e86fed23c063fb8c942478ac03021b43d6a9cbbba611805412acdc"
   },
-  "reviewed_source_tree_sha256": null,
-  "source_delivery": "fixed reviewed source upload; record source commit/base plus tree hash before first deploy",
+  "source_delivery": "fixed reviewed git archive uploaded per service; explicit redeploy of the selected qualified build applied committed variables after an unchanged upload was skipped; runtime bindings verified before restore",
   "railway_staged_settings": {
     "mechanism": "direct Railway staged updates; environmentStageChanges merge:true for staged-create regions, limits, private endpoints and nullable clears",
     "legacy_tomls": "reference only; new services cannot opt in per2026-10-31 provider docs",
@@ -184,7 +189,7 @@
         "server/**",
         "deploy/**"
       ],
-      "configuration_state": "applied to empty service; no application deployment"
+      "configuration_state": "applied and observed in successful production deployment; no pending patch at final live readback"
     },
     "worker": {
       "dockerfilePath": "deploy/Dockerfile.worker",
@@ -208,7 +213,7 @@
         "server/**",
         "deploy/**"
       ],
-      "configuration_state": "applied to empty service; no application deployment"
+      "configuration_state": "applied and observed in successful production deployment; no pending patch at final live readback"
     },
     "graph_initialization": {
       "dockerfilePath": "deploy/Dockerfile.graph",
@@ -231,7 +236,7 @@
         "deploy/**",
         "scripts/Neo4jInitialPassword.java"
       ],
-      "configuration_state": "applied to empty service; no application deployment"
+      "configuration_state": "historical one-shot initialization completed; not the active normal configuration"
     },
     "graph_normal": {
       "dockerfilePath": "deploy/Dockerfile.graph",
@@ -256,7 +261,7 @@
         "deploy/**",
         "scripts/Neo4jInitialPassword.java"
       ],
-      "configuration_state": "pending after successful initializer"
+      "configuration_state": "applied and observed after restore-mode removal and normal restart; no pending patch"
     },
     "initialization_variable_override": {
       "RAILWAY_RUN_UID": "0"
@@ -264,7 +269,7 @@
     "normal_variable_removal": [
       "RAILWAY_RUN_UID"
     ],
-    "clear_semantics_qualification": "Explicit null via environmentStageChanges removes overrides from staged readback; API/worker startCommand and initializer healthcheckPath absent as verified 2026-11-01. Verify resolved deployment as well.",
+    "clear_semantics_qualification": "Explicit null removes overrides. Final normal graph PID1 UID 7474, RAILWAY_RUN_UID absent, normal entrypoint and liveness verified; Railway SSH exec separately requires an explicit drop to UID 7474 before host commands.",
     "sources": [
       "https://docs.railway.com/config-as-code",
       "https://docs.railway.com/config-as-code/reference",
@@ -273,22 +278,47 @@
       "https://docs.railway.com/volumes#permissions"
     ]
   },
-  "local_image_qualification": "Compiled lifecycle acceptance passed with graph sha256:352002d3b5cb70f4f22ba6d40cac8eda15007152261048d3d31cc9567485c0b2; current graph differs only in two CLI help strings, rebuilt amd64 UID7474 and help executed successfully. API/worker unchanged.",
+  "local_image_qualification": "Current release source 03a6c10 passed local compiled acceptance in 543.710s, including fresh restore/private acceptance in 51.910s. Historical image digests above do not identify provider-built images.",
   "qualified_provider_checks": {
     "observed_at": "2026-11-01",
     "anonymous_bucket_denial": "all three HEAD403",
     "bucket_credential_isolation": "all six ordered cross-bucket GET and PUT pairs403",
     "conditional_writes": "all three buckets create200, duplicate412, incorrect match412, concurrent CAS exactlyone200/one412, winner bytes match",
     "probe_cleanup": "all nine planned synthetic keys Delete204 then GET404",
-    "sealing": "all15 role variables isSealedtrue in live metadata"
+    "sealing": "all15 role variables isSealedtrue in live metadata",
+    "protected_host_administration": "setup, journal initialization, policy, publication and credential transfer completed through protected host commands",
+    "network_and_resources": "API HTTPS only; graph and worker private with no public domain or TCP proxy; Virginia one replica each with declared limits and original 32 GiB /data volume",
+    "fresh_restore_bucket": "evidence-restore-001-i2zbqf initially/finally empty during qualification; conditional create/CAS, four cross-bucket GET/PUT denial pairs HTTP 403; seven planned keys cleaned",
+    "live_backup": "railway-before-delete-001 completed in 23.109s",
+    "live_restore": "railway-restore-001 completed in 24.813s into a fresh evidence bucket and fresh graph generation; original graph generation preserved",
+    "independent_journal": "live sequence 1 authenticated before and after restore; journal namespace, bucket and retained keyring preserved outside archive restore",
+    "physical_restore_proof": "all four fresh evidence objects read, 9984 bytes total; retained bytes/hash exact; two zero-byte deletion fences; deleted synthetic text absent",
+    "rotation_and_revocation": "maintenance/retrieval keys rotated after encrypted custody readback; old agent/collector HTTP 401, old real cursor HTTP 409 stale, fresh retrieval HTTP 200 with exact retained bytes; worker has no retrieval key",
+    "normal_restart_and_cleanup": "restore mode 0; HostReady true, phase open, zero active/unknown permits, journal sequence 1 after normal restart; all four qualification clients revoked and exact remote credential sinks removed",
+    "actual_image_identity": "Provider image digests recorded per final deployment; actual API/worker/graph PID1 UID7474 and linux/amd64 verified."
   },
   "local_gate": {
     "go_vet": "passed",
-    "go_race": "passed; repository rerun after proven Docker host-port collision; other unchanged packages reused passing cache",
+    "go_race": "passed, including real graph/object fixtures",
     "golangci_lint": "0 issues",
-    "maintained_statement_coverage": "7689/9603 = 80.07%; generated files excluded",
-    "typescript_tests": 576,
-    "typescript_assertions": 4042,
-    "typescript_lint_and_deploy_typecheck": "passed"
+    "maintained_statement_coverage": "7728/9636 = 80.20%; generated files excluded",
+    "typescript_tests": 587,
+    "typescript_assertions": 4073,
+    "typescript_lint_and_deploy_typecheck": "passed",
+    "source_commit": "03a6c10fc181327ca4a458c356e9c4926a4cbf35"
+  },
+  "project_id": "90d569ba-e820-4e11-8619-366619307148",
+  "environment_id": "8b4ecd41-5f64-4863-9d24-8b6000e3433c",
+  "provider_image_identity_note": "Exact final deployment metadata imageDigest values read from Railway; all three running PID1 processes verified UID7474 and uname x86_64 through protected read-only host exec.",
+  "local_qualified_image_digests_scope": "Historical local qualification builds; these are not provider image identities for the current release.",
+  "reviewed_source_git_tree": "f2210c4b23e5dd8076f8e012892c853ae41e9895",
+  "source_archive_sha256": "cddd8076afe40905cfd56ec111b06ff6acc00861d2ba7134e5be88757b3da00d",
+  "hosted_ci": {
+    "production_source_03a6c10": "587 client tests, full Go race/vet/lint and coverage 80.18% PR /80.17% push passed; compiled startup failed before capture with insufficient diagnostics",
+    "diagnostics_source": "38ee208c530390d87e642cd9649cf3ee878c0e8c",
+    "diagnostics_status": "both diagnostic runs confirmed object_readiness failure with objects exit255/OOMfalse; pinned image UID1000 could not read host-owned0600 fixture config",
+    "pr_run_id": 41280814402,
+    "push_run_id": 41280811137,
+    "fixture_ownership_correction": "fixture-only private runtime copy retains host0600 source and Seaweed nonroot execution; current required checks: https://github.com/JustinBeaudry/kb/pull/22"
   }
 }
