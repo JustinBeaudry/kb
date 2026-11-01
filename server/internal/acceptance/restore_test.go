@@ -161,7 +161,11 @@ func (f *compiledFixture) script(action string) {
 	command := exec.CommandContext(f.ctx, filepath.Join(f.repo, "deploy/compose-smoke.sh"), action, f.dir)
 	command.Stdout = log
 	command.Stderr = log
-	require.NoError(f.t, command.Run(), "compiled fixture failed; see private fixture log at %s", log.Name())
+	err = command.Run()
+	if err != nil {
+		f.logStartupFailure(log.Name(), err)
+	}
+	require.NoError(f.t, err, "compiled fixture failed; see private fixture log at %s", log.Name())
 }
 func (f *compiledFixture) composeTry(input []byte, args ...string) ([]byte, error) {
 	prefix := []string{"compose", "--env-file", f.runtime["config_file"], "-p", f.runtime["compose_project"], "-f", filepath.Join(f.repo, "deploy/compose.test.yaml")}
