@@ -125,7 +125,10 @@ Owner `verify` previews bind the exact immutable draft, heads, current policy,
 complete support closure, and original source generations using bounded canonical
 JSON. Execution requires that exact digest. The owner supplies public text, kind,
 applicability, EntityIDs and source UTF-8 byte spans explicitly. Conditions cannot
-broaden supporting applicability. Rejection affects only a candidate's indexed
+broaden any supporting claim or individual evidence-reference applicability across
+the complete transitive closure. Insufficient owner approval is rejected; hidden
+conditions are never automatically copied into the draft. Project excerpt
+references retain the explicitly approved public target applicability. Rejection affects only a candidate's indexed
 state; neither action rewrites task JSON/scope/HEAD. A distinct immutable project
 target cites only selected project excerpts; original task evidence stays hidden.
 

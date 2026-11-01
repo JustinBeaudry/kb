@@ -257,6 +257,12 @@ func (s *VerificationService) snapshot(ctx context.Context, tx Tx, d Adjudicatio
 		}
 		visiting[c.Revision] = true
 		for _, ref := range c.Evidence {
+			// Every original reference in the complete support closure constrains
+			// the public target. Reject insufficient owner approval; never infer
+			// or copy hidden applicability into an unqualified draft.
+			if !narrows(d.TargetApplicability, ref.Applicability) {
+				return domain.ErrForbidden
+			}
 			a, e := s.artifact(ctx, tx, ref, c.Scope)
 			if e != nil {
 				return e
@@ -422,7 +428,7 @@ func (s *VerificationService) AdjudicateHost(ctx context.Context, input Adjudica
 			if _, e = s.capture.CompleteHost(ctx, a.ID, a.Digest); e != nil {
 				return AdjudicationResult{}, e
 			}
-			ref, e := s.capture.ReferenceHost(ctx, domain.EvidenceRef{ArtifactID: a.ID, Digest: a.Digest, Locator: locator, SourceRevision: captureID(decisionID, i)}, a.Scope)
+			ref, e := s.capture.ReferenceHost(ctx, domain.EvidenceRef{ArtifactID: a.ID, Digest: a.Digest, Locator: locator, SourceRevision: captureID(decisionID, i), Applicability: d.TargetApplicability}, a.Scope)
 			if e != nil {
 				return AdjudicationResult{}, e
 			}

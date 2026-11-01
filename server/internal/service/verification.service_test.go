@@ -2,11 +2,13 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"github.com/JustinBeaudry/kb/server/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"slices"
 	"testing"
+	"time"
 )
 
 func TestOwnerTargetFieldsAreExplicitAndDigestBound(t *testing.T) {
@@ -354,4 +356,52 @@ func (e *policyChangingOwnerEvidence) ReadHost(ctx context.Context, id string) (
 		e.change()
 	}
 	return a, data, err
+}
+
+func TestOwnerTargetMustNarrowEveryEvidenceApplicabilityAcrossClosure(t *testing.T) {
+	future := time.Now().UTC().Add(time.Hour)
+	past := time.Now().UTC().Add(-time.Hour)
+	cases := []struct {
+		name       string
+		conditions domain.Applicability
+	}{
+		{"environment", domain.Applicability{Environment: "production"}},
+		{"versions", domain.Applicability{Versions: map[string]string{"go": "1.24"}}},
+		{"valid from", domain.Applicability{ValidFrom: &future}},
+		{"expired", domain.Applicability{ValidUntil: &past}},
+		{"repository", domain.Applicability{RepositoryRevision: "private-commit"}},
+		{"dirty", domain.Applicability{DirtyDigest: "private-dirty"}},
+	}
+	for _, transitive := range []bool{false, true} {
+		for _, tc := range cases {
+			t.Run(fmt.Sprintf("transitive=%t/%s", transitive, tc.name), func(t *testing.T) {
+				s, f, d := verificationFixture(t)
+				root := f.states[d.CandidateRevision]
+				if transitive {
+					dep := root
+					dep.Claim.Revision = "dependency"
+					dep.Claim.ClaimID = "dependency-claim"
+					dep.Claim.Evidence = slices.Clone(root.Claim.Evidence)
+					dep.Claim.Evidence[0].Applicability = tc.conditions
+					dep.Status = domain.ClaimVerified
+					dep.Valid = true
+					f.states[dep.Claim.Revision] = dep
+					root.Claim.DependsOn = []string{dep.Claim.Revision}
+				} else {
+					root.Claim.Evidence[0].Applicability = tc.conditions
+				}
+				f.states[d.CandidateRevision] = root
+				_, err := s.PreviewHost(t.Context(), d)
+				assert.ErrorIs(t, err, domain.ErrForbidden, "unqualified owner target must not erase evidence constraints")
+				d.TargetApplicability = tc.conditions
+				pre, err := s.PreviewHost(t.Context(), d)
+				require.NoError(t, err)
+				result, err := s.AdjudicateHost(t.Context(), AdjudicationInput{d, pre.Digest})
+				require.NoError(t, err)
+				target := f.states[result.TargetRevision].Claim
+				require.Len(t, target.Evidence, 1)
+				assert.Equal(t, tc.conditions, target.Evidence[0].Applicability, "project refs carry only explicitly approved public conditions")
+			})
+		}
+	}
 }

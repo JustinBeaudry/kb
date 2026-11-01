@@ -11,9 +11,11 @@ import (
 	"github.com/JustinBeaudry/kb/server/internal/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestOwnerPublicationCreatesDistinctProjectTarget(t *testing.T) {
@@ -116,6 +118,37 @@ func TestOwnerPublicationCreatesDistinctProjectTarget(t *testing.T) {
 		assert.Equal(t, candidate.Revision, head)
 		return e
 	}))
+	t.Run("owner evidence applicability requires explicit safe publication fields", func(t *testing.T) {
+		until := time.Now().UTC().Add(time.Hour)
+		conditions := domain.Applicability{Environment: "production", Versions: map[string]string{"go": "1.24"}, ValidUntil: &until}
+		refs := slices.Clone(candidate.Evidence)
+		refs[0].Applicability = conditions
+		c, e := memory.Submit(t.Context(), agent.Principal, domain.CandidateInput{ClaimID: "private-qualified", Scope: scope, Text: "PRIVATE qualified finding", Kind: "finding", Evidence: refs})
+		require.NoError(t, e)
+		d := draft
+		d.CandidateRevision = c.Revision
+		d.ExpectedCandidateHead = c.Revision
+		d.TargetID = "public-qualified"
+		d.IdempotencyKey = "qualified"
+		d.TargetText = "Qualified approved finding"
+		_, e = verify.PreviewHost(t.Context(), d)
+		assert.ErrorIs(t, e, domain.ErrForbidden)
+		d.TargetApplicability = conditions
+		pre, e := verify.PreviewHost(t.Context(), d)
+		require.NoError(t, e)
+		published, e := verify.AdjudicateHost(t.Context(), service.AdjudicationInput{AdjudicationDraft: d, ExpectedDigest: pre.Digest})
+		require.NoError(t, e)
+		out, e := retrieval.Retrieve(t.Context(), agent.Principal, domain.RetrievalRequest{Scope: domain.Scope{ProjectID: "demo"}, Query: d.TargetID, Mode: domain.RetrievalEvidence, Applicability: conditions})
+		require.NoError(t, e)
+		require.Len(t, out.Chunks, 1)
+		assert.Equal(t, published.TargetRevision, out.Chunks[0].Revision)
+		require.Len(t, out.Chunks[0].Evidence, 1)
+		assert.Equal(t, conditions, out.Chunks[0].Evidence[0].Applicability)
+		out, e = retrieval.Retrieve(t.Context(), agent.Principal, domain.RetrievalRequest{Scope: domain.Scope{ProjectID: "demo"}, Query: d.TargetID, Mode: domain.RetrievalEvidence, Applicability: domain.Applicability{Environment: "development", Versions: conditions.Versions}})
+		require.NoError(t, e)
+		assert.True(t, out.NoResults)
+	})
+
 	freshDraft := func(name string, dependencies ...string) service.AdjudicationDraft {
 		c, e := memory.Submit(t.Context(), agent.Principal, domain.CandidateInput{ClaimID: "private-" + name, Scope: scope, Text: "PRIVATE " + name, Kind: "finding", Evidence: candidate.Evidence, DependsOn: dependencies})
 		require.NoError(t, e)
