@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import {
   MAX_CHUNK_BYTES,
   MAX_EVENT_BYTES,
+  MAX_SPOOL_BYTES,
   POLICY_FRESHNESS_MS,
   type CaptureError,
   type CapturePolicy,
@@ -196,7 +197,7 @@ export class F4Uploader implements CaptureUploadGateway {
         excludedPaths: x.excluded_paths,
         excludedFields: x.excluded_fields,
         allowedModelRoutes: x.allowed_model_routes,
-        spoolLimitBytes: x.spool_limit_bytes,
+        spoolLimitBytes: Math.min(x.spool_limit_bytes, MAX_SPOOL_BYTES),
         expiresAt: Date.now() + POLICY_FRESHNESS_MS,
       },
     };
