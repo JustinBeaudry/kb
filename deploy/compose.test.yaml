@@ -77,9 +77,12 @@ services:
     # Production buckets are independently managed, never here.
     image: chrislusf/seaweedfs:4.51@sha256:f7a49e3f3972ebed5be2ed4befa4a0c68eb7bdddba6e692d42729ceb545134b8
     platform: linux/amd64
+    entrypoint: ['/bin/sh', '/run/fixture-objects-entrypoint.sh']
     command: ['server', '-s3', '-s3.port=8333', '-s3.config=/run/fixture/s3.json', '-dir=/data', '-ip=127.0.0.1', '-ip.bind=0.0.0.0', '-volume.max=64', '-master.volumeSizeLimitMB=64', '-volume.port=8082']
+    tmpfs: ['/run/fixture:rw,noexec,nosuid,nodev,size=1m,mode=0700']
     volumes:
-      - '${KB_FIXTURE_DIRECTORY:?run deploy/compose-smoke.sh first}/s3.json:/run/fixture/s3.json:ro'
+      - '${KB_FIXTURE_DIRECTORY:?run deploy/compose-smoke.sh first}/s3.json:/run/fixture-source/s3.json:ro'
+      - './fixture-objects-entrypoint.sh:/run/fixture-objects-entrypoint.sh:ro'
       - 'objects:/data'
     network_mode: service:graph
     stop_grace_period: 30s

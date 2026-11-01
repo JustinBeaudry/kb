@@ -95,6 +95,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          bun run deploy/tests/fixture-objects.integration.ts
           cd server
           go test -race -tags acceptance -timeout 45m -json ./internal/acceptance -run '^Test(CompiledMemoryRestoreAcceptance|BackupReadability|FixtureDiagnostics)' -count=1 | tee acceptance-results.jsonl
           python3 - <<'PYACCEPT'
