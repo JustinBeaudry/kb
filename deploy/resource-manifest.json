@@ -1,7 +1,7 @@
 {
-  "status": "live synthetic provider backup/restore qualified on 2026-11-01; production source 03a6c10; current branch verification and merge status are recorded in PR #22",
+  "status": "live provider restore qualified on 03a6c10; API admission update fc708f8 deployed and HTTP-qualified on 2026-11-01; required checks and merge state in PR #22",
   "source_base": "8bc567016f676777d7eea2bffa3dc0874311c9cd",
-  "release_commit": "03a6c10fc181327ca4a458c356e9c4926a4cbf35",
+  "release_commit": "fc708f82f748f0e232161c82f95b4d8bf79e4b92",
   "project": "kb-memory",
   "workspace": "personal Applied Labs",
   "region": "us-east4-eqdc4a",
@@ -17,8 +17,15 @@
       "healthcheck": "/livez",
       "readiness": "/readyz",
       "runtime_uid": 7474,
-      "deployment_id": "bd4d1061-6258-4557-ad8a-828e4b6ac4f7",
-      "observed_deployment_status": "SUCCESS"
+      "deployment_id": "84be0e9d-d9e6-4c98-91d8-1311d6451b59",
+      "observed_deployment_status": "SUCCESS",
+      "source_commit": "fc708f82f748f0e232161c82f95b4d8bf79e4b92",
+      "public_admission_budget": {
+        "requests_per_second": 8,
+        "burst": 16,
+        "concurrent": 8,
+        "scope": "per API process; includes joined completion"
+      }
     },
     "worker": {
       "replicas": 1,
@@ -31,7 +38,8 @@
       "worker_id": "kb-memory-worker-1",
       "instance_identity": "fresh generated process instance; never reuse a lost process permit",
       "deployment_id": "5bdc3b91-fee6-4dbb-b0ed-bd4186088a66",
-      "observed_deployment_status": "SUCCESS"
+      "observed_deployment_status": "SUCCESS",
+      "source_commit": "03a6c10fc181327ca4a458c356e9c4926a4cbf35"
     },
     "graph": {
       "replicas": 1,
@@ -51,7 +59,8 @@
       "volume_initialization": "one-shot root initializer completed; normal PID1 UID 7474 and protected graph roots verified; RAILWAY_RUN_UID absent",
       "new_database_query_language": "CYPHER_25",
       "deployment_id": "b9ea6d22-0161-44bd-aa31-4d8aebce7964",
-      "observed_deployment_status": "SUCCESS"
+      "observed_deployment_status": "SUCCESS",
+      "source_commit": "03a6c10fc181327ca4a458c356e9c4926a4cbf35"
     }
   },
   "buckets": {
@@ -158,7 +167,7 @@
     "graph": "sha256:23886839a03c414964fe092334c749d2b31d53823118fe4e9759122e26ea239a"
   },
   "provider_deployed_image_digests": {
-    "api": "sha256:a70d2d8ac9e855697137228a5ba5be87e19be5a7a641ddb8d27a67fbf3facfd4",
+    "api": "sha256:d2c20f677d506ad1138d996271125c8c4b2cb9077c6ab59caccd72c34bfdf7fe",
     "graph": "sha256:ced6c7653a6553f421c5df2532e116548dc2a03cf8d7a47155328dceb028dc9f",
     "worker": "sha256:9f6583a175e86fed23c063fb8c942478ac03021b43d6a9cbbba611805412acdc"
   },
@@ -278,7 +287,7 @@
       "https://docs.railway.com/volumes#permissions"
     ]
   },
-  "local_image_qualification": "Current release source 03a6c10 passed local compiled acceptance in 543.710s, including fresh restore/private acceptance in 51.910s. Historical image digests above do not identify provider-built images.",
+  "local_image_qualification": "API source fc708f8 passed full local compiled acceptance in 542.186s, including fresh restore/private acceptance in 52.311s. Graph/worker remain on 03a6c10; historical local image digests above are not provider image identities.",
   "qualified_provider_checks": {
     "observed_at": "2026-11-01",
     "anonymous_bucket_denial": "all three HEAD403",
@@ -294,25 +303,28 @@
     "independent_journal": "live sequence 1 authenticated before and after restore; journal namespace, bucket and retained keyring preserved outside archive restore",
     "physical_restore_proof": "all four fresh evidence objects read, 9984 bytes total; retained bytes/hash exact; two zero-byte deletion fences; deleted synthetic text absent",
     "rotation_and_revocation": "maintenance/retrieval keys rotated after encrypted custody readback; old agent/collector HTTP 401, old real cursor HTTP 409 stale, fresh retrieval HTTP 200 with exact retained bytes; worker has no retrieval key",
-    "normal_restart_and_cleanup": "restore mode 0; HostReady true, phase open, zero active/unknown permits, journal sequence 1 after normal restart; all four qualification clients revoked and exact remote credential sinks removed",
-    "actual_image_identity": "Provider image digests recorded per final deployment; actual API/worker/graph PID1 UID7474 and linux/amd64 verified."
+    "normal_restart_and_cleanup": "Graph restore mode 0 and normal restart qualified on 03a6c10; after API update HostReady/open/zero active and unknown permits. Four restore-drill and two API-smoke clients revoked; exact six remote sinks removed.",
+    "actual_image_identity": "Provider image digests recorded per final deployment; actual API/worker/graph PID1 UID7474 and linux/amd64 verified.",
+    "full_restore_source_commit": "03a6c10fc181327ca4a458c356e9c4926a4cbf35",
+    "api_update": "fc708f8 API only: three malformed requests returned 401; a finite 32-request burst returned eight 401s and twenty-four 429s, all schema-3 and Retry-After checks valid; health 200; scoped status/search 200, synthetic artifact 201/complete 200; retained 4992-byte hash exact and deleted publication absent. Both new qualification clients revoked with 401 verified; exact two remote sinks removed. This is an HTTP update smoke, not another full live restore."
   },
   "local_gate": {
     "go_vet": "passed",
     "go_race": "passed, including real graph/object fixtures",
     "golangci_lint": "0 issues",
-    "maintained_statement_coverage": "7728/9636 = 80.20%; generated files excluded",
+    "maintained_statement_coverage": "7778/9680 = 80.35%; generated files excluded",
     "typescript_tests": 587,
     "typescript_assertions": 4073,
     "typescript_lint_and_deploy_typecheck": "passed",
-    "source_commit": "03a6c10fc181327ca4a458c356e9c4926a4cbf35"
+    "source_commit": "fc708f82f748f0e232161c82f95b4d8bf79e4b92",
+    "typescript_gate_scope": "Final local lint/deploy typecheck and 587 tests/4073 assertions passed; both hosted fc708f8 client jobs passed 587 tests/4072 assertions."
   },
   "project_id": "90d569ba-e820-4e11-8619-366619307148",
   "environment_id": "8b4ecd41-5f64-4863-9d24-8b6000e3433c",
   "provider_image_identity_note": "Exact final deployment metadata imageDigest values read from Railway; all three running PID1 processes verified UID7474 and uname x86_64 through protected read-only host exec.",
   "local_qualified_image_digests_scope": "Historical local qualification builds; these are not provider image identities for the current release.",
-  "reviewed_source_git_tree": "f2210c4b23e5dd8076f8e012892c853ae41e9895",
-  "source_archive_sha256": "cddd8076afe40905cfd56ec111b06ff6acc00861d2ba7134e5be88757b3da00d",
+  "reviewed_source_git_tree": "ac77df1e599db03d889834b5ebc204de4a0a2ae6",
+  "source_archive_sha256": "d4e0b6d603cbabece3653bbdec1d11b34e70d5dd424d55e7f3763c093e621329",
   "hosted_ci": {
     "production_source_03a6c10": "587 client tests, full Go race/vet/lint and coverage 80.18% PR /80.17% push passed; compiled startup failed before capture with insufficient diagnostics",
     "diagnostics_source": "38ee208c530390d87e642cd9649cf3ee878c0e8c",
@@ -320,5 +332,24 @@
     "pr_run_id": 41280814402,
     "push_run_id": 41280811137,
     "fixture_ownership_correction": "fixture-only private runtime copy retains host0600 source and Seaweed nonroot execution; current required checks: https://github.com/JustinBeaudry/kb/pull/22"
+  },
+  "source_archives": {
+    "03a6c10fc181327ca4a458c356e9c4926a4cbf35": {
+      "git_tree": "f2210c4b23e5dd8076f8e012892c853ae41e9895",
+      "sha256": "cddd8076afe40905cfd56ec111b06ff6acc00861d2ba7134e5be88757b3da00d",
+      "deployed_services": [
+        "graph",
+        "worker"
+      ],
+      "full_live_restore_qualified": true
+    },
+    "fc708f82f748f0e232161c82f95b4d8bf79e4b92": {
+      "git_tree": "ac77df1e599db03d889834b5ebc204de4a0a2ae6",
+      "sha256": "d4e0b6d603cbabece3653bbdec1d11b34e70d5dd424d55e7f3763c093e621329",
+      "deployed_services": [
+        "api"
+      ],
+      "full_live_restore_qualified": false
+    }
   }
 }
