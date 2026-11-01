@@ -40,7 +40,7 @@ func (g *S3DeletionJournal) qualify(ctx context.Context) error {
 	}
 	// Cleanup is best effort for an isolated random probe, never a deletion receipt.
 	defer func() {
-		_, _ = g.client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(g.bucket), Key: aws.String(key)})
+		deleteQualificationObject(ctx, g.client, &s3.DeleteObjectInput{Bucket: aws.String(g.bucket), Key: aws.String(key)})
 	}()
 	if err = g.put(ctx, key, first, ""); err != nil {
 		return domain.ErrUnavailable

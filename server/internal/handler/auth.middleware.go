@@ -59,7 +59,11 @@ func requestMetadata(logger *slog.Logger) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			start := time.Now()
-			id := rand.Text()
+			id := domain.RequestID(c.Request().Context())
+			if id == "" {
+				id = rand.Text()
+				c.SetRequest(c.Request().WithContext(domain.WithRequestID(c.Request().Context(), id)))
+			}
 			c.Response().Header().Set("X-Request-Id", id)
 			c.Set("request_id", id)
 			err := next(c)

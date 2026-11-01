@@ -35,7 +35,7 @@ The public key must be a valid 64-hex Nostr/BIP-340 secp256k1 x-only point;
 its canonical lowercase form is stored separately from the owner ID.
 No private key is accepted. No owner bearer is minted. Normal clients cannot administer clients or claim trust.
 Host recovery: enroll, revoke and list use the persisted owner identity.
-Backup/restore recovery remains recovery_unavailable until O2.
+Host backup/restore uses kb-supervisor; recovery_unavailable reports an unavailable administration transport.
 
 kb-admin enroll --project PROJECT --credential-fd FD [--client-id ID] [--role agent] [--capabilities LIST]
 kb-admin revoke --client-id ID
@@ -72,7 +72,7 @@ journal-check never initializes a missing journal. Startup/restore never initial
 Source operations require journal recovery first. Exact deletion execution and receipt
 status remain privileged repair/diagnosis paths while readiness is blocked.
 Journal keys/config are never output.
-Successful deletion excludes active data; BackupState expiry_pending remains until O2.
+Successful deletion excludes active data; BackupState expiry_pending records retained backup copies subject to retention and deletion replay.
 `
 
 func main() {
@@ -90,12 +90,18 @@ type commandError struct {
 func (e commandError) Error() string { return e.command + ": administration failed" }
 func (e commandError) Unwrap() error { return e.cause }
 func safeError(err error) string {
+	var host hostOperationError
+	if errors.As(err, &host) {
+		return host.Error()
+	}
 	var command commandError
 	prefix := ""
 	if errors.As(err, &command) {
 		prefix = command.command + ": "
 	}
 	switch {
+	case errors.Is(err, domain.ErrMaintenance):
+		return prefix + "maintenance: admission refused; retry after the current maintenance operation completes"
 	case errors.Is(err, domain.ErrStale):
 		return prefix + "stale: expected state changed; preview or inspect current state before retry"
 	case errors.Is(err, domain.ErrUnknownOutcome):
@@ -132,11 +138,16 @@ type adminFactory func(context.Context, bool) (administration, func(), error)
 const maxAdminInput = 1 << 20
 
 func run(ctx context.Context, args []string, output io.Writer) error {
+	ctx = domain.WithOperationOutcome(ctx)
 	factory := composeAdministration
 	if len(args) > 0 && lifecycleCommand(args[0]) {
 		factory = composeLifecycleAdministration
 	}
-	err := runAdmin(ctx, args, output, os.Stdin, factory)
+	route, complete := productionAdminRoute(ctx, output)
+	err := runAdminRouted(ctx, args, output, os.Stdin, factory, route)
+	if completionErr := complete(err); completionErr != nil {
+		err = completionErr
+	}
 	if err != nil && len(args) > 0 {
 		switch args[0] {
 		case "setup", "enroll", "revoke", "list", "verify", "reject", "invalidate", "recover", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check":
@@ -145,7 +156,13 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	}
 	return err
 }
+
+type adminRoute func(domain.HostAdminRequest, *os.File) (bool, error)
+
 func runAdmin(ctx context.Context, args []string, output io.Writer, stdin io.Reader, factory adminFactory) error {
+	return runAdminRouted(ctx, args, output, stdin, factory, nil)
+}
+func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin io.Reader, factory adminFactory, route adminRoute) error {
 	if len(args) == 0 || args[0] == "help" || args[0] == "--help" {
 		_, err := io.WriteString(output, help)
 		return err
@@ -255,6 +272,35 @@ func runAdmin(ctx context.Context, args []string, output io.Writer, stdin io.Rea
 			}
 		}
 	}
+	if route != nil {
+		request := domain.HostAdminRequest{Version: 1, Action: command, Options: domain.HostAdminOptions{OwnerID: ownerID, PublicKey: key, ProjectID: project, Role: role, Capabilities: capabilities, ClientID: clientID, After: after, Limit: limit, Preview: preview}}
+		var input any
+		switch {
+		case lifecycleCommand(command) && command != "journal-init" && command != "journal-check":
+			input = lifecycleInput.target(command)
+		case command == "invalidate" && preview:
+			input = invalidationPreview
+		case command == "invalidate":
+			input = invalidation
+		case command == "verify" || command == "reject":
+			if preview {
+				input = draft
+			} else {
+				input = decision
+			}
+		}
+		if input != nil {
+			data, err := json.Marshal(input)
+			if err != nil {
+				return domain.ErrInvalidInput
+			}
+			request.InputJSON = data
+		}
+		handled, err := route(request, credentialFile)
+		if handled || err != nil {
+			return err
+		}
+	}
 	admin, closeAdmin, err := factory(ctx, command != "setup")
 	if err != nil {
 		return err
@@ -342,12 +388,12 @@ func composeAdministration(ctx context.Context, withObjects bool) (administratio
 	if err != nil {
 		return administration{}, nil, err
 	}
-	store, err := graph.Open(ctx, cfg.Graph)
+	store, err := graph.Connect(ctx, cfg.Graph)
 	if err != nil {
 		return administration{}, nil, err
 	}
 	closeStore := func() {
-		closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
 		_ = store.Close(closeCtx)
 	}

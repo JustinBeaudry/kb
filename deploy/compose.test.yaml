@@ -1,0 +1,88 @@
+# Synthetic local qualification only. Credentials are generated into a protected
+# env_file at runtime; production has exactly api, worker, graph services.
+name: kb-memory-qualification
+services:
+  graph:
+    image: kb-memory-graph:o2
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.graph
+    platform: linux/amd64
+    user: '7474:7474'
+    env_file: ['${KB_FIXTURE_ENV_FILE:?run deploy/compose-smoke.sh first}']
+    environment:
+      KB_GRAPH_URI: bolt://127.0.0.1:7687
+      KB_SUPERVISOR_CONTROL_LISTEN: '[::]:8091'
+      KB_SUPERVISOR_ROOT: /data/kb
+    volumes: [graph:/data]
+    ports: ['127.0.0.1:${KB_FIXTURE_API_PORT}:8080', '127.0.0.1:${KB_FIXTURE_OBJECT_PORT}:8333', '127.0.0.1:${KB_FIXTURE_PROXY_PORT}:8335']
+    stop_grace_period: 120s
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+  api:
+    image: kb-memory-api:o2
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    platform: linux/amd64
+    user: '7474:7474'
+    env_file: ['${KB_FIXTURE_API_ENV_FILE:?run deploy/compose-smoke.sh first}']
+    environment:
+      KB_GRAPH_URI: bolt://127.0.0.1:7687
+      KB_LISTEN: '[::]:8080'
+      KB_INGRESS_TRANSPORT: railway-edge
+      KB_MAINTENANCE_ENDPOINT: http://127.0.0.1:8091
+      KB_INSTANCE_ID: compose-api
+    network_mode: service:graph
+    stop_grace_period: 90s
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    depends_on: [graph, objects, proxy]
+  worker:
+    image: kb-memory-worker:o2
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.worker
+    platform: linux/amd64
+    user: '7474:7474'
+    env_file: ['${KB_FIXTURE_WORKER_ENV_FILE:?run deploy/compose-smoke.sh first}']
+    environment:
+      KB_GRAPH_URI: bolt://127.0.0.1:7687
+      KB_WORKER_HEALTH_LISTEN: '[::]:8081'
+      KB_MAINTENANCE_ENDPOINT: http://127.0.0.1:8091
+      KB_INSTANCE_ID: compose-worker
+    stop_grace_period: 90s
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    depends_on: [graph, objects, proxy]
+    network_mode: service:graph
+  proxy:
+    # Test-only held-I/O/lost-ack boundary; no production image or config uses it.
+    image: kb-memory-fixture-proxy:o2
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.fixture-proxy
+    platform: linux/amd64
+    user: '7474:7474'
+    network_mode: service:graph
+    depends_on: [graph, objects]
+    mem_limit: 256m
+    cpus: 0.25
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    stop_grace_period: 10s
+  objects:
+    # Fixture only. Four bucket collections plus filer metadata can each grow
+    # seven volumes; 64 slots leave headroom. Keep volumes small, not preallocated.
+    # Production buckets are independently managed, never here.
+    image: chrislusf/seaweedfs:4.51@sha256:f7a49e3f3972ebed5be2ed4befa4a0c68eb7bdddba6e692d42729ceb545134b8
+    platform: linux/amd64
+    command: ['server', '-s3', '-s3.port=8333', '-s3.config=/run/fixture/s3.json', '-dir=/data', '-ip=127.0.0.1', '-ip.bind=0.0.0.0', '-volume.max=64', '-master.volumeSizeLimitMB=64', '-volume.port=8082']
+    volumes:
+      - '${KB_FIXTURE_DIRECTORY:?run deploy/compose-smoke.sh first}/s3.json:/run/fixture/s3.json:ro'
+      - 'objects:/data'
+    network_mode: service:graph
+    stop_grace_period: 30s
+volumes:
+  graph:
+  objects:

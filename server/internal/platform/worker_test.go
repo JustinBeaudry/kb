@@ -129,8 +129,6 @@ func TestWorkerDispatchLifecycle(t *testing.T) {
 func TestWorkerStopsAtRuntimeBound(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
-	release := make(chan struct{})
-	t.Cleanup(func() { close(release) })
 	reasons := make(chan string, 1)
 	jobs := workerScript{
 		claim: func(context.Context, string, []string, time.Time) (domain.Job, domain.Lease, error) {
@@ -143,7 +141,7 @@ func TestWorkerStopsAtRuntimeBound(t *testing.T) {
 			return nil
 		},
 	}
-	worker := platform.Worker{ID: "worker", Kinds: []string{"verify"}, Jobs: jobs, MaxRun: 10 * time.Millisecond, RunJob: func(context.Context, domain.Job, domain.Lease) error { <-release; return nil }}
+	worker := platform.Worker{ID: "worker", Kinds: []string{"verify"}, Jobs: jobs, MaxRun: 10 * time.Millisecond, RunJob: func(ctx context.Context, _ domain.Job, _ domain.Lease) error { <-ctx.Done(); return ctx.Err() }}
 	err := worker.Run(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, "deadline_exceeded", <-reasons)

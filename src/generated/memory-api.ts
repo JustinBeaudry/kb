@@ -323,7 +323,7 @@ export type StatusResult = {
   capability_gaps: string[];
   /** Capabilities granted to this authenticated client; other clients are never listed. */
   authorized_capabilities: string[];
-  /** Enforced upper bound on every claim and checkpoint revision this server issues. Clients must not attempt writes when it is absent (older servers). */
+  /** Enforced upper bound on every claim and checkpoint revision this server issues (currently 64). Clients must not attempt writes when it is absent (older servers) or exceeds their own limit. */
   max_revision_bytes?: number;
 };
 

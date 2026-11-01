@@ -1,0 +1,294 @@
+{
+  "status": "local gates and compiled acceptance passed; provider storage qualified; empty resources provisioned, no application deployment",
+  "source_base": "8bc567016f676777d7eea2bffa3dc0874311c9cd",
+  "release_commit": null,
+  "project": "kb-memory",
+  "workspace": "personal Applied Labs",
+  "region": "us-east4-eqdc4a",
+  "platform": "linux/amd64",
+  "services": {
+    "api": {
+      "replicas": 1,
+      "cpu_limit_vcpu": 0.5,
+      "memory_limit_mib": 512,
+      "port": 8080,
+      "public_ingress": "Railway HTTPS edge only: https://api-production-15a1f.up.railway.app",
+      "transport": "railway-edge",
+      "healthcheck": "/livez",
+      "readiness": "/readyz",
+      "runtime_uid": 7474
+    },
+    "worker": {
+      "replicas": 1,
+      "cpu_limit_vcpu": 0.5,
+      "memory_limit_mib": 512,
+      "port": 8081,
+      "public_ingress": false,
+      "healthcheck": "/livez",
+      "runtime_uid": 7474,
+      "worker_id": "kb-memory-worker-1",
+      "instance_identity": "fresh generated process instance; never reuse a lost process permit"
+    },
+    "graph": {
+      "replicas": 1,
+      "cpu_limit_vcpu": 2,
+      "memory_limit_mib": 4096,
+      "ports": [
+        7687,
+        8091
+      ],
+      "public_ingress": false,
+      "tcp_proxy": false,
+      "browser_http": false,
+      "volume_mount": "/data",
+      "volume_gib": 32,
+      "healthcheck": "/livez",
+      "runtime_uid": 7474,
+      "volume_initialization": "fixed root-only initializer exits before normal uid7474 service; provider mount procedure requires qualification",
+      "new_database_query_language": "CYPHER_25"
+    }
+  },
+  "buckets": {
+    "evidence": {
+      "independent_credentials": true,
+      "delete_object_or_lifecycle_expiry": false,
+      "deletion_fences": "permanent reserved markers"
+    },
+    "journal": {
+      "independent_credentials": true,
+      "outside_backup_restore": true,
+      "lifetime_operations": 10000,
+      "warning_sequence": 9000,
+      "required_probe": "fresh authenticated conditional create/update race plus readback"
+    },
+    "backups": {
+      "independent_credentials": true,
+      "encryption": "age v1.3.2 X25519 plus authenticated manifest authority",
+      "retention_days": 30,
+      "schedule_interval_hours": 20,
+      "maximum_archive_bytes": 4294967296
+    }
+  },
+  "capacity_assumptions": {
+    "initial_data": "empty installation and disposable synthetic acceptance only",
+    "initial_backup_storage_gib": "measured after first authenticated backup",
+    "scratch_policy": "fail closed before dump/decrypt/load when measured space cannot cover required dumps, archive and fresh restore staging; alert before 75 percent volume use",
+    "volume_gib": 32,
+    "minimum_operational_headroom_gib": 8,
+    "maximum_archive_gib": 4,
+    "measured_rpo_hours_target": 24,
+    "measured_rto_hours_target": 4,
+    "scale_assumptions_require_measurement": true
+  },
+  "cost_assumptions_usd_month": {
+    "rates_verified_on": "2026-10-31",
+    "upper_limit_cpu_sustained_full_usage": 60,
+    "upper_limit_ram_sustained_full_usage": 50,
+    "32gb_volume": 4.8,
+    "billing_basis": "upper-limit sustained utilization scenario, not expected consumption; empty/synthetic first deployment bucket usage and backup traffic measured separately",
+    "scale_example_only": {
+      "graph_and_evidence_gib_each": 5,
+      "archive_gib": 10,
+      "snapshots_at_20h_for_30days": 37,
+      "backup_storage_gib": 370,
+      "monthly_backup_upload_gib": 360,
+      "bucket_storage_375gb": 5.625,
+      "service_egress_360gb": 18,
+      "requires_volume_resize_and_capacity_qualification": true
+    },
+    "pricing_sources": [
+      "https://docs.railway.com/pricing/plans",
+      "https://docs.railway.com/storage-buckets/billing"
+    ]
+  },
+  "required_secret_roles": [
+    "graph authentication",
+    "maintenance infrastructure authority",
+    "evidence scoped storage",
+    "independent journal scoped storage",
+    "journal retained authentication keyring",
+    "backup scoped storage",
+    "backup authenticated manifest authority",
+    "age retained decryption identities"
+  ],
+  "disabled": [
+    "model routes",
+    "historical import",
+    "Buzz",
+    "Hermes",
+    "remote owner administration"
+  ],
+  "unqualified_provider_checks": [
+    "actual image architecture and protected mount ownership",
+    "private control/Bolt isolation and no public proxy",
+    "HTTPS edge-to-origin behavior",
+    "independent journal freshness/key recovery",
+    "real encrypted graph plus evidence restore timing",
+    "host exec protected credential transfer",
+    "resource limits applied outside Railway TOML"
+  ],
+  "nonsecret_runtime_settings": {
+    "api": {
+      "KB_LISTEN": "[::]:8080",
+      "PORT": "8080",
+      "KB_INGRESS_TRANSPORT": "railway-edge"
+    },
+    "worker": {
+      "KB_WORKER_HEALTH_LISTEN": "[::]:8081",
+      "PORT": "8081",
+      "KB_WORKER_ID": "kb-memory-worker-1"
+    },
+    "graph": {
+      "KB_SUPERVISOR_ROOT": "/data/kb",
+      "KB_SUPERVISOR_CONTROL_LISTEN": "[::]:8091",
+      "PORT": "8091",
+      "KB_BACKUP_MAX_BYTES": "4294967296"
+    },
+    "all": "set explicit private graph URI and exact maintenance endpoint, explicit virtual addressing for provider buckets; stage actual endpoint/bucket/namespace identities separately with secret file references"
+  },
+  "local_qualified_image_digests": {
+    "api": "sha256:d511428033a097c2e3cc27345f49a9560eba4f5386b4717d01843c5b00127331",
+    "worker": "sha256:ca5f877e09597f04f0b1a394fb8fed03d8ab00bcfc3a28ff6914f699ec9f59eb",
+    "graph": "sha256:23886839a03c414964fe092334c749d2b31d53823118fe4e9759122e26ea239a"
+  },
+  "provider_deployed_image_digests": {
+    "api": null,
+    "worker": null,
+    "graph": null
+  },
+  "reviewed_source_tree_sha256": null,
+  "source_delivery": "fixed reviewed source upload; record source commit/base plus tree hash before first deploy",
+  "railway_staged_settings": {
+    "mechanism": "direct Railway staged updates; environmentStageChanges merge:true for staged-create regions, limits, private endpoints and nullable clears",
+    "legacy_tomls": "reference only; new services cannot opt in per2026-10-31 provider docs",
+    "builder": "omit builder enum; set explicit dockerfilePath and corresponding nonsecret RAILWAY_DOCKERFILE_PATH, verify detected Dockerfile in actual build logs",
+    "api": {
+      "dockerfilePath": "deploy/Dockerfile.api",
+      "startCommand": null,
+      "healthcheckPath": "/livez",
+      "healthcheckTimeout": 300,
+      "restartPolicyType": "ON_FAILURE",
+      "restartPolicyMaxRetries": 5,
+      "drainingSeconds": 90,
+      "overlapSeconds": 0,
+      "regions": {
+        "us-east4-eqdc4a": {
+          "numReplicas": 1
+        }
+      },
+      "limits": {
+        "vCPUs": 0.5,
+        "memoryGB": 0.5
+      },
+      "watchPatterns": [
+        "server/**",
+        "deploy/**"
+      ],
+      "configuration_state": "applied to empty service; no application deployment"
+    },
+    "worker": {
+      "dockerfilePath": "deploy/Dockerfile.worker",
+      "startCommand": null,
+      "healthcheckPath": "/livez",
+      "healthcheckTimeout": 300,
+      "restartPolicyType": "ON_FAILURE",
+      "restartPolicyMaxRetries": 5,
+      "drainingSeconds": 90,
+      "overlapSeconds": 0,
+      "regions": {
+        "us-east4-eqdc4a": {
+          "numReplicas": 1
+        }
+      },
+      "limits": {
+        "vCPUs": 0.5,
+        "memoryGB": 0.5
+      },
+      "watchPatterns": [
+        "server/**",
+        "deploy/**"
+      ],
+      "configuration_state": "applied to empty service; no application deployment"
+    },
+    "graph_initialization": {
+      "dockerfilePath": "deploy/Dockerfile.graph",
+      "startCommand": "/usr/local/bin/kb-graph-volume-init",
+      "healthcheckPath": null,
+      "restartPolicyType": "NEVER",
+      "drainingSeconds": 10,
+      "overlapSeconds": 0,
+      "regions": {
+        "us-east4-eqdc4a": {
+          "numReplicas": 1
+        }
+      },
+      "limits": {
+        "vCPUs": 2,
+        "memoryGB": 4
+      },
+      "watchPatterns": [
+        "server/**",
+        "deploy/**",
+        "scripts/Neo4jInitialPassword.java"
+      ],
+      "configuration_state": "applied to empty service; no application deployment"
+    },
+    "graph_normal": {
+      "dockerfilePath": "deploy/Dockerfile.graph",
+      "startCommand": null,
+      "healthcheckPath": "/livez",
+      "healthcheckTimeout": 300,
+      "restartPolicyType": "ON_FAILURE",
+      "restartPolicyMaxRetries": 5,
+      "drainingSeconds": 120,
+      "overlapSeconds": 0,
+      "regions": {
+        "us-east4-eqdc4a": {
+          "numReplicas": 1
+        }
+      },
+      "limits": {
+        "vCPUs": 2,
+        "memoryGB": 4
+      },
+      "watchPatterns": [
+        "server/**",
+        "deploy/**",
+        "scripts/Neo4jInitialPassword.java"
+      ],
+      "configuration_state": "pending after successful initializer"
+    },
+    "initialization_variable_override": {
+      "RAILWAY_RUN_UID": "0"
+    },
+    "normal_variable_removal": [
+      "RAILWAY_RUN_UID"
+    ],
+    "clear_semantics_qualification": "Explicit null via environmentStageChanges removes overrides from staged readback; API/worker startCommand and initializer healthcheckPath absent as verified 2026-11-01. Verify resolved deployment as well.",
+    "sources": [
+      "https://docs.railway.com/config-as-code",
+      "https://docs.railway.com/config-as-code/reference",
+      "https://docs.railway.com/builds/dockerfiles",
+      "https://docs.railway.com/deployments/start-command",
+      "https://docs.railway.com/volumes#permissions"
+    ]
+  },
+  "local_image_qualification": "Compiled lifecycle acceptance passed with graph sha256:352002d3b5cb70f4f22ba6d40cac8eda15007152261048d3d31cc9567485c0b2; current graph differs only in two CLI help strings, rebuilt amd64 UID7474 and help executed successfully. API/worker unchanged.",
+  "qualified_provider_checks": {
+    "observed_at": "2026-11-01",
+    "anonymous_bucket_denial": "all three HEAD403",
+    "bucket_credential_isolation": "all six ordered cross-bucket GET and PUT pairs403",
+    "conditional_writes": "all three buckets create200, duplicate412, incorrect match412, concurrent CAS exactlyone200/one412, winner bytes match",
+    "probe_cleanup": "all nine planned synthetic keys Delete204 then GET404",
+    "sealing": "all15 role variables isSealedtrue in live metadata"
+  },
+  "local_gate": {
+    "go_vet": "passed",
+    "go_race": "passed; repository rerun after proven Docker host-port collision; other unchanged packages reused passing cache",
+    "golangci_lint": "0 issues",
+    "maintained_statement_coverage": "7689/9603 = 80.07%; generated files excluded",
+    "typescript_tests": 576,
+    "typescript_assertions": 4042,
+    "typescript_lint_and_deploy_typecheck": "passed"
+  }
+}

@@ -10,6 +10,7 @@ import (
 )
 
 func TestConfigRequiresTLSOutsideLoopback(t *testing.T) {
+	t.Setenv("KB_INGRESS_TRANSPORT", "")
 	t.Setenv("KB_GRAPH_URI", "bolt://fixture:7687")
 	t.Setenv("KB_GRAPH_USER", "neo4j")
 	t.Setenv("KB_GRAPH_SECRET", "fixture-secret")
@@ -38,4 +39,34 @@ func TestConfigRequiresTLSOutsideLoopback(t *testing.T) {
 	t.Setenv("KB_TLS_KEY", "")
 	_, err = LoadConfig()
 	assert.ErrorIs(t, err, domain.ErrInvalidInput)
+}
+
+func TestConfigRequiresExplicitRailwayEdgeTransport(t *testing.T) {
+	t.Setenv("KB_GRAPH_URI", "bolt://fixture:7687")
+	t.Setenv("KB_GRAPH_USER", "neo4j")
+	t.Setenv("KB_GRAPH_SECRET", "fixture-secret")
+	t.Setenv("KB_LISTEN", "[::]:8080")
+	t.Setenv("KB_TLS_CERT", "")
+	t.Setenv("KB_TLS_KEY", "")
+	for _, tc := range []struct {
+		mode  string
+		valid bool
+	}{
+		{"", false}, {"direct", false}, {"railway-edge", true}, {"trust-proxy", false},
+	} {
+		t.Run(tc.mode, func(t *testing.T) {
+			t.Setenv("KB_INGRESS_TRANSPORT", tc.mode)
+			_, err := LoadConfig()
+			if tc.valid {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, domain.ErrInvalidInput)
+			}
+		})
+	}
+	t.Setenv("KB_INGRESS_TRANSPORT", "railway-edge")
+	t.Setenv("KB_TLS_CERT", "cert")
+	t.Setenv("KB_TLS_KEY", "key")
+	_, err := LoadConfig()
+	require.ErrorIs(t, err, domain.ErrInvalidInput)
 }

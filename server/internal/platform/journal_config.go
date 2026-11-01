@@ -18,7 +18,15 @@ import (
 // bytes are loaded from a bounded regular owner-only file, separately recovered
 // from graph backups; no filename, secret or vendor failure enters its errors.
 func LoadJournalConfig() (gateway.S3DeletionJournalConfig, error) {
-	cfg := gateway.S3DeletionJournalConfig{Endpoint: os.Getenv("KB_JOURNAL_ENDPOINT"), Region: os.Getenv("KB_JOURNAL_REGION"), Bucket: os.Getenv("KB_JOURNAL_BUCKET"), Prefix: os.Getenv("KB_JOURNAL_PREFIX"), Namespace: os.Getenv("KB_JOURNAL_NAMESPACE"), AccessKey: os.Getenv("KB_JOURNAL_ACCESS_KEY"), SecretKey: os.Getenv("KB_JOURNAL_SECRET_KEY"), AddressingStyle: os.Getenv("KB_JOURNAL_ADDRESSING_STYLE"), KeyID: os.Getenv("KB_JOURNAL_KEY_ID")}
+	access, err := secretSetting("KB_JOURNAL_ACCESS_KEY")
+	if err != nil {
+		return gateway.S3DeletionJournalConfig{}, err
+	}
+	secret, err := secretSetting("KB_JOURNAL_SECRET_KEY")
+	if err != nil {
+		return gateway.S3DeletionJournalConfig{}, err
+	}
+	cfg := gateway.S3DeletionJournalConfig{Endpoint: os.Getenv("KB_JOURNAL_ENDPOINT"), Region: os.Getenv("KB_JOURNAL_REGION"), Bucket: os.Getenv("KB_JOURNAL_BUCKET"), Prefix: os.Getenv("KB_JOURNAL_PREFIX"), Namespace: os.Getenv("KB_JOURNAL_NAMESPACE"), AccessKey: access, SecretKey: secret, AddressingStyle: os.Getenv("KB_JOURNAL_ADDRESSING_STYLE"), KeyID: os.Getenv("KB_JOURNAL_KEY_ID")}
 	keys, err := loadJournalKeyring(os.Getenv("KB_JOURNAL_KEYRING_FILE"))
 	if err != nil {
 		return gateway.S3DeletionJournalConfig{}, err

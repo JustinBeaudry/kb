@@ -71,7 +71,10 @@ func configuredServer(identity IdentityService, capture CaptureService, checkpoi
 		}
 		_ = problem(c, err)
 	}
-	e.Use(requestMetadata(logger), middleware.RecoverWithConfig(middleware.RecoverConfig{DisablePrintStack: true}), func(next echo.HandlerFunc) echo.HandlerFunc {
+	e.Use(requestMetadata(logger), middleware.RecoverWithConfig(middleware.RecoverConfig{DisablePrintStack: true, LogErrorFunc: func(c echo.Context, _ error, _ []byte) error {
+		domain.MarkEffectUncertain(c.Request().Context())
+		return domain.ErrUnavailable
+	}}), func(next echo.HandlerFunc) echo.HandlerFunc {
 		small := middleware.BodyLimit("64K")(next)
 		artifact := middleware.BodyLimit("11206656")(next)
 		return func(c echo.Context) error {

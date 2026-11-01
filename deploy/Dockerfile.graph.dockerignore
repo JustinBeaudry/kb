@@ -1,0 +1,16 @@
+**
+!server/
+!server/**
+!deploy/
+!deploy/graph-volume-init.sh
+!deploy/runtime-entrypoint.sh
+server/**/.env*
+server/**/secrets/**
+server/**/testdata/**
+server/**/*_test.go
+server/coverage*
+
+!scripts/
+!scripts/Neo4jInitialPassword.java
+
+!deploy/versions.json

@@ -30,6 +30,9 @@ func (s *Store) Unwrap(handle domain.Tx) (neo4j.ExplicitTransaction, error) {
 }
 
 func (s *Store) Within(ctx context.Context, fn func(context.Context, domain.Tx) error) error {
+	return s.traced(ctx, "graph_transaction", func(ctx context.Context) error { return s.within(ctx, fn) })
+}
+func (s *Store) within(ctx context.Context, fn func(context.Context, domain.Tx) error) error {
 	if fn == nil {
 		return domain.ErrInvalidInput
 	}
@@ -37,7 +40,9 @@ func (s *Store) Within(ctx context.Context, fn func(context.Context, domain.Tx) 
 	defer func() {
 		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
-		_ = session.Close(cleanup)
+		if err := session.Close(cleanup); err != nil {
+			domain.MarkEffectUncertain(ctx)
+		}
 	}()
 	native, err := session.BeginTransaction(ctx, neo4j.WithTxTimeout(15*time.Second))
 	if err != nil {
@@ -46,7 +51,9 @@ func (s *Store) Within(ctx context.Context, fn func(context.Context, domain.Tx) 
 	defer func() {
 		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
-		_ = native.Close(cleanup)
+		if err := native.Close(cleanup); err != nil {
+			domain.MarkEffectUncertain(ctx)
+		}
 	}()
 	tx := &transaction{id: rand.Text(), owner: s, native: native}
 	tx.active.Store(true)
@@ -65,6 +72,7 @@ func (s *Store) Within(ctx context.Context, fn func(context.Context, domain.Tx) 
 		return err
 	}
 	if err = native.Commit(ctx); err != nil {
+		domain.MarkEffectUncertain(ctx)
 		return domain.ErrUnavailable
 	}
 	return nil

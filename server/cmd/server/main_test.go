@@ -26,6 +26,7 @@ func TestServerInvalidConfigurationFailsSafely(t *testing.T) {
 	assert.ErrorIs(t, err, domain.ErrInvalidInput)
 }
 func TestServerLoopbackAuthenticationAndGracefulShutdown(t *testing.T) {
+	maintenanceFixture(t, true)
 	versions, err := os.ReadFile("../../../deploy/versions.json")
 	require.NoError(t, err)
 	var pin struct {
@@ -113,6 +114,9 @@ func TestServerLoopbackAuthenticationAndGracefulShutdown(t *testing.T) {
 			require.NoError(t, err)
 			response, err = client.Do(req)
 			if err != nil {
+				response = nil
+			} else if response.StatusCode == http.StatusServiceUnavailable {
+				require.NoError(t, response.Body.Close())
 				response = nil
 			}
 		}

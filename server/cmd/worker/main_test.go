@@ -44,6 +44,7 @@ func TestWorkerCompositionFailsClosed(t *testing.T) {
 }
 
 func TestWorkerCompositionGracefulStop(t *testing.T) {
+	maintenanceFixture(t, true)
 	versions, err := os.ReadFile("../../../deploy/versions.json")
 	require.NoError(t, err)
 	var pin struct {

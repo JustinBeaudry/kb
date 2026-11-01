@@ -29,6 +29,8 @@ require (
 	dev.gaijin.team/go/exhaustruct/v4 v4.0.0 // indirect
 	dev.gaijin.team/go/exhaustruct/v5 v5.2.0 // indirect
 	dev.gaijin.team/go/golib v0.8.1 // indirect
+	filippo.io/age v1.3.2 // indirect
+	filippo.io/hpke v0.4.0 // indirect
 	github.com/4meepo/tagalign v1.4.4 // indirect
 	github.com/Abirdcfly/dupword v0.1.8 // indirect
 	github.com/AdminBenni/iota-mixing v1.0.0 // indirect
@@ -278,6 +280,7 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.70.0 // indirect
 	go.opentelemetry.io/otel v1.45.0 // indirect
 	go.opentelemetry.io/otel/metric v1.45.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.45.0 // indirect
 	go.opentelemetry.io/otel/trace v1.45.0 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect

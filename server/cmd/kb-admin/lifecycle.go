@@ -133,12 +133,12 @@ func composeLifecycleAdministration(ctx context.Context, _ bool) (administration
 	if err != nil {
 		return administration{}, nil, err
 	}
-	store, err := graph.Open(ctx, cfg.Graph)
+	store, err := graph.Connect(ctx, cfg.Graph)
 	if err != nil {
 		return administration{}, nil, err
 	}
 	closeStore := func() {
-		closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
 		_ = store.Close(closeCtx)
 	}

@@ -21,7 +21,7 @@ import (
 	"github.com/aws/smithy-go"
 )
 
-type S3Config struct{ Endpoint, Region, Bucket, AccessKey, SecretKey string }
+type S3Config struct{ Endpoint, Region, Bucket, AccessKey, SecretKey, AddressingStyle string }
 
 func (S3Config) String() string   { return "S3Config([redacted])" }
 func (S3Config) GoString() string { return "S3Config([redacted])" }
@@ -34,6 +34,9 @@ type S3 struct {
 }
 
 func NewS3(c S3Config) (*S3, error) {
+	if c.AddressingStyle != "" && c.AddressingStyle != "path" && c.AddressingStyle != "virtual" {
+		return nil, domain.ErrInvalidInput
+	}
 	u, err := url.Parse(c.Endpoint)
 	if err != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Path != "" || domain.ValidateIDs(c.Region, c.Bucket, c.AccessKey, c.SecretKey) != nil {
 		return nil, domain.ErrInvalidInput
@@ -42,7 +45,7 @@ func NewS3(c S3Config) (*S3, error) {
 	if u.Scheme != "https" && (u.Scheme != "http" || (u.Hostname() != "localhost" && (ip == nil || !ip.IsLoopback()))) {
 		return nil, domain.ErrInvalidInput
 	}
-	client := s3.New(s3.Options{Region: c.Region, BaseEndpoint: aws.String(c.Endpoint), UsePathStyle: true, Credentials: credentials.NewStaticCredentialsProvider(c.AccessKey, c.SecretKey, ""), HTTPClient: &http.Client{Timeout: 30 * time.Second}, RetryMaxAttempts: 2})
+	client := s3.New(s3.Options{Region: c.Region, BaseEndpoint: aws.String(c.Endpoint), UsePathStyle: c.AddressingStyle != "virtual", Credentials: credentials.NewStaticCredentialsProvider(c.AccessKey, c.SecretKey, ""), HTTPClient: &http.Client{Timeout: 30 * time.Second}, RetryMaxAttempts: 2})
 	return &S3{client: client, bucket: c.Bucket}, nil
 }
 func (g *S3) Put(ctx context.Context, key string, body io.Reader, digest string) error {
@@ -64,7 +67,7 @@ func (g *S3) Put(ctx context.Context, key string, body io.Reader, digest string)
 	if err = g.qualifyEvidenceFence(ctx); err != nil {
 		return err
 	}
-	_, err = g.client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(g.bucket), Key: aws.String(key), Body: bytes.NewReader(data), ContentLength: aws.Int64(int64(len(data))), ChecksumSHA256: aws.String(base64.StdEncoding.EncodeToString(sum)), IfNoneMatch: aws.String("*")})
+	_, err = putObject(ctx, g.client, &s3.PutObjectInput{Bucket: aws.String(g.bucket), Key: aws.String(key), Body: bytes.NewReader(data), ContentLength: aws.Int64(int64(len(data))), ChecksumSHA256: aws.String(base64.StdEncoding.EncodeToString(sum)), IfNoneMatch: aws.String("*")})
 	if evidencePrecondition(err) {
 		return g.matchExistingEvidence(ctx, key, data)
 	}

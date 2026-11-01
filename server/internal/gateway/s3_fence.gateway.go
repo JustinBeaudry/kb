@@ -38,7 +38,7 @@ func (g *S3) matchExistingEvidence(ctx context.Context, key string, expected []b
 	return nil
 }
 func (g *S3) writeEvidenceTombstone(ctx context.Context, key string) error {
-	_, err := g.client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(g.bucket), Key: aws.String(key), Body: bytes.NewReader(nil), ContentLength: aws.Int64(0), Metadata: map[string]string{"kb-deleted": "1"}})
+	_, err := putObject(ctx, g.client, &s3.PutObjectInput{Bucket: aws.String(g.bucket), Key: aws.String(key), Body: bytes.NewReader(nil), ContentLength: aws.Int64(0), Metadata: map[string]string{"kb-deleted": "1"}})
 	if err != nil {
 		return domain.ErrUnavailable
 	}
@@ -65,7 +65,7 @@ func (g *S3) qualifyEvidenceFence(ctx context.Context) error {
 	}
 	key := "qualification/evidence-fence/" + rand.Text()
 	defer func() {
-		_, _ = g.client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(g.bucket), Key: aws.String(key)})
+		deleteQualificationObject(ctx, g.client, &s3.DeleteObjectInput{Bucket: aws.String(g.bucket), Key: aws.String(key)})
 	}()
 	outcomes := make(chan error, 2)
 	var group sync.WaitGroup
@@ -73,7 +73,7 @@ func (g *S3) qualifyEvidenceFence(ctx context.Context) error {
 		group.Add(1)
 		go func() {
 			defer group.Done()
-			_, err := g.client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(g.bucket), Key: aws.String(key), Body: bytes.NewReader([]byte(data)), IfNoneMatch: aws.String("*")})
+			_, err := putObject(ctx, g.client, &s3.PutObjectInput{Bucket: aws.String(g.bucket), Key: aws.String(key), Body: bytes.NewReader([]byte(data)), IfNoneMatch: aws.String("*")})
 			outcomes <- err
 		}()
 	}
@@ -95,7 +95,7 @@ func (g *S3) qualifyEvidenceFence(ctx context.Context) error {
 	if err := g.writeEvidenceTombstone(ctx, key); err != nil {
 		return err
 	}
-	_, err := g.client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(g.bucket), Key: aws.String(key), Body: bytes.NewReader([]byte("late")), IfNoneMatch: aws.String("*")})
+	_, err := putObject(ctx, g.client, &s3.PutObjectInput{Bucket: aws.String(g.bucket), Key: aws.String(key), Body: bytes.NewReader([]byte("late")), IfNoneMatch: aws.String("*")})
 	if !evidencePrecondition(err) {
 		return domain.ErrUnavailable
 	}

@@ -143,7 +143,7 @@ meaning the write may have committed, so reread state before retrying. MCP pagin
 before all results can be returned; narrow the query or byte range rather than
 assuming the results are exhaustive. The bridge passes credentials on a private
 inherited descriptor, not in command arguments. See the guide for build commands
-and prerequisites. C3 remains in progress; the
+and prerequisites. The remote client is available from source; these
 synthetic tests do not qualify an OS credential store, specific MCP client,
 production deployment, or released binary. No remote HTTP MCP transport or
 remote native harness hook is provided.

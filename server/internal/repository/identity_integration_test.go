@@ -59,11 +59,10 @@ func TestIdentityRealGraph(t *testing.T) {
 	reader, writer, err := os.Pipe()
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = reader.Close(); _ = writer.Close() })
-	command := exec.CommandContext(t.Context(), "go", "run", "../../cmd/kb-admin", "setup", "--owner-id", owner.ID, "--owner-public-key", owner.PublicKey, "--project", "demo", "--capabilities", "status:read,retrieval:read", "--credential-fd", "3")
-	command.Env = append(os.Environ(), "KB_GRAPH_URI=bolt://"+host+":"+port.Port(), "KB_GRAPH_USER=neo4j", "KB_GRAPH_SECRET="+graphSecret, "KB_LISTEN=127.0.0.1:8080", "KB_TLS_CERT=", "KB_TLS_KEY=")
+	binary, maintenance := identityHostFixture(t, "bolt://"+host+":"+port.Port(), graphSecret)
+	command := exec.CommandContext(t.Context(), binary, "setup", "--owner-id", owner.ID, "--owner-public-key", owner.PublicKey, "--project", "demo", "--capabilities", "status:read,retrieval:read", "--credential-fd", "3")
 	command.ExtraFiles = []*os.File{writer}
-	rejected := exec.CommandContext(t.Context(), "go", "run", "../../cmd/kb-admin", "setup", "--owner-id", owner.ID, "--owner-public-key", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", "--project", "demo", "--credential-fd", "3")
-	rejected.Env = command.Env
+	rejected := exec.CommandContext(t.Context(), binary, "setup", "--owner-id", owner.ID, "--owner-public-key", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", "--project", "demo", "--credential-fd", "3")
 	rejected.ExtraFiles = []*os.File{writer}
 	var rejectedOutput, rejectedDiagnostics bytes.Buffer
 	rejected.Stdout = &rejectedOutput
@@ -71,10 +70,28 @@ func TestIdentityRealGraph(t *testing.T) {
 	require.Error(t, rejected.Run(), "wrong-algorithm setup must fail before initializing owner")
 	assert.Empty(t, rejectedOutput.String())
 	assert.Contains(t, rejectedDiagnostics.String(), "invalid_input")
+	assertIdentityHostDrained(t, maintenance)
+	require.NoError(t, store.Within(t.Context(), func(ctx context.Context, tx domain.Tx) error {
+		unsetOwner, ownerErr := repo.Owner(ctx, tx)
+		require.NoError(t, ownerErr)
+		require.Equal(t, domain.OwnerIdentity{}, unsetOwner, "rejected host setup must not initialize owner")
+		return nil
+	}))
+	// A caller-supplied descriptor hint is not the supervisor's inherited channel.
+	forged := exec.CommandContext(t.Context(), binary, "setup", "--owner-id", owner.ID, "--owner-public-key", owner.PublicKey, "--project", "demo", "--credential-fd", "3")
+	forged.Env = append(os.Environ(), "KB_HOST_EXECUTION_FD=4")
+	forged.ExtraFiles = []*os.File{writer}
+	var forgedOutput, forgedDiagnostics bytes.Buffer
+	forged.Stdout = &forgedOutput
+	forged.Stderr = &forgedDiagnostics
+	require.Error(t, forged.Run(), "an arbitrary caller cannot impersonate the supervisor child")
+	assert.Empty(t, forgedOutput.String())
+	assertIdentityHostDrained(t, maintenance)
 	var stdout, stderr bytes.Buffer
 	command.Stdout = &stdout
 	command.Stderr = &stderr
-	require.NoError(t, command.Run(), "operator setup must succeed without Buzz")
+	require.NoError(t, command.Run(), "operator setup must succeed through protected host admission without Buzz")
+	assertIdentityHostDrained(t, maintenance)
 	require.NoError(t, writer.Close())
 	transferred, err := io.ReadAll(reader)
 	require.NoError(t, err)

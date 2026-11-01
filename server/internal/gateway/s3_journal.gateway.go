@@ -289,7 +289,7 @@ func (g *S3DeletionJournal) put(ctx context.Context, key string, raw []byte, eta
 	} else {
 		input.IfMatch = aws.String(etag)
 	}
-	_, err := g.client.PutObject(ctx, input)
+	_, err := putObject(ctx, g.client, input)
 	if conditionalConflict(err) {
 		return domain.ErrConflict
 	}
