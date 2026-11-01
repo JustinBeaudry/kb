@@ -25,14 +25,24 @@ type Authenticator interface {
 	Authenticate(context.Context, string) (domain.Principal, error)
 }
 
+// Header parsing is shared by the I/O-free public preflight and authoritative
+// Echo authentication. Token validity remains the identity service's decision.
+func bearerHeader(header http.Header) (string, bool) {
+	value := header.Get("Authorization")
+	if !strings.HasPrefix(value, "Bearer ") || len(header.Values("Authorization")) != 1 {
+		return "", false
+	}
+	return strings.TrimPrefix(value, "Bearer "), true
+}
+
 func Authentication(identity Authenticator) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			header := c.Request().Header.Get("Authorization")
-			if !strings.HasPrefix(header, "Bearer ") || len(c.Request().Header.Values("Authorization")) != 1 {
+			bearer, ok := bearerHeader(c.Request().Header)
+			if !ok {
 				return problem(c, domain.ErrUnauthorized)
 			}
-			p, err := identity.Authenticate(c.Request().Context(), strings.TrimPrefix(header, "Bearer "))
+			p, err := identity.Authenticate(c.Request().Context(), bearer)
 			if err != nil {
 				return problem(c, err)
 			}
