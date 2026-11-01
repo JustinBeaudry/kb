@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -112,6 +113,9 @@ func TestCompiledMemoryRestoreAcceptance(t *testing.T) {
 		var state operatorResult
 		return json.Unmarshal(out, &state) == nil && state.Code == "ok" && state.Status.Maintenance.Phase == "recovering"
 	}, 4*time.Minute, 2*time.Second)
+	// Recovering supervisor state does not establish that Seaweed has rebuilt
+	// persisted volume locations. Observe full backup reads before the one restore.
+	f.waitBackupReadable(backup.Result.ID)
 	restoredAt := time.Now()
 	restored := f.operator("restore", "--backup-id", backup.Result.ID, "--id", "acceptance-restore")
 	require.Equal(t, "ok", restored.Code)
@@ -317,18 +321,71 @@ func (f *compiledFixture) waitReady() {
 	}, 3*time.Minute, time.Second)
 }
 
-func (f *compiledFixture) assertRestoredObjectBytes(deletedText, retainedDigest string) {
+func (f *compiledFixture) fixtureEnvironment(path string) map[string]string {
 	f.t.Helper()
-	raw, err := os.ReadFile(f.runtime["restore_graph_config_file"])
+	raw, err := os.ReadFile(path)
 	require.NoError(f.t, err)
 	values := map[string]string{}
 	for _, line := range strings.Split(string(raw), "\n") {
-		key, value, ok := strings.Cut(line, "=")
-		if !ok {
-			continue
+		if key, value, ok := strings.Cut(line, "="); ok {
+			values[key] = strings.Trim(value, "'")
 		}
-		values[key] = strings.Trim(value, "'")
 	}
+	return values
+}
+
+func (f *compiledFixture) waitBackupReadable(backupID string) {
+	f.t.Helper()
+	values := f.fixtureEnvironment(filepath.Join(f.dir, "runtime.env"))
+	maximum, err := strconv.ParseInt(values["KB_BACKUP_MAX_BYTES"], 10, 64)
+	require.NoError(f.t, err)
+	require.Positive(f.t, maximum)
+	client := s3.New(s3.Options{BaseEndpoint: aws.String(f.runtime["object_url"]), Region: values["KB_BACKUP_REGION"], UsePathStyle: true, Credentials: credentials.NewStaticCredentialsProvider(values["KB_BACKUP_ACCESS_KEY_CONTENTS"], values["KB_BACKUP_SECRET_KEY_CONTENTS"], ""), HTTPClient: f.client, Retryer: aws.NopRetryer{}})
+	ctx, cancel := context.WithTimeout(f.ctx, 4*time.Minute)
+	defer cancel()
+	require.NoError(f.t, waitForBackupReadability(ctx, client, values["KB_BACKUP_BUCKET"], values["KB_BACKUP_NAMESPACE"], backupID, maximum, time.Second), "persisted backup bodies were not readable after fixture restart")
+}
+
+// Only completion and ciphertext are external objects. manifest.json is inside
+// archive.age; the real Restore retains all authentication/decryption checks.
+func waitForBackupReadability(ctx context.Context, client *s3.Client, bucket, namespace, backupID string, maximum int64, interval time.Duration) error {
+	prefix := "backups/" + namespace + "/" + backupID + "/"
+	read := func(ctx context.Context, key string, limit int64) bool {
+		object, err := client.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(bucket), Key: aws.String(key)})
+		if err != nil {
+			return false
+		}
+		if object.ContentLength == nil || *object.ContentLength < 1 || *object.ContentLength > limit {
+			_ = object.Body.Close()
+			return false
+		}
+		n, readErr := io.Copy(io.Discard, io.LimitReader(object.Body, limit+1))
+		closeErr := object.Body.Close()
+		return readErr == nil && closeErr == nil && n == *object.ContentLength
+	}
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		attempt, cancel := context.WithTimeout(ctx, 10*time.Second)
+		ready := read(attempt, prefix+"complete.json", 16<<10) && read(attempt, prefix+"archive.age", maximum)
+		cancel()
+		if ready {
+			return nil
+		}
+		timer := time.NewTimer(interval)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+}
+
+func (f *compiledFixture) assertRestoredObjectBytes(deletedText, retainedDigest string) {
+	f.t.Helper()
+	values := f.fixtureEnvironment(f.runtime["restore_graph_config_file"])
 	client := s3.New(s3.Options{BaseEndpoint: aws.String(f.runtime["object_url"]), Region: values["KB_S3_REGION"], UsePathStyle: true, Credentials: credentials.NewStaticCredentialsProvider(values["KB_S3_ACCESS_KEY_CONTENTS"], values["KB_S3_SECRET_KEY_CONTENTS"], ""), HTTPClient: f.client, RetryMaxAttempts: 1})
 	bucket := values["KB_S3_BUCKET"]
 	require.Equal(f.t, "restored-evidence", bucket)
