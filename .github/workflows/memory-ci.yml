@@ -9,7 +9,30 @@ concurrency:
   group: memory-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  qualify:
+  qualify-client:
+    name: Qualify client (Darwin arm64)
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: '1.27.3'
+          cache-dependency-path: server/go.sum
+      - name: Download Go fixture dependencies
+        working-directory: server
+        run: go mod download
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.3'
+      - name: Require qualified native client platform
+        run: |
+          bun -e 'if (process.platform !== "darwin" || process.arch !== "arm64") throw new Error("native capture qualification requires darwin/arm64");'
+      - run: bun install --frozen-lockfile
+      - name: Full TypeScript gate
+        run: bun run lint && bunx tsc --project deploy/tsconfig.json --noEmit && bun run test
+  qualify-server:
+    name: Qualify server (Linux amd64)
     runs-on: ubuntu-24.04
     timeout-minutes: 100
     steps:
@@ -25,8 +48,6 @@ jobs:
         with:
           bun-version: '1.4.3'
       - run: bun install --frozen-lockfile
-      - name: TypeScript gate
-        run: bun run lint && bunx tsc --project deploy/tsconfig.json --noEmit && bun run test
       - name: Generate contracts and require a clean diff
         run: |
           cd server
@@ -45,7 +66,9 @@ jobs:
         run: |
           set -euo pipefail
           cd server
-          go test -race -timeout 30m -covermode=atomic -coverpkg=./... -coverprofile=coverage.out -json ./... | tee test-results.jsonl
+          # This mixed client/server test launches the Darwin arm64-only Bun spool.
+          # Its real Darwin+Docker qualification is separate; Linux client support is not claimed.
+          go test -race -timeout 30m -covermode=atomic -coverpkg=./... -coverprofile=coverage.out -json -skip '^TestCollectorRealHTTPKillRestartAndLostAck$' ./... | tee test-results.jsonl
           ../scripts/check-memory-coverage.sh coverage.out
       - name: Require executed restore acceptance, never a passing skip
         run: |
