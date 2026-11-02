@@ -3,7 +3,9 @@
 KB is a local Markdown knowledge vault for people and agents. Read and edit it
 in Obsidian or a text editor; retrieve the same knowledge through a CLI that
 returns source paths, line ranges and bounded evidence. Shell and file access
-are enough for the core workflow. Native hooks and MCP are optional integrations.
+are enough for the local workflow. An explicit remote memory client is also in
+progress; it is separate from the vault and never silently falls back to it.
+Native hooks and MCP are optional integrations.
 
 Based on [Karpathy's LLM Wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
 
@@ -105,10 +107,46 @@ visible. See the [session guide](skills/kb/references/sessions.md).
 | `kb summarize [--json] <manifest>` | Generate or reuse a cached summary |
 | `kb summaries pin\|unpin <session>` | Preserve or unpin a user-edited summary |
 | `kb mark-extracted <file>` | Mark a fully processed manifest extracted |
+| `kb remote {credential-set,orient,search,fetch,status,mcp}` | Explicit remote operations and optional stdio MCP bridge; in-progress source checkout |
 
 Retrieval and session-management commands accept `--vault-path <dir>` / `-p`.
 `capture-session` uses `KB_VAULT` instead of that flag. Commands report failures
 with a nonzero exit and diagnostic stderr; do not treat failure as no evidence.
+
+## Explicit remote memory (in progress)
+
+The current source checkout also exposes `kb remote` for an already enrolled,
+authorized client and running API. Remote credentials are registered for an
+explicit profile and origin through protected stdin, in a separate OS-secret
+namespace from capture; an existing capture profile must be registered again.
+Local commands continue to use the vault. Remote errors do not fall back to it.
+
+```sh
+kb remote status --profile work --endpoint https://memory.example.com
+kb remote orient --profile work --endpoint https://memory.example.com \
+  --project project-id --query 'retry policy' --budget 4096
+kb remote search --profile work --endpoint https://memory.example.com \
+  --project project-id --task task-id --mode working \
+  --query 'retry policy' --budget 16384
+```
+
+Replace the example origin and IDs with your own. Remote responses use a
+length-prefixed schema-v3 body; task candidates and task state are not verified
+claims. See the [remote integration guide](docs/integrations/remote.md) for
+protected credential entry, publication and working fetch, continuation, and
+platform/transport limits. For MCP stdio, separately build `kb-mcp` from the
+checkout's Go server module, put it on the launcher's PATH, and configure the
+client to run `kb remote mcp --profile work --endpoint https://memory.example.com`.
+Candidate and checkpoint writes require the server's advertised revision bound
+(clients need `status:read`); a lost receipt is reported as `unknown_outcome`,
+meaning the write may have committed, so reread state before retrying. MCP pagination is bounded and may fail
+before all results can be returned; narrow the query or byte range rather than
+assuming the results are exhaustive. The bridge passes credentials on a private
+inherited descriptor, not in command arguments. See the guide for build commands
+and prerequisites. The remote client is available from source; these
+synthetic tests do not qualify an OS credential store, specific MCP client,
+production deployment, or released binary. No remote HTTP MCP transport or
+remote native harness hook is provided.
 
 ## Bounded retrieval
 

@@ -9,6 +9,8 @@ const main = defineCommand({
     description: "A portable Markdown knowledge base for agents with shell and file access",
   },
   subCommands: {
+    capture: () => import("./commands/capture").then((m) => m.default),
+    remote: () => import("./commands/remote").then((m) => m.default),
     init: () => import("./commands/init").then((m) => m.default),
     doctor: () => import("./commands/doctor").then((m) => m.default),
     uninstall: () => import("./commands/uninstall").then((m) => m.default),

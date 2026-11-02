@@ -1,0 +1,8 @@
+**
+!server/
+!server/internal/
+!server/internal/acceptance/
+!server/internal/acceptance/testdata/
+!server/internal/acceptance/testdata/proxy/
+!server/internal/acceptance/testdata/proxy/main.go
+!server/internal/acceptance/testdata/proxy/proxy.go

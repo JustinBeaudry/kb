@@ -1,0 +1,11 @@
+package: memoryapi
+output: ../internal/gateway/memoryapi/client.gen.go
+generate:
+  models: true
+  client: true
+output-options:
+  skip-prune: true
+  client-type-name: HTTPClient
+compatibility:
+  always-prefix-enum-values: true
+allow-remote-refs-from: []

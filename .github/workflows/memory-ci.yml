@@ -1,0 +1,115 @@
+name: Memory service
+on:
+  pull_request:
+  push:
+    branches: [main, docs/persistent-memory-design]
+permissions:
+  contents: read
+concurrency:
+  group: memory-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  qualify-client:
+    name: Qualify client (Darwin arm64)
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: '1.27.3'
+          cache-dependency-path: server/go.sum
+      - name: Download Go fixture dependencies
+        working-directory: server
+        run: go mod download
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.3'
+      - name: Require qualified native client platform
+        run: |
+          bun -e 'if (process.platform !== "darwin" || process.arch !== "arm64") throw new Error("native capture qualification requires darwin/arm64");'
+      - run: bun install --frozen-lockfile
+      - name: Full TypeScript gate
+        run: bun run lint && bunx tsc --project deploy/tsconfig.json --noEmit && bun run test
+  qualify-server:
+    name: Qualify server (Linux amd64)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: '1.27.3'
+          cache-dependency-path: server/go.sum
+      - name: Download Go fixture dependencies
+        working-directory: server
+        run: go mod download
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.3'
+      - run: bun install --frozen-lockfile
+      - name: Generate contracts and require a clean diff
+        run: |
+          cd server
+          go generate ./...
+          cd ..
+          bun run scripts/generate-memory-api.ts
+          git diff --exit-code -- server/internal/handler/api.gen.go server/internal/gateway/memoryapi/client.gen.go src/generated/
+      - name: Go vet and lint
+        working-directory: server
+        run: go vet ./... && go tool golangci-lint run ./...
+      - name: Test-only proxy HTTP boundary
+        working-directory: server
+        run: go vet ./internal/acceptance/testdata/proxy && go tool golangci-lint run ./internal/acceptance/testdata/proxy && go test -race -timeout 2m ./internal/acceptance/testdata/proxy -count=1
+      - name: Full race and coverage gate, including real Docker restore fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd server
+          # This mixed client/server test launches the Darwin arm64-only Bun spool.
+          # Its real Darwin+Docker qualification is separate; Linux client support is not claimed.
+          go test -race -timeout 30m -covermode=atomic -coverpkg=./... -coverprofile=coverage.out -json -skip '^TestCollectorRealHTTPKillRestartAndLostAck$' ./... | tee test-results.jsonl
+          ../scripts/check-memory-coverage.sh coverage.out
+      - name: Require executed restore acceptance, never a passing skip
+        run: |
+          python3 - <<'PY'
+          import json
+          events = [json.loads(line) for line in open('server/test-results.jsonl')]
+          required = ['TestRestoreRejectsMissingEvidence', 'TestRestoreReplaysDeletionBeforeReadiness', 'TestEncryptionKeyRotationPreservesPinnedEvidence', 'TestTelemetryContainsNoFixtureSecrets', 'TestMissingModelRouteDoesNotFailReadiness']
+          for name in required:
+              matches = [e for e in events if e.get('Test') == name and e.get('Action') in ('pass', 'skip', 'fail')]
+              if not matches or any(e['Action'] != 'pass' for e in matches):
+                  raise SystemExit('required acceptance was absent or did not pass: ' + name)
+          PY
+      - name: Build actual deployment architecture
+        run: |
+          docker build --platform linux/amd64 -f deploy/Dockerfile.api -t kb-memory-api:ci .
+          docker build --platform linux/amd64 -f deploy/Dockerfile.worker -t kb-memory-worker:ci .
+          docker build --platform linux/amd64 -f deploy/Dockerfile.graph -t kb-memory-graph:ci .
+          for image in api worker graph; do
+            test "$(docker inspect -f '{{.Config.User}}' kb-memory-$image:ci)" = '7474:7474'
+          done
+          docker run --rm --entrypoint /bin/sh kb-memory-graph:ci -c 'test "$(id -u)" = 7474 && test -x /usr/local/bin/kb-admin && /var/lib/neo4j/bin/neo4j-admin --version'
+      - name: Compiled entrypoint restore acceptance
+        timeout-minutes: 50
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun run deploy/tests/fixture-objects.integration.ts
+          cd server
+          go test -race -tags acceptance -timeout 45m -json ./internal/acceptance -run '^Test(CompiledMemoryRestoreAcceptance|BackupReadability|FixtureDiagnostics)' -count=1 | tee acceptance-results.jsonl
+          python3 - <<'PYACCEPT'
+          import json
+          events = [json.loads(line) for line in open('acceptance-results.jsonl')]
+          found = [e for e in events if e.get('Test') == 'TestCompiledMemoryRestoreAcceptance' and e.get('Action') in ('pass', 'skip', 'fail')]
+          if len(found) != 1 or found[0]['Action'] != 'pass':
+              raise SystemExit('compiled restore acceptance absent, skipped, or failed')
+          PYACCEPT
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: memory-verification
+          path: |
+            server/coverage.out
+            server/test-results.jsonl
+            server/acceptance-results.jsonl
