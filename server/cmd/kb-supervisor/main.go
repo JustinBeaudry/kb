@@ -259,13 +259,10 @@ func serveSupervisor(parent context.Context) error {
 			out.BackupAgeSeconds = max(0, int64(time.Since(m.LastSuccessfulBackup).Seconds()))
 		}
 		if m.Phase == "open" {
-			seq, capacity, e := privateJournalStatus(ctx, maintenance, journal, cfg.InstanceID)
-			if e != nil {
+			if e := sampleOpenJournal(ctx, maintenance, journal, cfg.InstanceID, &out); e != nil {
 				return out, e
 			}
-			out.JournalSequence = seq
-			out.JournalCapacity = capacity
-			out.JournalCapacityWarning = capacity > 0 && seq >= capacity*9/10
+			out.HostReady = snapshot.HostReady() && out.Maintenance.Phase == "open"
 		}
 		return out, nil
 	}

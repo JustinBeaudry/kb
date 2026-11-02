@@ -49,6 +49,10 @@ type privateStatusAdmission interface {
 	Finish(context.Context, domain.OperationPermit) error
 	MarkUnknown(context.Context, domain.OperationPermit) error
 }
+type privateStatusMaintenance interface {
+	privateStatusAdmission
+	State(context.Context) (domain.MaintenanceState, error)
+}
 type privateStatusJournal interface {
 	CheckHealth(context.Context) (uint64, uint64, error)
 }
@@ -70,6 +74,26 @@ func privateJournalStatus(ctx context.Context, admission privateStatusAdmission,
 		return sequence, capacity, domain.ErrUnavailable
 	}
 	return sequence, capacity, err
+}
+
+// sampleOpenJournal samples the journal for a status that read the open phase.
+// A drain may begin before admission, which is a state to report, not a failure:
+// the refreshed phase leaves the journal unsampled like any other closed phase.
+func sampleOpenJournal(ctx context.Context, maintenance privateStatusMaintenance, journal privateStatusJournal, instance string, out *operatorStatus) error {
+	sequence, capacity, err := privateJournalStatus(ctx, maintenance, journal, instance)
+	if errors.Is(err, domain.ErrMaintenance) {
+		if current, stateErr := maintenance.State(ctx); stateErr == nil && current.Phase != "open" {
+			out.Maintenance = current
+			return nil
+		}
+	}
+	if err != nil {
+		return err
+	}
+	out.JournalSequence = sequence
+	out.JournalCapacity = capacity
+	out.JournalCapacityWarning = capacity > 0 && sequence >= capacity*9/10
+	return nil
 }
 
 func operatorCode(err error) string {

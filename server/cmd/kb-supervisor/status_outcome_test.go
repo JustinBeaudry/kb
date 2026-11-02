@@ -48,3 +48,41 @@ func TestPrivateStatusReleasesSettledReadFailure(t *testing.T) {
 	assert.True(t, admission.finished)
 	assert.False(t, admission.unknown)
 }
+
+// statusRaceFake models a drain beginning after status read the open phase.
+type statusRaceFake struct {
+	statusAdmissionFake
+	admitErr error
+	current  domain.MaintenanceState
+}
+
+func (s *statusRaceFake) Admit(ctx context.Context, instance, kind string) (domain.OperationPermit, error) {
+	if s.admitErr != nil {
+		return domain.OperationPermit{}, s.admitErr
+	}
+	return s.statusAdmissionFake.Admit(ctx, instance, kind)
+}
+func (s *statusRaceFake) State(context.Context) (domain.MaintenanceState, error) {
+	return s.current, nil
+}
+func TestPrivateStatusSamplesJournalWhileOpen(t *testing.T) {
+	maintenance := &statusRaceFake{current: domain.MaintenanceState{Phase: "open"}}
+	out := operatorStatus{Maintenance: domain.MaintenanceState{Phase: "open"}}
+	require.NoError(t, sampleOpenJournal(t.Context(), maintenance, statusJournalFake{}, "fixture", &out))
+	assert.Equal(t, uint64(9), out.JournalSequence)
+	assert.Equal(t, uint64(10000), out.JournalCapacity)
+	assert.Equal(t, "open", out.Maintenance.Phase)
+}
+func TestPrivateStatusReportsDrainThatBeganAfterOpenPhaseRead(t *testing.T) {
+	maintenance := &statusRaceFake{admitErr: domain.ErrMaintenance, current: domain.MaintenanceState{Phase: "draining", Active: 1}}
+	out := operatorStatus{Maintenance: domain.MaintenanceState{Phase: "open"}}
+	require.NoError(t, sampleOpenJournal(t.Context(), maintenance, statusJournalFake{}, "fixture", &out))
+	assert.Equal(t, "draining", out.Maintenance.Phase)
+	assert.Equal(t, 1, out.Maintenance.Active)
+	assert.Zero(t, out.JournalSequence, "a closed phase leaves the journal unsampled")
+}
+func TestPrivateStatusKeepsRefusalWhileStillOpen(t *testing.T) {
+	maintenance := &statusRaceFake{admitErr: domain.ErrMaintenance, current: domain.MaintenanceState{Phase: "open"}}
+	out := operatorStatus{Maintenance: domain.MaintenanceState{Phase: "open"}}
+	require.ErrorIs(t, sampleOpenJournal(t.Context(), maintenance, statusJournalFake{}, "fixture", &out), domain.ErrMaintenance)
+}
