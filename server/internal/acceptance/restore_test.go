@@ -219,9 +219,12 @@ func (f *compiledFixture) admin(result, input any, args ...string) {
 func (f *compiledFixture) operator(args ...string) operatorResult {
 	f.t.Helper()
 	command := []string{"exec", "-T", "graph", "/usr/local/bin/kb-runtime-entrypoint", "/usr/local/bin/kb-supervisor"}
-	out := f.compose(nil, append(command, args...)...)
+	out, err := f.composeTry(nil, append(command, args...)...)
 	var result operatorResult
-	require.NoError(f.t, json.Unmarshal(out, &result))
+	// The operator code is a closed enum, so it is safe to retain in CI logs.
+	decodeErr := json.Unmarshal(out, &result)
+	require.NoError(f.t, err, "operator command failed with code %q; private last-command-error.log contains diagnostic", result.Code)
+	require.NoError(f.t, decodeErr)
 	return result
 }
 func (f *compiledFixture) http(token, method, path string, input any) (int, []byte) {
