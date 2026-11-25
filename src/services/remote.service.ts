@@ -4,7 +4,7 @@ import type { CredentialStore } from "../capture/types";
 import { canonicalOrigin } from "../gateways/memory.gateway";
 import { renderRemoteFrame, type Applicability, type RemoteEnvelope, type RemoteScope, type RemoteStatus } from "../lib/remote-envelope";
 
-export type RemoteError = { code: "invalid_input" | "credential_unavailable" | "unauthorized" | "forbidden" | "stale" | "conflict" | "deleted" | "incomplete" | "budget" | "unavailable" };
+export type RemoteError = { code: "invalid_input" | "credential_unavailable" | "unauthorized" | "forbidden" | "stale" | "conflict" | "deleted" | "incomplete" | "budget" | "unavailable"; field?: string };
 export type RemoteResult<T> = { ok: true; value: T } | { ok: false; error: RemoteError };
 export type RetrievalInput = { scope: RemoteScope; query?: string; entity_ids?: string[]; applicability?: Applicability; budget_bytes?: number; max_depth?: number; max_visited?: number; continuation?: string; mode?: "orientation" | "evidence" | "working" };
 export type FetchInput = { id: string; locator: string; budget_bytes?: number; mode?: "publication" | "working"; project_id?: string; task_id?: string; session_id?: string; start_byte?: number; end_byte?: number; continuation?: string };

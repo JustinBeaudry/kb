@@ -1060,10 +1060,13 @@ type PolicyResultSchemaVersion string
 
 // Problem Safe problem response. Authorization failures never reveal whether a restricted record exists. Optional retry/budget metadata must preserve that boundary.
 type Problem struct {
-	Action             string      `json:"action"`
-	Code               ProblemCode `json:"code"`
-	Message            string      `json:"message"`
-	MinimumBudgetBytes *int        `json:"minimum_budget_bytes,omitempty"`
+	Action string      `json:"action"`
+	Code   ProblemCode `json:"code"`
+
+	// Field JSON pointer to the first request body property that failed schema validation. Contains schema property names or array indexes only, never submitted values.
+	Field              *string `json:"field,omitempty"`
+	Message            string  `json:"message"`
+	MinimumBudgetBytes *int    `json:"minimum_budget_bytes,omitempty"`
 
 	// RequestId Nonempty opaque identifier. Never a database elementId.
 	RequestId         OpaqueID             `json:"request_id"`
