@@ -22,3 +22,4 @@ knowledge/.kb/sessions/
 # Session captures reference local transcripts. Keep them out of the public repository.
 knowledge/sessions/
 knowledge/raw/
+docs/plans/_unredacted-local/
