@@ -2,11 +2,17 @@ package handler
 
 import (
 	"context"
+	"crypto/rand"
+	"errors"
 	"log/slog"
+	"net/http"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/JustinBeaudry/kb/server/internal/domain"
 	"github.com/JustinBeaudry/kb/server/internal/service"
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -92,7 +98,7 @@ func configuredServer(identity IdentityService, capture CaptureService, checkpoi
 		if he.Code == 404 {
 			return problem(c, domain.ErrUnavailable)
 		}
-		return problem(c, domain.ErrInvalidInput)
+		return invalidInputProblem(c, validationField(he.Internal))
 	}}))
 	impl := &IdentityHandler{identity: identity, capture: capture, checkpoints: checkpoints, memory: memory, retrieval: retrieval, policy: policy, status: status, transfer: transfer}
 	for _, opt := range opts {
@@ -180,4 +186,44 @@ func (h *IdentityHandler) GetStatus(ctx context.Context, _ GetStatusRequestObjec
 		gaps = append(gaps, "capture_unavailable")
 	}
 	return GetStatus200JSONResponse{SchemaVersion: "3", ConnectionState: StatusResultConnectionStateAvailable, AuthorizedProjectIds: p.ProjectIDs, AuthorizedCapabilities: p.Capabilities, CapabilityGaps: gaps}, nil
+}
+
+var safePointerSegment = regexp.MustCompile(`^[A-Za-z0-9_]{1,64}$`)
+
+// validationField returns the JSON pointer of the first failing request body
+// property. Segments are schema property names or array indexes; a segment that
+// is not a plain identifier (for example an attacker-chosen unknown key) drops
+// the whole pointer, so submitted text is never echoed.
+func validationField(err error) *string {
+	var request *openapi3filter.RequestError
+	if !errors.As(err, &request) || request.RequestBody == nil {
+		return nil
+	}
+	var schema *openapi3.SchemaError
+	if !errors.As(request.Err, &schema) {
+		return nil
+	}
+	segments := schema.JSONPointer()
+	if len(segments) == 0 || len(segments) > 8 {
+		return nil
+	}
+	for _, segment := range segments {
+		if !safePointerSegment.MatchString(segment) {
+			return nil
+		}
+	}
+	field := "/" + strings.Join(segments, "/")
+	return &field
+}
+
+func invalidInputProblem(c echo.Context, field *string) error {
+	p := problemFor(domain.ErrInvalidInput)
+	if field == nil {
+		return writeProblem(c, p.status, p.code, p.message, p.action)
+	}
+	id, _ := c.Get("request_id").(string)
+	if id == "" {
+		id = rand.Text()
+	}
+	return c.JSON(p.status, Problem{SchemaVersion: "3", Type: "about:blank", Title: http.StatusText(p.status), Status: p.status, Code: ProblemCode(p.code), Message: p.message, Action: "Fix the request field named in field; see the documented request schema.", RequestId: id, Runbook: "memory-operations#identity", Field: field})
 }

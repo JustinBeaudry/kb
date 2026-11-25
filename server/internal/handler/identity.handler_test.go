@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -120,6 +121,40 @@ func TestTrustedOwnerBoundaryMapsStrictIdentityDTOs(t *testing.T) {
 					assert.Equal(t, tc.success, rec.Code)
 				}
 			}
+		})
+	}
+}
+
+func TestRequestValidatorNamesFailingFieldWithoutValues(t *testing.T) {
+	e, err := NewIdentityServer(fixtureIdentity{}, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+	require.NoError(t, err)
+	for _, tc := range []struct {
+		name, body, field string
+	}{
+		{"missing required", `{"id":"client","project_ids":["demo"],"capabilities":["status:read"]}`, "/role"},
+		{"bad enum", `{"id":"client","role":"root-SECRET-VALUE","project_ids":["demo"],"capabilities":["status:read"]}`, "/role"},
+		{"unknown property has no schema pointer", `{"id":"client","role":"agent","project_ids":["demo"],"capabilities":["status:read"],"origin":{"trust":"owner_authenticated"}}`, ""},
+		{"unsafe key is not echoed", `{"id":"client","role":"agent","project_ids":["demo"],"capabilities":["status:read"],"x<script>":1}`, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/v1/clients", strings.NewReader(tc.body))
+			req.Header.Set("Authorization", "Bearer fixture-secret")
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			e.ServeHTTP(rec, req)
+			require.Equal(t, http.StatusBadRequest, rec.Code)
+			var problem Problem
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &problem))
+			assert.Equal(t, ProblemCode("invalid_input"), problem.Code)
+			if tc.field == "" {
+				assert.Nil(t, problem.Field)
+			} else {
+				require.NotNil(t, problem.Field)
+				assert.Equal(t, tc.field, *problem.Field)
+			}
+			assert.NotContains(t, rec.Body.String(), "SECRET-VALUE")
+			assert.NotContains(t, rec.Body.String(), "<script>")
+			assert.NotContains(t, rec.Body.String(), "owner_authenticated")
 		})
 	}
 }
