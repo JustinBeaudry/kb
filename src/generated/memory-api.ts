@@ -340,6 +340,8 @@ export type Problem = {
   runbook: string;
   retry_after_seconds?: number;
   minimum_budget_bytes?: number;
+  /** JSON pointer to the first request body property that failed schema validation. Contains schema property names or array indexes only, never submitted values. */
+  field?: string;
 };
 
 /** Maximum 4096 complete HTTP JSON bytes, depth 2 and 50 visited records. CLI length-prefixed and MCP framed encodings each have their own complete-wire accounting. Defaults to orientation mode; working mode remains task-scoped. */
