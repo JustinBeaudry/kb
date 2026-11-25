@@ -40,7 +40,7 @@ func TestFirstCandidateHTTPMatchesCompiledFixture(t *testing.T) {
 	memory := service.NewMemoryService(store, repository.NewMemoryRepository(store), auth, evidence, capture)
 	retrieval, err := service.NewRetrievalService(store, auth, checkpoints, evidence, objects, bytes.Repeat([]byte{7}, 32))
 	require.NoError(t, err)
-	router, err := handler.NewServer(identity, capture, service.NewCheckpointService(store, checkpoints, auth), memory, retrieval, service.NewPolicyService(store, evidence, auth), service.NewStatusService(store, auth), slog.New(slog.NewJSONHandler(io.Discard, nil)))
+	router, err := handler.NewServer(identity, capture, service.NewCheckpointService(store, checkpoints, auth), memory, retrieval, service.NewPolicyService(store, evidence, auth), service.NewStatusService(store, auth), nil, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 	require.NoError(t, err)
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)

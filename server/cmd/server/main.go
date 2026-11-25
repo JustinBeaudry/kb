@@ -196,8 +196,16 @@ func composeRuntime(ctx context.Context, cfg platform.Config, key []byte, object
 	if err != nil {
 		return nil, err
 	}
-	status := service.NewStatusService(store, retrievalRepo)
-	e, err := handler.NewServer(service.NewIdentityService(store, repository.NewIdentityRepository(store), gateway.NostrIdentity{}), capture, checkpoints, memory, retrieval, service.NewPolicyService(store, evidenceRepo, retrievalRepo), status, logger)
+	modelConfig, err := platform.LoadModelConfig()
+	if err != nil {
+		return nil, err
+	}
+	status := service.NewStatusService(store, retrievalRepo).WithDreaming(repository.NewFindingsRepository(store), service.NewModelBudgetService(store, repository.NewModelBudgetRepository(store), modelConfig.DailyCapMicroUSD, time.Now))
+	transfer, err := service.NewTransferService(store, repository.NewTransferRepository(store), retrievalRepo, key)
+	if err != nil {
+		return nil, err
+	}
+	e, err := handler.NewServer(service.NewIdentityService(store, repository.NewIdentityRepository(store), gateway.NostrIdentity{}), capture, checkpoints, memory, retrieval, service.NewPolicyService(store, evidenceRepo, retrievalRepo), status, transfer, logger, handler.WithDecisions(service.NewDecisionService(store, repository.NewDecisionRepository(store), repository.NewVerificationRepository(store), evidenceRepo, repository.NewIdentityRepository(store), nil, gateway.NostrVerifier{}, time.Now)))
 	if err != nil {
 		return nil, err
 	}

@@ -23,8 +23,17 @@ var Memory string
 //go:embed 006_verification.cypher
 var Verification string
 
+//go:embed 007_decisions.cypher
+var Decisions string
+
+//go:embed 008_dreaming.cypher
+var Dreaming string
+
 //go:embed 009_lifecycle.cypher
 var Lifecycle string
+
+//go:embed 010_lessons.cypher
+var Lessons string
 
 // SupersedeBackfill retires verified project revisions that predate automatic
 // supersession, keeping the newest published revision of each claim verified.

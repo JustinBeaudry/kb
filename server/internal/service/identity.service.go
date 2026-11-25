@@ -184,7 +184,7 @@ func validateEnrollment(input EnrollInput) error {
 	var allowed []string
 	switch input.Role {
 	case domain.RoleAgent:
-		allowed = []string{"policy:read", "status:read", "retrieval:read", "evidence:read", "candidate:write", "checkpoint:write"}
+		allowed = []string{"policy:read", "status:read", "retrieval:read", "evidence:read", "candidate:write", "checkpoint:write", "memory:export"}
 	case domain.RoleCollector:
 		allowed = []string{"policy:read", "status:read", "events:append", "artifacts:write"}
 	case domain.RoleVerifier:

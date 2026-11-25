@@ -157,6 +157,31 @@ func (b *telemetryBody) Close() error {
 	return err
 }
 
+// RecordGeneration is the LLM gateway's instrumentation sink. It records route,
+// model, policy revision, token counts and cost with explicit known flags;
+// unknown values are omitted rather than reported as zero. Prompts and outputs
+// never reach telemetry.
+func (t *Telemetry) RecordGeneration(ctx context.Context, r domain.GenerationRecord) {
+	outcome := r.Outcome
+	if !oneOf(outcome, "ok", "unavailable", "rejected", "incomplete", "malformed") {
+		outcome = "unavailable"
+	}
+	start := time.Now().Add(-r.Duration)
+	_, span := t.tracer.Start(ctx, "model_generation", trace.WithTimestamp(start))
+	attrs := []attribute.KeyValue{attribute.String("route", r.Route), attribute.String("model", r.Model), attribute.String("policy_revision", r.PolicyRevision), attribute.String("outcome", outcome), attribute.Bool("tokens_known", r.Usage.TokensKnown), attribute.Bool("cost_known", r.Usage.CostKnown)}
+	if r.Usage.TokensKnown {
+		attrs = append(attrs, attribute.Int64("tokens", r.Usage.Tokens))
+	}
+	if r.Usage.CostKnown {
+		attrs = append(attrs, attribute.Int64("cost_micro_usd", r.Usage.CostMicroUSD))
+	}
+	span.SetAttributes(attrs...)
+	if outcome != "ok" {
+		span.SetStatus(codes.Error, outcome)
+	}
+	span.End()
+}
+
 // A closed schema, including With/WithGroup, avoids relying on every caller to
 // remember redaction. Unknown attributes and arbitrary messages are discarded.
 type safeLogHandler struct {
@@ -169,7 +194,7 @@ func (h *safeLogHandler) Enabled(ctx context.Context, l slog.Level) bool {
 }
 func (h *safeLogHandler) Handle(ctx context.Context, r slog.Record) error {
 	message := r.Message
-	if !oneOf(message, "telemetry_export_failed", "http_request", "job_lease_lost", "job_failed", "worker_stopped", "server_stopped", "capture_reconciliation_incomplete", "supervisor_stopped", "backup_completed", "backup_failed", "restore_failed", "maintenance_closed") {
+	if !oneOf(message, "telemetry_export_failed", "http_request", "job_lease_lost", "job_failed", "worker_stopped", "server_stopped", "capture_reconciliation_incomplete", "supervisor_stopped", "backup_completed", "backup_failed", "backup_schedule_unsaved", "restore_failed", "maintenance_closed") {
 		message = "event"
 	}
 	cleaned := slog.NewRecord(r.Time, r.Level, message, r.PC)

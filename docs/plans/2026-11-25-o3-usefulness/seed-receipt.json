@@ -1,0 +1,259 @@
+{
+  "api_url_redacted": "http://127.0.0.1:<port>",
+  "policy_revision": "o3-policy-1",
+  "projects": {
+    "atlas-api": {
+      "collector": "o3-collector-atlas-api-s2",
+      "seeder": "o3-seeder-atlas-api-s2",
+      "solver": "o3-solver-atlas-api-s2",
+      "solver_capabilities": "status:read,retrieval:read,evidence:read"
+    },
+    "birch-pipeline": {
+      "collector": "o3-collector-birch-pipeline-s2",
+      "seeder": "o3-seeder-birch-pipeline-s2",
+      "solver": "o3-solver-birch-pipeline-s2",
+      "solver_capabilities": "status:read,retrieval:read,evidence:read"
+    }
+  },
+  "records": [
+    {
+      "id": "atlas-webhook-queue",
+      "project": "atlas-api",
+      "status": "verified",
+      "revisions": [
+        {
+          "revision": 1,
+          "artifact_id": "0963a96da106cd0cdda63ed4541e7c06453c98a67bbd9b53f40d4b09f3d355ea",
+          "digest": "2595e5bb32c1636bfa8fb6d34fee2b01c4ba122e32b03b558f5c2cdcc8538405",
+          "candidate_revision": "NURV7QNPW5KPLRJRKO3N2SDEWJ",
+          "status": "verified",
+          "target_revision": "LJFTHFNXVBL4Y26ZNXJAD2OKQA"
+        },
+        {
+          "revision": 2,
+          "artifact_id": "ecb7de56ff7315f6d8171caede52b5153eea5d7eb48e58f2446e3226921b7aac",
+          "digest": "4ab455998a1025bbe21431389501f5bb6ec09d0ec48bd153f278813666b144c2",
+          "candidate_revision": "23INOBLS7UD6D2QISGDHXDPVJF",
+          "status": "verified",
+          "target_revision": "BRCMFQVUW3FG4UNLEP62ZEG5LX"
+        }
+      ]
+    },
+    {
+      "id": "atlas-migration-lock",
+      "project": "atlas-api",
+      "status": "verified",
+      "revisions": [
+        {
+          "revision": 1,
+          "artifact_id": "3c92f494ce01fb1ee9edd638599ea126b72e29d7f0dc5f7248c3f62111a4ddeb",
+          "digest": "3a90c8142f7444b9cc7dba838b8a3833687608c308c61f93a6781a65aa6f6e1b",
+          "candidate_revision": "4MNHK6MLMGAYC52UTLPQ3MTG7D",
+          "status": "verified",
+          "target_revision": "MUPLIKHVUCPBOGSPUUIM5OYO27"
+        }
+      ]
+    },
+    {
+      "id": "atlas-latency-slo-platform",
+      "project": "atlas-api",
+      "status": "verified",
+      "revisions": [
+        {
+          "revision": 1,
+          "artifact_id": "09b1146d1403feeaf9a58bda7c5f3548f7fd12552be12063a105cb5e2e26e282",
+          "digest": "9d7abbe6831bb3a2182ad0fc5533db3bd5eaa33d4baf95a8b22044451ca4a228",
+          "candidate_revision": "XODAI62VDEHPAJ54SZT4M442JW",
+          "status": "verified",
+          "target_revision": "H72QSM7E3ZL3YM6JIXJMMG67CQ"
+        }
+      ]
+    },
+    {
+      "id": "atlas-latency-slo-product",
+      "project": "atlas-api",
+      "status": "verified",
+      "revisions": [
+        {
+          "revision": 1,
+          "artifact_id": "6e0644b8bc0336a896b88483fec1309fb053b7c1ed5ca11a57277805838c09c7",
+          "digest": "7facaf8b2cd847f6294a39a84c2389206df2c22ab8293c41f47b7574aa5d8344",
+          "candidate_revision": "QPQNA7RCQYRRUDVEZKXRSJHZUB",
+          "status": "verified",
+          "target_revision": "QWS7RWT6LVJOLOH5ZIVNCVQ7XP"
+        }
+      ]
+    },
+    {
+      "id": "atlas-deploy-approval",
+      "project": "atlas-api",
+      "status": "verified",
+      "revisions": [
+        {
+          "revision": 1,
+          "artifact_id": "23ead9d85f91cae405ee6869aa823307ebe405389593dc7786d8d89d8a72080e",
+          "digest": "a0d4421bcef035c6449a52c98ac811acfa8e6e74a2634ac7c4c44663663932f1",
+          "candidate_revision": "6CHS6LK7JQFF4HZIB6TCH6JTE5",
+          "status": "verified",
+          "target_revision": "4N2O6SZOTTZFKTNKC4DZRIZDQO"
+        }
+      ]
+    },
+    {
+      "id": "atlas-rate-limit",
+      "project": "atlas-api",
+      "status": "verified",
+      "revisions": [
+        {
+          "revision": 1,
+          "artifact_id": "d18188d620508cdf05a4a06f4c64e302c555578e3586c1e913a164a79deeb7d4",
+          "digest": "de89a8b83bee2e5592e97ca186297c24e08c0c742e483df9886f7e6cec325f7a",
+          "candidate_revision": "JKWX66UR2UDQQVVDBKORQSIYHC",
+          "status": "verified",
+          "target_revision": "2MSVOKCZNPVLTOELZAQNJJOI5M"
+        }
+      ]
+    },
+    {
+      "id": "atlas-rate-limit-proposal",
+      "project": "atlas-api",
+      "status": "candidate",
+      "revisions": [
+        {
+          "revision": 1,
+          "artifact_id": "2721fd01aed344467937a28aad237199e3d5f799f501ceb9b370558b4f7b67fe",
+          "digest": "fc82d23e49889163c88d790284cbacda9212d3d3f959255638ab2ccfd710bea7",
+          "candidate_revision": "SOLQEKE3XCOYSSLQFCWERGPPHE",
+          "status": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "atlas-key-rotation",
+      "project": "atlas-api",
+      "status": "verified",
+      "revisions": [
+        {
+          "revision": 1,
+          "artifact_id": "30604b6e659cd04cccf94c66d0d393165e6e8d890a0a27665df96eced1645467",
+          "digest": "f2157f932a7eaaf9e2fd87baa3d2a1a953c154441c9155bd5288a880be2abf2d",
+          "candidate_revision": "SXKHKJ7TICMF5GXR42QN5IYDKM",
+          "status": "verified",
+          "target_revision": "MKTNSTBHA3WI2VCMQVOY7MQRSO"
+        }
+      ]
+    },
+    {
+      "id": "birch-nightly-batch",
+      "project": "birch-pipeline",
+      "status": "verified",
+      "revisions": [
+        {
+          "revision": 1,
+          "artifact_id": "0bc686836c7417d63c9a64057e7749c906f53c686bd43d661b8385b0d86c311d",
+          "digest": "7571637d464f187bc1c9b47de6a6af5519e7324ae3094c57ce8cd817ed59fabb",
+          "candidate_revision": "Y3D4NUFQ5S5QANL4JATY3XXT2X",
+          "status": "verified",
+          "target_revision": "YCV4XCYSBR46E4GEJGPG4LLOPI"
+        }
+      ]
+    },
+    {
+      "id": "birch-batch-proposal",
+      "project": "birch-pipeline",
+      "status": "candidate",
+      "revisions": [
+        {
+          "revision": 1,
+          "artifact_id": "6ad02d98441a4c4e0aa0f681d6bddbe71993347ab350c5df53a65ee102b6b883",
+          "digest": "de06c16e9bbef7dce066d2a429fe8e36fb0ccf42e97f73851ae41266d5bb0f0a",
+          "candidate_revision": "BV47QP2FZNQYY3VRHLKTY2VNBX",
+          "status": "candidate"
+        }
+      ]
+    },
+    {
+      "id": "birch-escalation-owner",
+      "project": "birch-pipeline",
+      "status": "verified",
+      "revisions": [
+        {
+          "revision": 1,
+          "artifact_id": "26442b4fa6f02236d8591db57ddb7f0b3569d2baa575744f820bcd5a22a0bcac",
+          "digest": "0cf0e9c1f557febcb6ed55e44dd225609e7b20e41158109a9fdea1dae8de63b9",
+          "candidate_revision": "SJPR42CHO475PMDB5FP35EGPDT",
+          "status": "verified",
+          "target_revision": "TGKFJCQLPA5RBHNQ66SVJK2U53"
+        }
+      ]
+    },
+    {
+      "id": "birch-raw-retention",
+      "project": "birch-pipeline",
+      "status": "verified",
+      "revisions": [
+        {
+          "revision": 1,
+          "artifact_id": "a9f8f9aa1424784e261292b8507ba2381f99a845ace6bd054956eec3cbe2e9a5",
+          "digest": "2fa47dbe635c55eada3e5f6169ca329e3acf7bd5fcae75527fad2f80e78ce205",
+          "candidate_revision": "ZECFFTMYV6ZHEVPD6JCK7BSHR5",
+          "status": "verified",
+          "target_revision": "ZT5VT2QHFGZCFEQMYXOKOBCFVI"
+        }
+      ]
+    },
+    {
+      "id": "birch-dedupe-key",
+      "project": "birch-pipeline",
+      "status": "verified",
+      "revisions": [
+        {
+          "revision": 1,
+          "artifact_id": "f447ea1ce2c4b51d9dc060110b34f3b362b9ada884aa7bd556e4cba555a5e475",
+          "digest": "61e9f38b9d7900d5a8c51f97d4824d2313b4ba51793bcec115713d907a2fa0c6",
+          "candidate_revision": "MUPGDATVC4BQV5DD6TB5XSYEIE",
+          "status": "verified",
+          "target_revision": "LNTBILMDFHZLTIDSMPQO7ZON6N"
+        },
+        {
+          "revision": 2,
+          "artifact_id": "fe2feef78ec42b0e8bae5fe05b25c559e5eee6973501490c8e43119c7dd8dbba",
+          "digest": "5ff363ac86ca25bc629f7786c506e97c1d41a45205ada7b176ec05faf28b921f",
+          "candidate_revision": "65R54TGWI7ZRO4BJTRT2LFKEPS",
+          "status": "verified",
+          "target_revision": "Y2APIFBLO6BEEPMUVEZRMQJZ5X"
+        }
+      ]
+    },
+    {
+      "id": "birch-schema-signoff",
+      "project": "birch-pipeline",
+      "status": "verified",
+      "revisions": [
+        {
+          "revision": 1,
+          "artifact_id": "541440df0e166dcb3917412e44a93657a84ffca94b3dd4c67d44812843c31986",
+          "digest": "f29389cb597411377ab4284cc120d5ec8d5b5e7b4d67e53cbb9878ac62880326",
+          "candidate_revision": "Q5J6NKWHSHFLW6BHLGPZYQBMO7",
+          "status": "verified",
+          "target_revision": "YTQV6YCXUG6M3RBGCTAC4Y2SJP"
+        }
+      ]
+    },
+    {
+      "id": "birch-backfill-window",
+      "project": "birch-pipeline",
+      "status": "verified",
+      "revisions": [
+        {
+          "revision": 1,
+          "artifact_id": "80b47ed3500e3505785edeee288c7221a2dcb69f49542368ff9e5fba545f94f8",
+          "digest": "2c14f56e57d094706e451e9478fa2f7c1c468b65969940891cb495b081829c49",
+          "candidate_revision": "JMOMCX7R3NRC4JC35NHAEKDD54",
+          "status": "verified",
+          "target_revision": "GGI77G7AZ63ZGA32ASMF32JW2B"
+        }
+      ]
+    }
+  ]
+}

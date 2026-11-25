@@ -15,6 +15,9 @@ export type OriginTrust = "submitted" | "collector_attested" | "gateway_observed
 
 export type VerificationOutcome = "supported" | "unsupported" | "ambiguous";
 
+/** How a supported verification was reached. An owner judgment is never relabeled as an empirical check. */
+export type VerificationMethod = "owner_adjudicated" | "evidence_policy" | "lesson_policy";
+
 export type Completeness = "complete" | "partial" | "withheld";
 
 export type RetrievalMode = "orientation" | "evidence" | "working";
@@ -210,6 +213,7 @@ export type EvidenceChunk = {
   claim_status: ClaimStatus;
   origin_trust: OriginTrust;
   verification_outcome?: VerificationOutcome;
+  verification_method?: VerificationMethod;
   evidence: EvidenceRef[];
   warnings: string[];
   /** Conditions of the independently verified/public target; hidden source/support applicability is never projected here. */
@@ -277,7 +281,7 @@ export type ClientInput = {
   id: OpaqueID;
   role: "collector" | "agent" | "verifier";
   project_ids: OpaqueID[];
-  capabilities: ("status:read" | "retrieval:read" | "evidence:read" | "candidate:write" | "checkpoint:write" | "events:append" | "artifacts:write" | "verification:write" | "policy:read")[];
+  capabilities: ("status:read" | "retrieval:read" | "evidence:read" | "candidate:write" | "checkpoint:write" | "events:append" | "artifacts:write" | "verification:write" | "policy:read" | "memory:export")[];
 };
 
 export type Client = {
@@ -305,15 +309,27 @@ export type DeletionInput = {
   idempotency_key: OpaqueID;
 };
 
+/** Read-only, resumable export page. Every page re-authorizes the caller and every record against current grants, epochs, and deletion tombstones. */
 export type ExportInput = {
   scope: Scope;
-  idempotency_key: OpaqueID;
+  /** Opaque authenticated resume cursor from the previous page. Bound to the requesting client and scope. */
+  continuation?: string;
 };
 
 export type JobResult = {
   schema_version: "3";
   id: OpaqueID;
   state: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+};
+
+/** Owner-only background dreaming state. Absent for other clients. Unknown model spend is never reported as zero: unreconciled reservations remain counted at their worst case in committed_micro_usd. */
+export type DreamingStatus = {
+  state: "unconfigured" | "available" | "pending" | "budget_exhausted";
+  pending_jobs: number;
+  reason_codes: string[];
+  daily_cap_micro_usd: number;
+  committed_micro_usd: number;
+  unreconciled_reservations: number;
 };
 
 export type StatusResult = {
@@ -325,6 +341,7 @@ export type StatusResult = {
   authorized_capabilities: string[];
   /** Enforced upper bound on every claim and checkpoint revision this server issues (currently 64). Clients must not attempt writes when it is absent (older servers) or exceeds their own limit. */
   max_revision_bytes?: number;
+  dreaming?: DreamingStatus;
 };
 
 /** Safe problem response. Authorization failures never reveal whether a restricted record exists. Optional retry/budget metadata must preserve that boundary. */
@@ -340,6 +357,8 @@ export type Problem = {
   runbook: string;
   retry_after_seconds?: number;
   minimum_budget_bytes?: number;
+  /** JSON pointer to the first request body property that failed schema validation. Contains schema property names or array indexes only, never submitted values. */
+  field?: string;
 };
 
 /** Maximum 4096 complete HTTP JSON bytes, depth 2 and 50 visited records. CLI length-prefixed and MCP framed encodings each have their own complete-wire accounting. Defaults to orientation mode; working mode remains task-scoped. */
@@ -389,6 +408,18 @@ export type Passage = {
   start_byte: number;
   end_byte: number;
   source_bytes: number;
+};
+
+export type ExportResult = {
+  schema_version: "3";
+  scope: Scope;
+  /** Authorized claim revisions with stored status and evidence provenance. Status and origin are reported, never upgraded; an importer must resubmit them as candidates. */
+  claims: ClaimRevision[];
+  /** Records on this page withheld because they are unauthorized, deleted, or their evidence is unavailable. Never identifies them. */
+  omitted: number;
+  completeness: Completeness;
+  /** Present when more pages remain. */
+  continuation?: string;
 };
 
 export type FetchEvidenceQuery = {

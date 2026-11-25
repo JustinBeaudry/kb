@@ -1,0 +1,15 @@
+{
+  "trial": "8ef28cc3c8",
+  "task": "T2",
+  "arm": "local",
+  "final": "```json\n{\"answer\": \"The Atlas API per-tenant rate limit is 600 requests per minute.\", \"evidence\": [\"wiki/atlas-rate-limit.md (lines 1-17, status: verified, Trust: \\\"Owner-verified: the owner reviewed this record against its source.\\\"): \\\"The Atlas API per-tenant rate limit is 600 requests per minute.\\\"\", \"wiki/atlas-rate-limit-proposal.md (lines 1-17, status: candidate): \\\"Session note 2026-11-18: the Atlas per-tenant rate limit should be raised to 900 requests per minute.\\\" (unverified, not used as the answer)\"], \"trust_notes\": \"The 600 req/min figure comes from the owner-verified page wiki/atlas-rate-limit.md, which is the current record. The 900 req/min figure is in wiki/atlas-rate-limit-proposal.md, an unverified candidate session note from an agent that the owner has not reviewed; it conflicts with the verified value and is a proposal, not a confirmed change. I did not treat it as current. No superseded section was present in the verified page.\", \"limitations\": \"The KB only records the number and does not say what counts as a request, the time window granularity, or whether limits differ by plan. The map search returned no results; the answer came from a keyword recall and a direct get of the page by slug. The vault has no record of whether the proposed raise to 900 was approved or applied, so the live configuration could differ from this record.\"}\n```",
+  "parsed": {
+    "answer": "The Atlas API per-tenant rate limit is 600 requests per minute.",
+    "evidence": [
+      "wiki/atlas-rate-limit.md (lines 1-17, status: verified, Trust: \"Owner-verified: the owner reviewed this record against its source.\"): \"The Atlas API per-tenant rate limit is 600 requests per minute.\"",
+      "wiki/atlas-rate-limit-proposal.md (lines 1-17, status: candidate): \"Session note 2026-11-18: the Atlas per-tenant rate limit should be raised to 900 requests per minute.\" (unverified, not used as the answer)"
+    ],
+    "trust_notes": "The 600 req/min figure comes from the owner-verified page wiki/atlas-rate-limit.md, which is the current record. The 900 req/min figure is in wiki/atlas-rate-limit-proposal.md, an unverified candidate session note from an agent that the owner has not reviewed; it conflicts with the verified value and is a proposal, not a confirmed change. I did not treat it as current. No superseded section was present in the verified page.",
+    "limitations": "The KB only records the number and does not say what counts as a request, the time window granularity, or whether limits differ by plan. The map search returned no results; the answer came from a keyword recall and a direct get of the page by slug. The vault has no record of whether the proposed raise to 900 was approved or applied, so the live configuration could differ from this record."
+  }
+}

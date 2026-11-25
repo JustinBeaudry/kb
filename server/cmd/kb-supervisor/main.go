@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"io"
 	"net/http"
@@ -217,6 +218,12 @@ func serveSupervisor(parent context.Context) error {
 	if err != nil {
 		return err
 	}
+	// Successful scheduled backups leave RPO evidence in provider logs: the gap
+	// since the previous snapshot and the run duration, never identifiers.
+	logBackupEvidence := func(e platform.BackupEvidence) {
+		logger.Info("backup_completed", "backup_age_seconds", int64(e.RecoveryPointGap/time.Second), "duration_ms", e.Duration.Milliseconds())
+	}
+	scheduler.OnComplete(logBackupEvidence)
 	adminExecutor, err := gateway.NewHostAdminProcessExecutor("/usr/local/bin/kb-admin", maintenance)
 	if err != nil {
 		return err
@@ -279,7 +286,9 @@ func serveSupervisor(parent context.Context) error {
 	server := &http.Server{Addr: cfg.ControlAddress, Handler: telemetry.HTTPMiddleware(mux), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}
 	results := make(chan error, 3)
 	go func() { results <- adminServer.Serve(ctx) }()
-	go func() { results <- serveOperator(ctx, operatorListener, backup, status) }()
+	go func() {
+		results <- serveOperator(ctx, operatorListener, evidenceRunner{operatorRunner: backup, state: maintenance, observe: logBackupEvidence}, status)
+	}()
 	go func() { results <- server.ListenAndServe() }()
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
@@ -315,7 +324,9 @@ func serveSupervisor(parent context.Context) error {
 				work, stop := context.WithTimeout(ctx, 4*time.Hour)
 				e = scheduler.Tick(work)
 				stop()
-				if e != nil {
+				if errors.Is(e, platform.ErrScheduleNotSaved) {
+					logger.Error("backup_schedule_unsaved", "reason", "unavailable")
+				} else if e != nil {
 					logger.Error("backup_failed", "reason", "unavailable")
 				}
 			}

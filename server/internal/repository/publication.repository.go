@@ -86,19 +86,53 @@ func (r *PublicationRepository) SupersedePrevious(ctx context.Context, tx domain
 	return err
 }
 func (r *PublicationRepository) PutPublication(ctx context.Context, tx domain.Tx, p domain.Publication) error {
-	if p.SharingScope != "project" || len(p.SupportRevisions) < 1 || len(p.SupportRevisions) > 1000 {
+	cross := p.SharingScope == domain.SharingCrossProject
+	if (p.SharingScope != domain.SharingProject && !cross) || len(p.SupportRevisions) < 1 || len(p.SupportRevisions) > 1000 || cross != (p.GeneralizedText != "") {
 		return domain.ErrInvalidInput
 	}
 	data, err := json.Marshal(p)
 	if err != nil {
 		return domain.ErrInvalidInput
 	}
-	rows, err := r.query(ctx, tx, `MATCH (c:ClaimRevision {id:$target}) CREATE (p:Publication {id:$id,claimRevision:$target,revision:$revision,policyRevision:$policy,sharingScope:'project',valid:true,supportRevisions:$support,data:$data}) CREATE (p)-[:PUBLISHES]->(c) RETURN p.id`, map[string]any{"id": p.ID, "target": p.ClaimRevision, "revision": p.Revision, "policy": p.PolicyRevision, "support": p.SupportRevisions, "data": string(data)})
+	params := map[string]any{"id": p.ID, "target": p.ClaimRevision, "revision": p.Revision, "policy": p.PolicyRevision, "scope": p.SharingScope, "support": p.SupportRevisions, "data": string(data), "generalized": p.GeneralizedText}
+	// A cross-project publication is created only over its own lesson text.
+	rows, err := r.query(ctx, tx, `MATCH (c:ClaimRevision {id:$target}) WHERE $scope='project' OR (c.kind='lesson' AND c.text=$generalized) CREATE (p:Publication {id:$id,claimRevision:$target,revision:$revision,policyRevision:$policy,sharingScope:$scope,valid:true,supportRevisions:$support,data:$data}) SET p.generalizedText=CASE WHEN $scope='cross_project' THEN $generalized ELSE null END CREATE (p)-[:PUBLISHES]->(c) RETURN p.id`, params)
 	if err != nil {
 		return err
 	}
 	if len(rows) != 1 {
 		return domain.ErrIncomplete
+	}
+	return nil
+}
+
+// PutLesson writes a separate project-scoped lesson revision. It copies no
+// evidence or entity references; support is bound only through DEPENDS_ON to
+// currently verified, valid, undeleted revisions in the same project.
+func (r *PublicationRepository) PutLesson(ctx context.Context, tx domain.Tx, c domain.ClaimRevision, expected string) error {
+	if c.Kind != domain.KindLesson || c.Scope != (domain.Scope{ProjectID: c.Scope.ProjectID}) || c.Scope.ProjectID == "" || c.Status != domain.ClaimVerified || len(c.Evidence) != 0 || len(c.EntityIDs) != 0 || len(c.DependsOn) == 0 {
+		return domain.ErrInvalidInput
+	}
+	data, err := json.Marshal(c)
+	if err != nil {
+		return domain.ErrInvalidInput
+	}
+	rows, err := r.query(ctx, tx, `MERGE (h:Claim {id:$claim}) WITH h OPTIONAL MATCH (h)-[old:HEAD]->(previous:ClaimRevision) WITH h,old,previous WHERE coalesce(previous.id,'')=$expected AND NOT EXISTS {MATCH (:Tombstone {id:$claim})} DELETE old CREATE (c:ClaimRevision {id:$id,claimID:$claim,data:$data,status:'verified',valid:true,projectID:$project,taskID:'',clientID:'',text:$text,kind:'lesson',dependencyProjectionVersion:1}) CREATE (h)-[:HEAD]->(c) RETURN c.id`, map[string]any{"id": c.Revision, "claim": c.ClaimID, "data": string(data), "project": c.Scope.ProjectID, "text": c.Text, "expected": expected})
+	if err != nil {
+		return err
+	}
+	if len(rows) != 1 {
+		return domain.ErrConflict
+	}
+	rows, err = r.query(ctx, tx, `MATCH (c:ClaimRevision {id:$id}) UNWIND $deps AS dependency MATCH (d:ClaimRevision {id:dependency}) WHERE d.projectID=$project AND d.valid=true AND d.status='verified' AND NOT EXISTS {MATCH (:Tombstone {id:d.id})} AND NOT EXISTS {MATCH (:Tombstone {id:d.claimID})} MERGE (c)-[:DEPENDS_ON]->(d) RETURN count(d)`, map[string]any{"id": c.Revision, "deps": c.DependsOn, "project": c.Scope.ProjectID})
+	if err != nil {
+		return err
+	}
+	if len(rows) != 1 {
+		return domain.ErrUnavailable
+	}
+	if n, ok := rows[0].Values[0].(int64); !ok || n != int64(len(c.DependsOn)) {
+		return domain.ErrDeleted
 	}
 	return nil
 }

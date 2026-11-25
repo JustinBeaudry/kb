@@ -1,0 +1,85 @@
+{
+  "id": "6efea2e725",
+  "started": "2026-11-25T16:57:09.877Z",
+  "ended": "2026-11-25T16:57:20.591Z",
+  "wall_ms": 10714,
+  "exit_code": 0,
+  "timed_out": false,
+  "result_subtype": "success",
+  "is_error": false,
+  "model": "claude-haiku-5-5",
+  "tools_offered": [
+    "Bash"
+  ],
+  "num_turns": 5,
+  "usage": {
+    "input_tokens": 10,
+    "cache_creation_input_tokens": 15030,
+    "cache_read_input_tokens": 55198,
+    "output_tokens": 1646,
+    "output_tokens_details": {
+      "thinking_tokens": 495
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 15030,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 781,
+        "cache_read_input_tokens": 18461,
+        "cache_creation_input_tokens": 706,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 706
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 10,
+      "outputTokens": 1646,
+      "cacheReadInputTokens": 55198,
+      "cacheCreationInputTokens": 15030,
+      "webSearchRequests": 0,
+      "costUSD": 0.004381980000000001,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 495,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 15030,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "cost_usd": 0.004381980000000001,
+  "permission_denials": [],
+  "final_text": "{\"answer\": \"No. The Larch Pilot is no longer on November 12, 2026. The current approved schedule is November 26, 2026. The October 23, 2026 decision superseded the November 12 target, and the stated reason is to allow completion of certificate renewal. The public launch date is undecided. The archive page says the original target was November 12, 2026, under a section headed 'October 5 decision', and that this target was superseded by the October 23 decision.\", \"citations\": [{\"source\": \"wiki/larch-release.md\", \"start\": 11, \"end\": 14}, {\"source\": \"wiki/larch-archive.md\", \"start\": 11, \"end\": 13}], \"limitations\": \"Only the Larch Pilot page (wiki/larch-release.md, updated 2026-10-24) and the Larch Archive page were read. No later change after October 24 was found, but I did not search for one beyond the 'larch' term search. The archive's heading ties the original November 12 target to an 'October 5 decision', but the body does not say what the October 5 decision itself decided. Larch-Sandbox (November 23 target, changed March 9, 2027) and Larch-Legacy (December 3 target) are separate entities and were not used. Search output was truncated, so a page mentioning the Larch pilot outside the names I saw could have been missed.\"}",
+  "parsed_ok": true,
+  "answer": "No. The Larch Pilot is no longer on November 12, 2026. The current approved schedule is November 26, 2026. The October 23, 2026 decision superseded the November 12 target, and the stated reason is to allow completion of certificate renewal. The public launch date is undecided. The archive page says the original target was November 12, 2026, under a section headed 'October 5 decision', and that this target was superseded by the October 23 decision.",
+  "citations": [
+    {
+      "source": "wiki/larch-release.md",
+      "start": 11,
+      "end": 14
+    },
+    {
+      "source": "wiki/larch-archive.md",
+      "start": 11,
+      "end": 13
+    }
+  ],
+  "limitations": "Only the Larch Pilot page (wiki/larch-release.md, updated 2026-10-24) and the Larch Archive page were read. No later change after October 24 was found, but I did not search for one beyond the 'larch' term search. The archive's heading ties the original November 12 target to an 'October 5 decision', but the body does not say what the October 5 decision itself decided. Larch-Sandbox (November 23 target, changed March 9, 2027) and Larch-Legacy (December 3 target) are separate entities and were not used. Search output was truncated, so a page mentioning the Larch pilot outside the names I saw could have been missed."
+}

@@ -1,0 +1,90 @@
+{
+  "id": "d3d1d6f77f",
+  "started": "2026-11-25T16:56:56.850Z",
+  "ended": "2026-11-25T16:57:11.109Z",
+  "wall_ms": 14259,
+  "exit_code": 0,
+  "timed_out": false,
+  "result_subtype": "success",
+  "is_error": false,
+  "model": "claude-haiku-5-5",
+  "tools_offered": [
+    "Bash"
+  ],
+  "num_turns": 6,
+  "usage": {
+    "input_tokens": 12,
+    "cache_creation_input_tokens": 9987,
+    "cache_read_input_tokens": 49053,
+    "output_tokens": 2427,
+    "output_tokens_details": {
+      "thinking_tokens": 1025
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 9987,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 1422,
+        "cache_read_input_tokens": 13479,
+        "cache_creation_input_tokens": 645,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 645
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 12,
+      "outputTokens": 2427,
+      "cacheReadInputTokens": 49053,
+      "cacheCreationInputTokens": 9987,
+      "webSearchRequests": 0,
+      "costUSD": 0.00370263,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 1025,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 9987,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "cost_usd": 0.00370263,
+  "permission_denials": [],
+  "final_text": "{\"answer\": \"No. The Larch pilot is no longer on November 12, 2026. The current approved schedule is November 26, 2026. The November 12 target was superseded by an October 23, 2026 decision, which the Larch Pilot page records as allowing completion of certificate renewal. The public launch date is undecided. The archive page records November 12 as the original target from an October 5 decision. Today is 2026-11-25, so the pilot is currently scheduled for tomorrow.\", \"citations\": [{\"source\": \"wiki/larch-release.md\", \"start\": 11, \"end\": 14}, {\"source\": \"wiki/larch-release.md\", \"start\": 16, \"end\": 18}, {\"source\": \"wiki/larch-archive.md\", \"start\": 11, \"end\": 13}], \"limitations\": \"The kb recall output for 'Larch' was truncated (about 16 KB, continuation not fetched), so I did not check the remaining matches for any later schedule change after the October 23 decision. The larch-release.md page's 'updated' field is 2026-10-24, and I found no record dated after it. The October 23 decision is described only as summarized in these two pages, not as a separate dated record, and the 'changed' date rests on that summary. The archive's line numbers were inferred from overlapping chunk ranges, so they may be off by one. The adapter was used for 5 of 16 calls; no files were edited.\"}",
+  "parsed_ok": true,
+  "answer": "No. The Larch pilot is no longer on November 12, 2026. The current approved schedule is November 26, 2026. The November 12 target was superseded by an October 23, 2026 decision, which the Larch Pilot page records as allowing completion of certificate renewal. The public launch date is undecided. The archive page records November 12 as the original target from an October 5 decision. Today is 2026-11-25, so the pilot is currently scheduled for tomorrow.",
+  "citations": [
+    {
+      "source": "wiki/larch-release.md",
+      "start": 11,
+      "end": 14
+    },
+    {
+      "source": "wiki/larch-release.md",
+      "start": 16,
+      "end": 18
+    },
+    {
+      "source": "wiki/larch-archive.md",
+      "start": 11,
+      "end": 13
+    }
+  ],
+  "limitations": "The kb recall output for 'Larch' was truncated (about 16 KB, continuation not fetched), so I did not check the remaining matches for any later schedule change after the October 23 decision. The larch-release.md page's 'updated' field is 2026-10-24, and I found no record dated after it. The October 23 decision is described only as summarized in these two pages, not as a separate dated record, and the 'changed' date rests on that summary. The archive's line numbers were inferred from overlapping chunk ranges, so they may be off by one. The adapter was used for 5 of 16 calls; no files were edited."
+}

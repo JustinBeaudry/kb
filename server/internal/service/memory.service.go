@@ -112,7 +112,7 @@ func (s *MemoryService) Submit(ctx context.Context, p domain.Principal, input do
 			if policy.Paused || policy.Revision == "" || (policy.Revision != a.PolicyRevision && policy.Revision != a.CurrentPolicyRevision) {
 				return domain.ErrStale
 			}
-			if e = validateSource(policy, a.SourcePath); e != nil {
+			if e = validateEvidenceSource(policy, a); e != nil {
 				return e
 			}
 			c.Evidence[i].Origin = domain.Origin{ClientID: client, Trust: domain.TrustSubmitted}

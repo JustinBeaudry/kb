@@ -1,0 +1,105 @@
+{
+  "id": "edcfc14fde",
+  "started": "2026-11-25T16:56:36.134Z",
+  "ended": "2026-11-25T16:56:57.259Z",
+  "wall_ms": 21125,
+  "exit_code": 0,
+  "timed_out": false,
+  "result_subtype": "success",
+  "is_error": false,
+  "model": "claude-haiku-5-5",
+  "tools_offered": [
+    "Bash"
+  ],
+  "num_turns": 11,
+  "usage": {
+    "input_tokens": 12,
+    "cache_creation_input_tokens": 21211,
+    "cache_read_input_tokens": 75051,
+    "output_tokens": 3266,
+    "output_tokens_details": {
+      "thinking_tokens": 745
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 21211,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 759,
+        "cache_read_input_tokens": 22343,
+        "cache_creation_input_tokens": 3005,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 3005
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 12,
+      "outputTokens": 3266,
+      "cacheReadInputTokens": 75051,
+      "cacheCreationInputTokens": 21211,
+      "webSearchRequests": 0,
+      "costUSD": 0.00662691,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 745,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 21211,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "cost_usd": 0.00662691,
+  "permission_denials": [],
+  "final_text": "{\"answer\": \"Four open launch blockers for Mariner (the core Mariner launch, per wiki/mariner-overview.md lines 11-13, which says only OPEN records block launch):\\n1. Certificate rotation: OPEN, owner Leda Fox.\\n2. Restore drill: OPEN, owner Mika Sen.\\n3. Access review: OPEN, owner Dev Shah.\\n4. Supplier contract: OPEN, owner Oona Reed.\\n\\nExcluded: Launch copy (owner Pax Vale) is CLOSED. Mariner-Legacy, Mariner-Sandbox and Mariner-Lab have their own blocker lists, which are other projects, so I left them out.\", \"citations\": [{\"source\": \"wiki/mariner-overview.md\", \"start\": 11, \"end\": 13}, {\"source\": \"wiki/mariner-certificates.md\", \"start\": 12, \"end\": 12}, {\"source\": \"wiki/mariner-restore.md\", \"start\": 12, \"end\": 12}, {\"source\": \"wiki/mariner-access.md\", \"start\": 12, \"end\": 12}, {\"source\": \"wiki/mariner-contract.md\", \"start\": 12, \"end\": 12}, {\"source\": \"wiki/mariner-copy.md\", \"start\": 12, \"end\": 12}], \"limitations\": \"Based only on the adapter's guide, search, files and read operations (10 of 16 calls used). I did not run the kb query commands, so I did not check for later updates in log.md or other pages beyond the Mariner pages found by file-name search. The overview's 'Only status OPEN records block launch' statement is taken from the page as written. The overview's updated date is 2026-10-24, and the current date is 2026-11-25, so these statuses may be stale. Search output was truncated, so an unrelated page elsewhere could mention a Mariner blocker that I did not see; the Mariner-named pages are the only ones I checked.\"}",
+  "parsed_ok": true,
+  "answer": "Four open launch blockers for Mariner (the core Mariner launch, per wiki/mariner-overview.md lines 11-13, which says only OPEN records block launch):\n1. Certificate rotation: OPEN, owner Leda Fox.\n2. Restore drill: OPEN, owner Mika Sen.\n3. Access review: OPEN, owner Dev Shah.\n4. Supplier contract: OPEN, owner Oona Reed.\n\nExcluded: Launch copy (owner Pax Vale) is CLOSED. Mariner-Legacy, Mariner-Sandbox and Mariner-Lab have their own blocker lists, which are other projects, so I left them out.",
+  "citations": [
+    {
+      "source": "wiki/mariner-overview.md",
+      "start": 11,
+      "end": 13
+    },
+    {
+      "source": "wiki/mariner-certificates.md",
+      "start": 12,
+      "end": 12
+    },
+    {
+      "source": "wiki/mariner-restore.md",
+      "start": 12,
+      "end": 12
+    },
+    {
+      "source": "wiki/mariner-access.md",
+      "start": 12,
+      "end": 12
+    },
+    {
+      "source": "wiki/mariner-contract.md",
+      "start": 12,
+      "end": 12
+    },
+    {
+      "source": "wiki/mariner-copy.md",
+      "start": 12,
+      "end": 12
+    }
+  ],
+  "limitations": "Based only on the adapter's guide, search, files and read operations (10 of 16 calls used). I did not run the kb query commands, so I did not check for later updates in log.md or other pages beyond the Mariner pages found by file-name search. The overview's 'Only status OPEN records block launch' statement is taken from the page as written. The overview's updated date is 2026-10-24, and the current date is 2026-11-25, so these statuses may be stale. Search output was truncated, so an unrelated page elsewhere could mention a Mariner blocker that I did not see; the Mariner-named pages are the only ones I checked."
+}

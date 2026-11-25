@@ -153,6 +153,9 @@ func resultOf(r memoryapi.RetrievalResult) (domain.RetrievalResult, error) {
 			v := domain.VerificationOutcome(*c.VerificationOutcome)
 			chunk.VerificationOutcome = &v
 		}
+		if c.VerificationMethod != nil {
+			chunk.VerificationMethod = string(*c.VerificationMethod)
+		}
 		if c.Passage != nil {
 			chunk.Passage = &domain.Passage{StartByte: c.Passage.StartByte, EndByte: c.Passage.EndByte, SourceBytes: c.Passage.SourceBytes}
 		}

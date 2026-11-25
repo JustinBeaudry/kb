@@ -2,11 +2,17 @@ package handler
 
 import (
 	"context"
+	"crypto/rand"
+	"errors"
 	"log/slog"
+	"net/http"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/JustinBeaudry/kb/server/internal/domain"
 	"github.com/JustinBeaudry/kb/server/internal/service"
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -27,6 +33,8 @@ type IdentityHandler struct {
 	retrieval   RetrievalService
 	policy      PolicyService
 	status      StatusService
+	transfer    TransferService
+	decisions   DecisionService
 }
 
 var _ StrictServerInterface = (*IdentityHandler)(nil)
@@ -37,8 +45,8 @@ type StatusService interface {
 
 // NewServer composes every implemented route, including the authoritative
 // status service that MCP and HTTP share.
-func NewServer(i IdentityService, c CaptureService, t CheckpointService, m MemoryService, r RetrievalService, p PolicyService, s StatusService, l *slog.Logger) (*echo.Echo, error) {
-	return configuredServer(i, c, t, m, r, p, s, l)
+func NewServer(i IdentityService, c CaptureService, t CheckpointService, m MemoryService, r RetrievalService, p PolicyService, s StatusService, x TransferService, l *slog.Logger, opts ...ServerOption) (*echo.Echo, error) {
+	return configuredServer(i, c, t, m, r, p, s, x, l, opts...)
 }
 func NewIdentityServer(identity IdentityService, logger *slog.Logger) (*echo.Echo, error) {
 	return newMemoryServer(identity, nil, nil, logger)
@@ -47,9 +55,9 @@ func newMemoryServer(identity IdentityService, capture CaptureService, checkpoin
 	return configuredMemoryServer(identity, capture, checkpoints, nil, nil, nil, logger)
 }
 func configuredMemoryServer(identity IdentityService, capture CaptureService, checkpoints CheckpointService, memory MemoryService, retrieval RetrievalService, policy PolicyService, logger *slog.Logger) (*echo.Echo, error) {
-	return configuredServer(identity, capture, checkpoints, memory, retrieval, policy, nil, logger)
+	return configuredServer(identity, capture, checkpoints, memory, retrieval, policy, nil, nil, logger)
 }
-func configuredServer(identity IdentityService, capture CaptureService, checkpoints CheckpointService, memory MemoryService, retrieval RetrievalService, policy PolicyService, status StatusService, logger *slog.Logger) (*echo.Echo, error) {
+func configuredServer(identity IdentityService, capture CaptureService, checkpoints CheckpointService, memory MemoryService, retrieval RetrievalService, policy PolicyService, status StatusService, transfer TransferService, logger *slog.Logger, opts ...ServerOption) (*echo.Echo, error) {
 	spec, err := GetSpec()
 	if err != nil {
 		return nil, domain.ErrUnavailable
@@ -90,9 +98,13 @@ func configuredServer(identity IdentityService, capture CaptureService, checkpoi
 		if he.Code == 404 {
 			return problem(c, domain.ErrUnavailable)
 		}
-		return problem(c, domain.ErrInvalidInput)
+		return invalidInputProblem(c, validationField(he.Internal))
 	}}))
-	strict := NewStrictHandler(&IdentityHandler{identity: identity, capture: capture, checkpoints: checkpoints, memory: memory, retrieval: retrieval, policy: policy, status: status}, nil)
+	impl := &IdentityHandler{identity: identity, capture: capture, checkpoints: checkpoints, memory: memory, retrieval: retrieval, policy: policy, status: status, transfer: transfer}
+	for _, opt := range opts {
+		opt(impl)
+	}
+	strict := NewStrictHandler(impl, nil)
 
 	wrapper := ServerInterfaceWrapper{Handler: strict}
 	if policy != nil {
@@ -113,10 +125,16 @@ func configuredServer(identity IdentityService, capture CaptureService, checkpoi
 	if memory != nil {
 		e.POST("/v1/candidates", wrapper.SubmitCandidate)
 	}
+	if impl.decisions != nil {
+		e.POST("/v1/decisions/:id\\:respond", wrapper.RespondDecision)
+	}
 	if retrieval != nil {
 		e.POST("/v1/retrieval\\:orient", wrapper.OrientMemory)
 		e.POST("/v1/retrieval\\:search", wrapper.SearchMemory)
 		e.GET("/v1/evidence/:id", wrapper.FetchEvidence)
+	}
+	if transfer != nil {
+		e.POST("/v1/exports", wrapper.ExportMemory)
 	}
 	e.Any("/*", func(c echo.Context) error { return problem(c, domain.ErrUnavailable) })
 	return e, nil
@@ -154,6 +172,9 @@ func (h *IdentityHandler) GetStatus(ctx context.Context, _ GetStatusRequestObjec
 		if s.MaxRevisionBytes > 0 {
 			out.MaxRevisionBytes = &s.MaxRevisionBytes
 		}
+		if d := s.Dreaming; d != nil {
+			out.Dreaming = &DreamingStatus{State: DreamingStatusState(d.State), PendingJobs: d.PendingJobs, ReasonCodes: stringsAPI(d.ReasonCodes), DailyCapMicroUsd: int(d.DailyCapMicroUSD), CommittedMicroUsd: int(d.CommittedMicroUSD), UnreconciledReservations: d.UnreconciledReservations}
+		}
 		return out, nil
 	}
 	// Compositions without the graph-backed status service report request grants.
@@ -165,4 +186,44 @@ func (h *IdentityHandler) GetStatus(ctx context.Context, _ GetStatusRequestObjec
 		gaps = append(gaps, "capture_unavailable")
 	}
 	return GetStatus200JSONResponse{SchemaVersion: "3", ConnectionState: StatusResultConnectionStateAvailable, AuthorizedProjectIds: p.ProjectIDs, AuthorizedCapabilities: p.Capabilities, CapabilityGaps: gaps}, nil
+}
+
+var safePointerSegment = regexp.MustCompile(`^[A-Za-z0-9_]{1,64}$`)
+
+// validationField returns the JSON pointer of the first failing request body
+// property. Segments are schema property names or array indexes; a segment that
+// is not a plain identifier (for example an attacker-chosen unknown key) drops
+// the whole pointer, so submitted text is never echoed.
+func validationField(err error) *string {
+	var request *openapi3filter.RequestError
+	if !errors.As(err, &request) || request.RequestBody == nil {
+		return nil
+	}
+	var schema *openapi3.SchemaError
+	if !errors.As(request.Err, &schema) {
+		return nil
+	}
+	segments := schema.JSONPointer()
+	if len(segments) == 0 || len(segments) > 8 {
+		return nil
+	}
+	for _, segment := range segments {
+		if !safePointerSegment.MatchString(segment) {
+			return nil
+		}
+	}
+	field := "/" + strings.Join(segments, "/")
+	return &field
+}
+
+func invalidInputProblem(c echo.Context, field *string) error {
+	p := problemFor(domain.ErrInvalidInput)
+	if field == nil {
+		return writeProblem(c, p.status, p.code, p.message, p.action)
+	}
+	id, _ := c.Get("request_id").(string)
+	if id == "" {
+		id = rand.Text()
+	}
+	return c.JSON(p.status, Problem{SchemaVersion: "3", Type: "about:blank", Title: http.StatusText(p.status), Status: p.status, Code: ProblemCode(p.code), Message: p.message, Action: "Fix the request field named in field; see the documented request schema.", RequestId: id, Runbook: "memory-operations#identity", Field: field})
 }

@@ -1,0 +1,21 @@
+{
+  "answer": "The approved Meridian rollback checkpoint is r57, and only Tomas Bell can authorize a Meridian rollback. A vendor email says the old checkpoint r41 is acceptable, but the notes mark that claim as not approved by the team, so it is not authoritative. The 1,000 historical exercise lines earlier in the file are rehearsals and record no active approval.",
+  "citations": [
+    {
+      "source": "wiki/meridian-handover.md",
+      "start": 1013,
+      "end": 1015
+    },
+    {
+      "source": "wiki/meridian-handover.md",
+      "start": 1017,
+      "end": 1018
+    },
+    {
+      "source": "wiki/meridian-handover.md",
+      "start": 12,
+      "end": 12
+    }
+  ],
+  "limitations": "I did not read the frontmatter (lines 1-8) or every historical exercise line one by one. A search for approval, authorization, checkpoint and rollback wording outside the exercise lines found only the sections cited here. The notes give no date or other context for the approval."
+}

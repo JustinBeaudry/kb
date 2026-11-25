@@ -162,7 +162,7 @@ func TestStatusHTTPUsesAuthenticatedStatusService(t *testing.T) {
 	}{{"current", nil, 200}, {"revoked", domain.ErrUnauthorized, 401}, {"withdrawn", domain.ErrForbidden, 403}} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := &statusHandlerService{err: tc.err}
-			server, e := NewServer(fixtureIdentity{}, nil, nil, nil, nil, nil, s, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+			server, e := NewServer(fixtureIdentity{}, nil, nil, nil, nil, nil, s, nil, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 			require.NoError(t, e)
 			req := httptest.NewRequest("GET", "/v1/status", nil)
 			req.Header.Set("Authorization", "Bearer fixture-secret")
@@ -177,4 +177,17 @@ func TestStatusHTTPUsesAuthenticatedStatusService(t *testing.T) {
 			}
 		})
 	}
+}
+func TestRetrievalWireExposesVerificationMethod(t *testing.T) {
+	outcome := domain.VerificationSupported
+	v := domain.RetrievalResult{SchemaVersion: "3", Chunks: []domain.EvidenceChunk{{RecordID: "c", Revision: "r", Text: "approved", ClaimStatus: domain.ClaimVerified, OriginTrust: domain.TrustSubmitted, VerificationOutcome: &outcome, VerificationMethod: domain.MethodOwnerAdjudicated}}}
+
+	a, e := domain.RetrievalWire(v)
+	require.NoError(t, e)
+	b, e := json.Marshal(retrievalAPI(v))
+	require.NoError(t, e)
+
+	assert.JSONEq(t, string(a), string(b))
+	assert.Contains(t, string(b), `"verification_outcome":"supported"`)
+	assert.Contains(t, string(b), `"verification_method":"owner_adjudicated"`)
 }

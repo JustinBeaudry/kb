@@ -9,9 +9,11 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/JustinBeaudry/kb/server/internal/domain"
 	"github.com/JustinBeaudry/kb/server/internal/gateway"
+	"github.com/JustinBeaudry/kb/server/internal/platform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -86,3 +88,20 @@ func TestSupervisorHelpNeedsNoConfigurationOrIO(t *testing.T) {
 }
 
 var _ io.Writer = (*bytes.Buffer)(nil)
+
+type maintenanceFake struct{ last time.Time }
+
+func (m maintenanceFake) State(context.Context) (domain.MaintenanceState, error) {
+	return domain.MaintenanceState{Phase: "open", LastSuccessfulBackup: m.last}, nil
+}
+
+func TestOperatorBackupLogsRecoveryPointEvidence(t *testing.T) {
+	var reports []platform.BackupEvidence
+	fake := &operatorFake{}
+	runner := evidenceRunner{operatorRunner: fake, state: maintenanceFake{}, observe: func(e platform.BackupEvidence) { reports = append(reports, e) }}
+	response := dispatchOperator(t.Context(), runner, nil, operatorRequest{Version: 1, Action: "backup", ID: "manual-backup"})
+	require.Equal(t, "ok", response.Code)
+	assert.Equal(t, 1, fake.calls)
+	require.Len(t, reports, 1)
+	assert.True(t, reports[0].First)
+}

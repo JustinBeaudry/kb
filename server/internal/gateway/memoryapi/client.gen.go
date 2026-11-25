@@ -135,6 +135,7 @@ const (
 	ClientInputCapabilitiesCheckpointWrite   ClientInputCapabilities = "checkpoint:write"
 	ClientInputCapabilitiesEventsAppend      ClientInputCapabilities = "events:append"
 	ClientInputCapabilitiesEvidenceRead      ClientInputCapabilities = "evidence:read"
+	ClientInputCapabilitiesMemoryExport      ClientInputCapabilities = "memory:export"
 	ClientInputCapabilitiesPolicyRead        ClientInputCapabilities = "policy:read"
 	ClientInputCapabilitiesRetrievalRead     ClientInputCapabilities = "retrieval:read"
 	ClientInputCapabilitiesStatusRead        ClientInputCapabilities = "status:read"
@@ -153,6 +154,8 @@ func (e ClientInputCapabilities) Valid() bool {
 	case ClientInputCapabilitiesEventsAppend:
 		return true
 	case ClientInputCapabilitiesEvidenceRead:
+		return true
+	case ClientInputCapabilitiesMemoryExport:
 		return true
 	case ClientInputCapabilitiesPolicyRead:
 		return true
@@ -239,6 +242,30 @@ func (e Completeness) Valid() bool {
 	}
 }
 
+// Defines values for DreamingStatusState.
+const (
+	DreamingStatusStateAvailable       DreamingStatusState = "available"
+	DreamingStatusStateBudgetExhausted DreamingStatusState = "budget_exhausted"
+	DreamingStatusStatePending         DreamingStatusState = "pending"
+	DreamingStatusStateUnconfigured    DreamingStatusState = "unconfigured"
+)
+
+// Valid indicates whether the value is a known member of the DreamingStatusState enum.
+func (e DreamingStatusState) Valid() bool {
+	switch e {
+	case DreamingStatusStateAvailable:
+		return true
+	case DreamingStatusStateBudgetExhausted:
+		return true
+	case DreamingStatusStatePending:
+		return true
+	case DreamingStatusStateUnconfigured:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for EventInputKind.
 const (
 	EventInputKindArtifact   EventInputKind = "artifact"
@@ -260,6 +287,21 @@ func (e EventInputKind) Valid() bool {
 	case EventInputKindToolCall:
 		return true
 	case EventInputKindToolResult:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ExportResultSchemaVersion.
+const (
+	ExportResultSchemaVersionN3 ExportResultSchemaVersion = "3"
+)
+
+// Valid indicates whether the value is a known member of the ExportResultSchemaVersion enum.
+func (e ExportResultSchemaVersion) Valid() bool {
+	switch e {
+	case ExportResultSchemaVersionN3:
 		return true
 	default:
 		return false
@@ -581,6 +623,27 @@ func (e TaskStateLabel) Valid() bool {
 	}
 }
 
+// Defines values for VerificationMethod.
+const (
+	VerificationMethodEvidencePolicy   VerificationMethod = "evidence_policy"
+	VerificationMethodLessonPolicy     VerificationMethod = "lesson_policy"
+	VerificationMethodOwnerAdjudicated VerificationMethod = "owner_adjudicated"
+)
+
+// Valid indicates whether the value is a known member of the VerificationMethod enum.
+func (e VerificationMethod) Valid() bool {
+	switch e {
+	case VerificationMethodEvidencePolicy:
+		return true
+	case VerificationMethodLessonPolicy:
+		return true
+	case VerificationMethodOwnerAdjudicated:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for VerificationOutcome.
 const (
 	VerificationOutcomeAmbiguous   VerificationOutcome = "ambiguous"
@@ -869,6 +932,19 @@ type DeletionInput struct {
 	Scope          Scope      `json:"scope"`
 }
 
+// DreamingStatus Owner-only background dreaming state. Absent for other clients. Unknown model spend is never reported as zero: unreconciled reservations remain counted at their worst case in committed_micro_usd.
+type DreamingStatus struct {
+	CommittedMicroUsd        int                 `json:"committed_micro_usd"`
+	DailyCapMicroUsd         int                 `json:"daily_cap_micro_usd"`
+	PendingJobs              int                 `json:"pending_jobs"`
+	ReasonCodes              []string            `json:"reason_codes"`
+	State                    DreamingStatusState `json:"state"`
+	UnreconciledReservations int                 `json:"unreconciled_reservations"`
+}
+
+// DreamingStatusState defines model for DreamingStatus.State.
+type DreamingStatusState string
+
 // EventInput defines model for EventInput.
 type EventInput struct {
 	Completeness Completeness `json:"completeness"`
@@ -909,8 +985,11 @@ type EvidenceChunk struct {
 	RecordId OpaqueID `json:"record_id"`
 
 	// Revision Nonempty opaque identifier. Never a database elementId.
-	Revision            OpaqueID             `json:"revision"`
-	Text                string               `json:"text"`
+	Revision OpaqueID `json:"revision"`
+	Text     string   `json:"text"`
+
+	// VerificationMethod How a supported verification was reached. An owner judgment is never relabeled as an empirical check.
+	VerificationMethod  *VerificationMethod  `json:"verification_method,omitempty"`
 	VerificationOutcome *VerificationOutcome `json:"verification_outcome,omitempty"`
 	Warnings            []string             `json:"warnings"`
 }
@@ -931,12 +1010,30 @@ type EvidenceRef struct {
 	SourceRevision OpaqueID `json:"source_revision"`
 }
 
-// ExportInput defines model for ExportInput.
+// ExportInput Read-only, resumable export page. Every page re-authorizes the caller and every record against current grants, epochs, and deletion tombstones.
 type ExportInput struct {
-	// IdempotencyKey Nonempty opaque identifier. Never a database elementId.
-	IdempotencyKey OpaqueID `json:"idempotency_key"`
-	Scope          Scope    `json:"scope"`
+	// Continuation Opaque authenticated resume cursor from the previous page. Bound to the requesting client and scope.
+	Continuation *string `json:"continuation,omitempty"`
+	Scope        Scope   `json:"scope"`
 }
+
+// ExportResult defines model for ExportResult.
+type ExportResult struct {
+	// Claims Authorized claim revisions with stored status and evidence provenance. Status and origin are reported, never upgraded; an importer must resubmit them as candidates.
+	Claims       []ClaimRevision `json:"claims"`
+	Completeness Completeness    `json:"completeness"`
+
+	// Continuation Present when more pages remain.
+	Continuation *string `json:"continuation,omitempty"`
+
+	// Omitted Records on this page withheld because they are unauthorized, deleted, or their evidence is unavailable. Never identifies them.
+	Omitted       int                       `json:"omitted"`
+	SchemaVersion ExportResultSchemaVersion `json:"schema_version"`
+	Scope         Scope                     `json:"scope"`
+}
+
+// ExportResultSchemaVersion defines model for ExportResult.SchemaVersion.
+type ExportResultSchemaVersion string
 
 // FetchMode publication is ID-only eligible publication evidence; working is explicit owned task evidence and stays unverified.
 type FetchMode string
@@ -1032,10 +1129,13 @@ type PolicyResultSchemaVersion string
 
 // Problem Safe problem response. Authorization failures never reveal whether a restricted record exists. Optional retry/budget metadata must preserve that boundary.
 type Problem struct {
-	Action             string      `json:"action"`
-	Code               ProblemCode `json:"code"`
-	Message            string      `json:"message"`
-	MinimumBudgetBytes *int        `json:"minimum_budget_bytes,omitempty"`
+	Action string      `json:"action"`
+	Code   ProblemCode `json:"code"`
+
+	// Field JSON pointer to the first request body property that failed schema validation. Contains schema property names or array indexes only, never submitted values.
+	Field              *string `json:"field,omitempty"`
+	Message            string  `json:"message"`
+	MinimumBudgetBytes *int    `json:"minimum_budget_bytes,omitempty"`
 
 	// RequestId Nonempty opaque identifier. Never a database elementId.
 	RequestId         OpaqueID             `json:"request_id"`
@@ -1146,6 +1246,9 @@ type StatusResult struct {
 	CapabilityGaps         []string                    `json:"capability_gaps"`
 	ConnectionState        StatusResultConnectionState `json:"connection_state"`
 
+	// Dreaming Owner-only background dreaming state. Absent for other clients. Unknown model spend is never reported as zero: unreconciled reservations remain counted at their worst case in committed_micro_usd.
+	Dreaming *DreamingStatus `json:"dreaming,omitempty"`
+
 	// MaxRevisionBytes Enforced upper bound on every claim and checkpoint revision this server issues (currently 64). Clients must not attempt writes when it is absent (older servers) or exceeds their own limit.
 	MaxRevisionBytes *int                      `json:"max_revision_bytes,omitempty"`
 	SchemaVersion    StatusResultSchemaVersion `json:"schema_version"`
@@ -1180,6 +1283,9 @@ type TaskState struct {
 
 // TaskStateLabel defines model for TaskState.Label.
 type TaskStateLabel string
+
+// VerificationMethod How a supported verification was reached. An owner judgment is never relabeled as an empirical check.
+type VerificationMethod string
 
 // VerificationOutcome defines model for VerificationOutcome.
 type VerificationOutcome string
@@ -3458,15 +3564,15 @@ func (r FetchEvidenceResponse) ContentType() string {
 type ExportMemoryResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	// JSON202 the response for an HTTP 202 `application/json` response
-	JSON202 *JobResult
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ExportResult
 	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
 	ApplicationproblemJSONDefault *Problem
 }
 
-// GetJSON202 returns the response for an HTTP 202 `application/json` response
-func (r ExportMemoryResponse) GetJSON202() *JobResult {
-	return r.JSON202
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ExportMemoryResponse) GetJSON200() *ExportResult {
+	return r.JSON200
 }
 
 // GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
@@ -4487,12 +4593,12 @@ func ParseExportMemoryResponse(rsp *http.Response) (*ExportMemoryResponse, error
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
-		var dest JobResult
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ExportResult
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON202 = &dest
+		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Problem

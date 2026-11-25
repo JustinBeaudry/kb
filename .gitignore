@@ -10,3 +10,15 @@ PRD.md
 .codex/
 .entire/
 .gemini/
+
+# Project vault operational logs and retrieval cache. Curated pages stay tracked.
+knowledge/.kb/access-log.jsonl
+knowledge/.kb/access-log.jsonl.lock
+knowledge/.kb/inject-log.jsonl
+knowledge/.kb/capture-errors.log
+knowledge/.kb/index/
+knowledge/.kb/sessions/
+
+# Session captures reference local transcripts. Keep them out of the public repository.
+knowledge/sessions/
+knowledge/raw/

@@ -601,12 +601,12 @@
       "post": {
         "operationId": "exportMemory",
         "responses": {
-          "202": {
+          "200": {
             "description": "Success from an implemented operation only.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JobResult"
+                  "$ref": "#/components/schemas/ExportResult"
                 }
               }
             }
@@ -704,6 +704,15 @@
           "supported",
           "unsupported",
           "ambiguous"
+        ]
+      },
+      "VerificationMethod": {
+        "type": "string",
+        "description": "How a supported verification was reached. An owner judgment is never relabeled as an empirical check.",
+        "enum": [
+          "owner_adjudicated",
+          "evidence_policy",
+          "lesson_policy"
         ]
       },
       "Completeness": {
@@ -1426,6 +1435,9 @@
           "verification_outcome": {
             "$ref": "#/components/schemas/VerificationOutcome"
           },
+          "verification_method": {
+            "$ref": "#/components/schemas/VerificationMethod"
+          },
           "evidence": {
             "type": "array",
             "items": {
@@ -1727,7 +1739,8 @@
                 "events:append",
                 "artifacts:write",
                 "verification:write",
-                "policy:read"
+                "policy:read",
+                "memory:export"
               ]
             },
             "minItems": 1,
@@ -1853,14 +1866,17 @@
           "scope": {
             "$ref": "#/components/schemas/Scope"
           },
-          "idempotency_key": {
-            "$ref": "#/components/schemas/OpaqueID"
+          "continuation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "description": "Opaque authenticated resume cursor from the previous page. Bound to the requesting client and scope."
           }
         },
         "required": [
-          "scope",
-          "idempotency_key"
-        ]
+          "scope"
+        ],
+        "description": "Read-only, resumable export page. Every page re-authorizes the caller and every record against current grants, epochs, and deletion tombstones."
       },
       "JobResult": {
         "type": "object",
@@ -1890,6 +1906,52 @@
           "schema_version",
           "id",
           "state"
+        ]
+      },
+      "DreamingStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Owner-only background dreaming state. Absent for other clients. Unknown model spend is never reported as zero: unreconciled reservations remain counted at their worst case in committed_micro_usd.",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "unconfigured",
+              "available",
+              "pending",
+              "budget_exhausted"
+            ]
+          },
+          "pending_jobs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reason_codes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "daily_cap_micro_usd": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "committed_micro_usd": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "unreconciled_reservations": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "state",
+          "pending_jobs",
+          "reason_codes",
+          "daily_cap_micro_usd",
+          "committed_micro_usd",
+          "unreconciled_reservations"
         ]
       },
       "StatusResult": {
@@ -1933,6 +1995,9 @@
             "type": "integer",
             "minimum": 1,
             "description": "Enforced upper bound on every claim and checkpoint revision this server issues (currently 64). Clients must not attempt writes when it is absent (older servers) or exceeds their own limit."
+          },
+          "dreaming": {
+            "$ref": "#/components/schemas/DreamingStatus"
           }
         },
         "required": [
@@ -1998,6 +2063,12 @@
           "minimum_budget_bytes": {
             "type": "integer",
             "minimum": 1
+          },
+          "field": {
+            "type": "string",
+            "maxLength": 512,
+            "pattern": "^(/[A-Za-z0-9_]{1,64}){1,8}$",
+            "description": "JSON pointer to the first request body property that failed schema validation. Contains schema property names or array indexes only, never submitted values."
           }
         },
         "required": [
@@ -2191,6 +2262,50 @@
           }
         },
         "description": "Exact selected UTF-8 byte span [start_byte,end_byte) of the stored artifact. The text is the whole source only when start_byte is 0 and end_byte equals source_bytes."
+      },
+      "ExportResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "3"
+            ]
+          },
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          },
+          "claims": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/ClaimRevision"
+            },
+            "description": "Authorized claim revisions with stored status and evidence provenance. Status and origin are reported, never upgraded; an importer must resubmit them as candidates."
+          },
+          "omitted": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Records on this page withheld because they are unauthorized, deleted, or their evidence is unavailable. Never identifies them."
+          },
+          "completeness": {
+            "$ref": "#/components/schemas/Completeness"
+          },
+          "continuation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "description": "Present when more pages remain."
+          }
+        },
+        "required": [
+          "schema_version",
+          "scope",
+          "claims",
+          "omitted",
+          "completeness"
+        ]
       }
     },
     "responses": {

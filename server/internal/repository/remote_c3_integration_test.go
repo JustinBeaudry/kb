@@ -238,7 +238,7 @@ func TestC3RealHTTPCLIAndMCP(t *testing.T) {
 	memory := service.NewMemoryService(store, repository.NewMemoryRepository(store), retrievalRepo, evidence, capture)
 	cpService := service.NewCheckpointService(store, checkpoints, retrievalRepo)
 	status := service.NewStatusService(store, retrievalRepo)
-	serverHandler, err := handler.NewServer(identity, capture, cpService, memory, retrieval, service.NewPolicyService(store, evidence, retrievalRepo), status, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+	serverHandler, err := handler.NewServer(identity, capture, cpService, memory, retrieval, service.NewPolicyService(store, evidence, retrievalRepo), status, nil, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 	require.NoError(t, err)
 	server := httptest.NewServer(serverHandler)
 	t.Cleanup(server.Close)

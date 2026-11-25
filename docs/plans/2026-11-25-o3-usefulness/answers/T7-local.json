@@ -1,0 +1,15 @@
+{
+  "trial": "5014ca2a30",
+  "task": "T7",
+  "arm": "local",
+  "final": "{\"answer\": \"The Birch nightly batch starts at 02:30 UTC.\", \"evidence\": [\"wiki/birch-nightly-batch.md (lines 1-17, page id birch-nightly-batch, status: verified, updated 2026-11-20): \\\"Trust: Owner-verified: the owner reviewed this record against its source.\\\" / \\\"## Record\\\\nThe Birch nightly batch starts at 02:30 UTC.\\\"\", \"wiki/birch-nightly-batch.md lines 6-12: \\\"tags: [project/birch-pipeline]\\\" and \\\"Project: birch-pipeline\\\"\"], \"trust_notes\": \"The 02:30 UTC answer comes from the owner-verified page wiki/birch-nightly-batch.md. A separate candidate page, wiki/birch-batch-proposal.md (status: candidate, unreviewed agent session note dated 2026-11-19), proposes moving the batch to 04:00 UTC. I did not treat that as current because it is unverified and the owner has not reviewed it, and the verified page still says 02:30 UTC. No page marks 02:30 as superseded. The proposal is a pending change to watch for, not a decision.\", \"limitations\": \"The lookup used `kb map` (no results), `kb recall`, and `kb get` on the two relevant pages. Two `kb get` calls with a wiki/ path failed, and the bare page names worked. The record does not say whether the time is a start time in local or UTC terms beyond the stated 'UTC', and it does not say whether the 04:00 proposal was ever accepted. I did not check the source system directly.\"}",
+  "parsed": {
+    "answer": "The Birch nightly batch starts at 02:30 UTC.",
+    "evidence": [
+      "wiki/birch-nightly-batch.md (lines 1-17, page id birch-nightly-batch, status: verified, updated 2026-11-20): \"Trust: Owner-verified: the owner reviewed this record against its source.\" / \"## Record\\nThe Birch nightly batch starts at 02:30 UTC.\"",
+      "wiki/birch-nightly-batch.md lines 6-12: \"tags: [project/birch-pipeline]\" and \"Project: birch-pipeline\""
+    ],
+    "trust_notes": "The 02:30 UTC answer comes from the owner-verified page wiki/birch-nightly-batch.md. A separate candidate page, wiki/birch-batch-proposal.md (status: candidate, unreviewed agent session note dated 2026-11-19), proposes moving the batch to 04:00 UTC. I did not treat that as current because it is unverified and the owner has not reviewed it, and the verified page still says 02:30 UTC. No page marks 02:30 as superseded. The proposal is a pending change to watch for, not a decision.",
+    "limitations": "The lookup used `kb map` (no results), `kb recall`, and `kb get` on the two relevant pages. Two `kb get` calls with a wiki/ path failed, and the bare page names worked. The record does not say whether the time is a start time in local or UTC terms beyond the stated 'UTC', and it does not say whether the 04:00 proposal was ever accepted. I did not check the source system directly."
+  }
+}
