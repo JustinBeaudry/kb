@@ -1,4 +1,4 @@
-import { isAbsolute } from "node:path";
+import { basename, isAbsolute } from "node:path";
 import type { HarnessAdapter, NormalizedEvent } from "../adapters/types";
 import { renderRemoteFrame, type RemoteEnvelope, type RemoteScope } from "../lib/remote-envelope";
 import type { RemoteResult, RetrievalInput } from "../services/remote.service";
@@ -13,6 +13,7 @@ import {
   type CursorStore,
   type SourceReader,
 } from "./cursor";
+import { canonicalSourcePath } from "./policy";
 import type { CaptureError, CaptureEvent, Json, Receipt, Result } from "./types";
 
 /** C1 capture boundary; CaptureService satisfies it. */
@@ -99,6 +100,17 @@ function emptyReport(r: SourceRegistration, state: SourceReport["state"]): Sourc
   };
 }
 
+/**
+ * Canonical relative source identity for policy path exclusions. Transcripts
+ * are not workspace files, so they live under `harness/<adapter>/<file>`;
+ * the absolute local path never leaves the machine.
+ */
+export function harnessSourcePath(r: SourceRegistration): string {
+  const prefix = `harness/${r.adapter.name}`;
+  const file = `${prefix}/${basename(r.path)}`;
+  return canonicalSourcePath(file) ? file : prefix;
+}
+
 function captureEvent(r: SourceRegistration, e: NormalizedEvent, sequence: number, now: number): CaptureEvent {
   const content: { [key: string]: Json } = {
     role: e.role,
@@ -121,6 +133,7 @@ function captureEvent(r: SourceRegistration, e: NormalizedEvent, sequence: numbe
     observedAt: e.observedAt ?? new Date(now).toISOString(),
     sequence,
     sourceLocator: e.sourceLocator,
+    sourcePath: harnessSourcePath(r),
     content,
   };
 }

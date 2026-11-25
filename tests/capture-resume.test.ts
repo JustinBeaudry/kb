@@ -16,10 +16,12 @@ import { codexAdapter } from "../src/adapters/codex";
 import { genericAdapter } from "../src/adapters/generic";
 import type { HarnessAdapter } from "../src/adapters/types";
 import { FileCursorStore, FsSourceReader, type SourceReader } from "../src/capture/cursor";
+import { filterEvent } from "../src/capture/policy";
 import type { CaptureError, CaptureEvent, Receipt, Result } from "../src/capture/types";
 import { CaptureWatcher, type ContextSource, type EventSink } from "../src/capture/watcher";
 import type { RemoteEnvelope } from "../src/lib/remote-envelope";
 import type { RemoteResult, RetrievalInput } from "../src/services/remote.service";
+import { policy } from "./fixtures/capture";
 
 const fixtureDir = join(import.meta.dir, "fixtures", "capture");
 const fixture = (name: string) => readFileSync(join(fixtureDir, name), "utf8");
@@ -109,6 +111,22 @@ describe("capture watcher resume", () => {
       expect.objectContaining({ body: { text: "NEW" } }),
     ]);
     expect(JSON.stringify(sink.events)).not.toContain("HISTORICAL");
+  });
+
+  it("gives watcher events a canonical harness source path so path exclusions apply", async () => {
+    const path = emptySource("session.jsonl");
+    const w = watcher(path);
+    await poll(w);
+    appendFileSync(path, JSON.stringify({ role: "user", content: "KEPT" }) + "\n");
+
+    await poll(w);
+
+    const [captured] = sink.events;
+    if (!captured) throw Error("no event captured");
+    expect(captured.sourcePath).toBe("harness/generic/session.jsonl");
+    expect(filterEvent(captured, { ...policy(), excludedPaths: ["src"] }, []).kind).toBe("accepted");
+    for (const excluded of ["harness", "harness/generic", "harness/generic/session.jsonl"])
+      expect(filterEvent(captured, { ...policy(), localExcludedPaths: [excluded] }, []).kind).toBe("excluded");
   });
 
   it("does not consume incomplete trailing JSON", async () => {

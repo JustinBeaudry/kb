@@ -78,6 +78,11 @@ Capabilities are reported separately, as the design requires:
   text digest, so history copied into a rotated file is not captured twice. Two
   identical Codex messages with the same timestamp would share one ID. A crash between enqueue and cursor save can
   replay a record. C1/F4 idempotency deduplicates that replay.
+- **Path exclusions.** Every event carries the canonical source path
+  `harness/<adapter>/<file name>`; the absolute local path is never sent. Server
+  or `--exclude-paths` exclusions match it by exact path or directory prefix, so
+  `harness/codex` drops all Codex captures and unrelated workspace exclusions such
+  as `src` leave transcript events untouched.
 - **Hidden content.** Codex `reasoning`, Claude `thinking`/`redacted_thinking`,
   session instructions, compaction summaries, images and other non-text blocks are
   not captured. Omitted non-text parts mark the event `partial` and add a
