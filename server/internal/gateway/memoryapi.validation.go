@@ -268,10 +268,13 @@ func validRetrievalForRequest(r memoryapi.RetrievalResult, request domain.Retrie
 		}
 		switch c.ClaimStatus {
 		case memoryapi.ClaimStatusCandidate:
-			if request.Mode != domain.RetrievalWorking || request.Scope.TaskID == "" || c.VerificationOutcome != nil || !slices.Contains(c.Warnings, "unverified_task_candidate") {
+			if request.Mode != domain.RetrievalWorking || request.Scope.TaskID == "" || c.VerificationOutcome != nil || c.VerificationMethod != nil || !slices.Contains(c.Warnings, "unverified_task_candidate") {
 				return false
 			}
 		case memoryapi.ClaimStatusVerified, memoryapi.ClaimStatusDisputed:
+			if c.VerificationMethod != nil && (c.VerificationOutcome == nil || !c.VerificationMethod.Valid()) {
+				return false
+			}
 		default:
 			return false
 		}
@@ -320,7 +323,7 @@ func validFetchResult(r memoryapi.RetrievalResult, request domain.FetchRequest) 
 		return false
 	}
 	c := r.Chunks[0]
-	if c.Passage == nil || c.RecordId != request.ArtifactID || c.ClaimStatus != memoryapi.ClaimStatusCandidate || c.OriginTrust != memoryapi.OriginTrustSubmitted || c.VerificationOutcome != nil || len(c.Evidence) != 1 || !slices.Contains(c.Warnings, "source_evidence_is_not_a_verified_claim") {
+	if c.Passage == nil || c.RecordId != request.ArtifactID || c.ClaimStatus != memoryapi.ClaimStatusCandidate || c.OriginTrust != memoryapi.OriginTrustSubmitted || c.VerificationOutcome != nil || c.VerificationMethod != nil || len(c.Evidence) != 1 || !slices.Contains(c.Warnings, "source_evidence_is_not_a_verified_claim") {
 		return false
 	}
 	ref := c.Evidence[0]

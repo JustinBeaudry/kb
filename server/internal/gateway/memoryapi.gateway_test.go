@@ -236,6 +236,8 @@ func TestMemoryAPIRejectsMalformedSuccessResponses(t *testing.T) {
 		{"invalid chunk trust", "retrieve", strings.Replace(retrievalBody, `"origin_trust":"submitted"`, `"origin_trust":"REMOTE-SECRET"`, 1)},
 		{"invalid nested trust", "retrieve", strings.Replace(retrievalBody, `"trust":"submitted"`, `"trust":"REMOTE-SECRET"`, 1)},
 		{"invalid verification", "retrieve", strings.Replace(retrievalBody, `"warnings":`, `"verification_outcome":"REMOTE-SECRET","warnings":`, 1)},
+		{"invalid verification method", "retrieve", strings.Replace(retrievalBody, `"warnings":`, `"verification_method":"REMOTE-SECRET","warnings":`, 1)},
+		{"candidate claims verification method", "retrieve", strings.Replace(retrievalBody, `"warnings":`, `"verification_method":"evidence_policy","warnings":`, 1)},
 		{"invalid truncation reason", "retrieve", strings.Replace(retrievalBody, `"wire_budget"`, `"REMOTE-SECRET"`, 1)},
 		{"visited negative", "retrieve", strings.Replace(retrievalBody, `"visited":0`, `"visited":-1`, 1)},
 		{"visited over limit", "retrieve", strings.Replace(retrievalBody, `"visited":0`, `"visited":51`, 1)},

@@ -161,10 +161,11 @@ type eligibilityRecord struct {
 	support           []string
 	published, global bool
 	generalized       string
+	verification      *domain.Verification
 }
 
 func (r *RetrievalRepository) records(ctx context.Context, tx domain.Tx, ids []string) (map[string]eligibilityRecord, error) {
-	rows, e := r.query(ctx, tx, `UNWIND $ids AS id MATCH (c:ClaimRevision {id:id}) WHERE c.data IS NOT NULL CALL (c) { OPTIONAL MATCH (p:Publication {claimRevision:c.id,valid:true}) RETURN p LIMIT 2 } RETURN c.data,c.status,coalesce(c.valid,false),EXISTS { MATCH (:Tombstone {id:c.id}) } OR EXISTS { MATCH (:Tombstone {id:c.claimID}) } OR EXISTS {MATCH (:SessionTombstone {projectID:c.projectID,id:c.sessionID})} OR EXISTS {MATCH (:TaskTombstone {projectID:c.projectID,id:c.taskID})},c.clientID,CASE WHEN size(p.supportRevisions)<=1000 THEN p.supportRevisions ELSE null END,p.sharingScope,p.generalizedText`, map[string]any{"ids": ids})
+	rows, e := r.query(ctx, tx, `UNWIND $ids AS id MATCH (c:ClaimRevision {id:id}) WHERE c.data IS NOT NULL CALL (c) { OPTIONAL MATCH (p:Publication {claimRevision:c.id,valid:true}) RETURN p LIMIT 2 } CALL (c) { OPTIONAL MATCH (c)-[:VERIFIED_BY]->(v:Verification) WHERE v.outcome='supported' RETURN v ORDER BY v.id LIMIT 1 } RETURN c.data,c.status,coalesce(c.valid,false),EXISTS { MATCH (:Tombstone {id:c.id}) } OR EXISTS { MATCH (:Tombstone {id:c.claimID}) } OR EXISTS {MATCH (:SessionTombstone {projectID:c.projectID,id:c.sessionID})} OR EXISTS {MATCH (:TaskTombstone {projectID:c.projectID,id:c.taskID})},c.clientID,CASE WHEN size(p.supportRevisions)<=1000 THEN p.supportRevisions ELSE null END,p.sharingScope,p.generalizedText,v.data`, map[string]any{"ids": ids})
 	if e != nil {
 		return nil, e
 	}
@@ -193,6 +194,13 @@ func (r *RetrievalRepository) records(ctx context.Context, tx domain.Tx, ids []s
 		}
 		record.global = v[6] == "cross_project"
 		record.generalized, _ = v[7].(string)
+		if raw, ok := v[8].(string); ok {
+			var verification domain.Verification
+			if json.Unmarshal([]byte(raw), &verification) != nil || verification.ClaimRevision != c.Revision {
+				return nil, domain.ErrUnavailable
+			}
+			record.verification = &verification
+		}
 		if _, exists := out[c.Revision]; exists {
 			return nil, domain.ErrUnavailable
 		}
@@ -202,7 +210,7 @@ func (r *RetrievalRepository) records(ctx context.Context, tx domain.Tx, ids []s
 }
 func (r *RetrievalRepository) sources(ctx context.Context, tx domain.Tx, claims []domain.ClaimRevision) (bool, error) {
 	for _, c := range claims {
-		if (len(c.Evidence) == 0 && c.Status != domain.ClaimCandidate) || len(c.Evidence) > 50 {
+		if (len(c.Evidence) == 0 && c.Status != domain.ClaimCandidate && c.Kind != domain.KindLesson) || len(c.Evidence) > 50 {
 			return false, nil
 		}
 		for _, ref := range c.Evidence {
@@ -254,7 +262,10 @@ func (r *RetrievalRepository) Eligible(ctx context.Context, tx domain.Tx, p doma
 		c.Status = record.status
 		authorized := slices.Contains(snap.Principal.ProjectIDs, c.Scope.ProjectID)
 		sameProject := c.Scope.ProjectID == requested.ProjectID
-		if c.Status == domain.ClaimCandidate {
+		// A task's own candidates, and its candidates that automatic policy
+		// verified in place, stay visible only to that task's owner.
+		taskVerified := c.Status == domain.ClaimVerified && c.Scope.TaskID != "" && record.valid && record.verification != nil && record.verification.Method == domain.MethodEvidencePolicy
+		if c.Status == domain.ClaimCandidate || taskVerified {
 			if !authorized || !sameProject || record.client != p.ClientID || c.Scope.TaskID == "" {
 				continue
 			}
@@ -304,6 +315,9 @@ func (r *RetrievalRepository) Eligible(ctx context.Context, tx domain.Tx, p doma
 				continue
 			}
 		}
+		if c.Status != domain.ClaimCandidate {
+			c.Verification = record.verification
+		}
 		result.Claims = append(result.Claims, c)
 	}
 	return result, nil
@@ -315,7 +329,7 @@ func (r *RetrievalRepository) supportClosure(ctx context.Context, tx domain.Tx, 
 	c := record.claim
 	c.Status = record.status
 	ids := slices.Clone(record.support)
-	if record.status == domain.ClaimCandidate {
+	if c.Scope.TaskID != "" {
 		ids = slices.Clone(c.DependsOn)
 		direct, e := r.records(ctx, tx, ids)
 		if e != nil {

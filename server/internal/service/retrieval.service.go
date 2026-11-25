@@ -211,7 +211,7 @@ func (s *RetrievalService) Retrieve(ctx context.Context, p domain.Principal, inp
 			unavailable = unavailable || eligible.Unavailable
 			next := make([]string, 0, len(eligible.Claims))
 			for _, c := range eligible.Claims {
-				if !retrievalScope(c, r) || !applicable(c.Applicability, r.Applicability) {
+				if !retrievalScope(c, r) || !applicable(c.Applicability, r.Applicability) || (c.Scope.ProjectID == "" && !lessonApplies(c.Applicability, r.Applicability)) {
 					continue
 				}
 				claims = append(claims, c)
@@ -264,11 +264,18 @@ func (s *RetrievalService) Retrieve(ctx context.Context, p domain.Principal, inp
 			}
 			if c.Status == domain.ClaimCandidate {
 				warnings = append(warnings, "unverified_task_candidate")
+			} else if c.Scope.TaskID != "" {
+				warnings = append(warnings, "task_scoped_verified_observation")
 			}
 			if c.Scope.ProjectID == "" {
 				warnings = append(warnings, "generalized_lesson_source_withheld")
 			}
 			chunk := domain.EvidenceChunk{RecordID: c.ClaimID, Revision: c.Revision, Text: c.Text, ClaimStatus: c.Status, OriginTrust: trust, Evidence: c.Evidence, Warnings: warnings, Applicability: targetApplicability(c.Applicability)}
+			if v := c.Verification; v != nil && c.Status != domain.ClaimCandidate {
+				outcome := v.Outcome
+				chunk.VerificationOutcome = &outcome
+				chunk.VerificationMethod = v.Method
+			}
 			trial := result
 			trial.Chunks = append(slices.Clone(result.Chunks), chunk)
 			trial.NoResults = false
@@ -325,7 +332,7 @@ func (s *RetrievalService) Retrieve(ctx context.Context, p domain.Principal, inp
 	return result, nil
 }
 func retrievalScope(c domain.ClaimRevision, r domain.RetrievalRequest) bool {
-	if c.Status == domain.ClaimCandidate {
+	if c.Status == domain.ClaimCandidate || (c.Status == domain.ClaimVerified && c.Scope.TaskID != "") {
 		return r.Mode == domain.RetrievalWorking && r.Scope.TaskID != "" && c.Scope.ProjectID == r.Scope.ProjectID && c.Scope.TaskID == r.Scope.TaskID && (r.Scope.SessionID == "" || c.Scope.SessionID == r.Scope.SessionID)
 	}
 	if c.Status != domain.ClaimVerified && c.Status != domain.ClaimDisputed {
@@ -349,6 +356,20 @@ func applicable(a, b domain.Applicability) bool {
 	}
 	for k, v := range a.Versions {
 		if b.Versions[k] != "" && b.Versions[k] != v {
+			return false
+		}
+	}
+	return true
+}
+// lessonApplies is the stricter cross-project test: every condition a lesson
+// states must be explicitly present and equal in the request. Another
+// project's lesson never applies merely because the task omitted context.
+func lessonApplies(lesson, request domain.Applicability) bool {
+	if lesson.Environment != "" && lesson.Environment != request.Environment {
+		return false
+	}
+	for k, v := range lesson.Versions {
+		if request.Versions[k] != v {
 			return false
 		}
 	}
