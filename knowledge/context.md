@@ -2,7 +2,7 @@
 
 ## Active
 
-- [[delivery-status|Delivery status]]: filing shipped work and the deferred slices
+- [[delivery-status|Delivery status]]: shipped work and deferred slices, with Linear issue numbers
 
 ## Background
 

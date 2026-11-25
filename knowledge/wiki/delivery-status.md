@@ -2,7 +2,7 @@
 title: Delivery status
 type: overview
 created: 2026-11-13
-updated: 2026-11-13
+updated: 2026-11-24
 tags:
   - delivery
   - status
@@ -48,7 +48,28 @@ The 2026-10-31 owner decision deferred these, and the 2026-11-01 section still l
 ## Gaps
 
 - The README's remote section and the 2026-11-01 handoff describe different layers. The client tests do not qualify production. The handoff records one live drill on the personal Railway project.
-- The connected Linear MCP in this session is the GameRight workspace. The Applied Labs workspace, team `APP`, holds the Software Factory project. This vault does not record a Linear issue identifier until that workspace accepts the issues.
+
+## Tracking
+
+Linear tracks this work in the Applied Labs workspace, team `APP`, project Software Factory. Issues were filed on 2026-11-24.
+
+| Issue | Work | State |
+|---|---|---|
+| APP-6 | Local vault, bounded retrieval, sessions | Done |
+| APP-7 | Portable agent workflows, pull request #21 | Done |
+| APP-8 | Prebuilt release binaries, pull request #20 | Done |
+| APP-9 | Scoped graph memory, I1, O1, O2, pull request #22 | Done |
+| APP-10 | Retrieval pilot, KB CLI against file search | Done |
+| APP-5 | C2 capture adapters and C4 selected import and export | Backlog |
+| APP-11 | Cross-project lessons, git gateway, attested test outcomes | Backlog |
+| APP-12 | I2 Buzz owner decisions and recovery | Backlog |
+| APP-13 | I3 budgeted dreaming | Backlog |
+| APP-14 | I4 Hermes conversations | Backlog |
+| APP-15 | O3 fair usefulness evaluation | Backlog |
+| APP-16 | Live usability review of the remote CLI | Backlog |
+| APP-17 | Retrieval follow-on and broader portability evaluation | Backlog |
+| APP-18 | Recovery targets beyond one drill | Backlog |
+| APP-19 | This project knowledge vault | In Progress |
 
 ## Reading Order
 
