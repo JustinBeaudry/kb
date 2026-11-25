@@ -9,3 +9,7 @@ Created [[kb-product|KB product]], [[local-vault|Local vault]], [[remote-memory|
 ## [2026-11-24] update | delivery status
 
 Added a Tracking section to [[delivery-status|Delivery status]] that maps shipped and deferred work to Linear issues APP-5 through APP-19 in Applied Labs, project Software Factory. Removed the gap note that said the issues were not filed.
+
+## [2026-11-25] update | delivery status
+
+Recorded the 2026-11-25 merges (kb#1 to kb#15), the kb#5 graph deployment `5ed3e589`, and the remaining deploy, custody, backup-provider and evidence work in [[delivery-status|Delivery status]].
