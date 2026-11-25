@@ -467,6 +467,52 @@ describe("portable export", () => {
     expect(readFileSync(join(out, "keep.md"), "utf8")).toBe("keep");
   });
 
+  test("export resume refuses a symlinked claims directory", async () => {
+    const out = join(temp(), "bundle"), outside = temp();
+    const server = exportServer();
+    server.failExportAt = 1;
+    const svc = new TransferService(server, (p) => FileVaultRepository.open(p), (d) => new FileBundleWriter(d));
+    await svc.export({ project_id: "demo" }, out);
+    rmSync(join(out, "claims"), { recursive: true, force: true });
+    symlinkSync(outside, join(out, "claims"));
+
+    const resumed = await svc.export({ project_id: "demo" }, out, { resume: true });
+
+    expect(resumed.ok).toBe(false);
+    expect(readdirSync(outside)).toEqual([]);
+  });
+
+  test("export rejects claims outside the requested session", async () => {
+    const server = exportServer();
+    server.pages = [{ claims: [{ ...verified, scope: { project_id: "demo", session_id: "other" } }], omitted: 0, completeness: "complete" }];
+    const svc = new TransferService(server, (p) => FileVaultRepository.open(p), (d) => new FileBundleWriter(d));
+
+    const other = await svc.export({ project_id: "demo", session_id: "s-1" }, join(temp(), "bundle"));
+    server.pages = [{ claims: [verified], omitted: 0, completeness: "complete" }];
+    const missing = await svc.export({ project_id: "demo", session_id: "s-1" }, join(temp(), "bundle"));
+
+    expect([other, missing].map((r) => (r.ok ? "ok" : r.error.code))).toEqual(["unavailable", "unavailable"]);
+  });
+
+  test("export preserves withheld completeness", async () => {
+    const cases: [ExportPage["completeness"][], string][] = [
+      [["withheld"], "withheld"],
+      [["complete", "withheld"], "withheld"],
+      [["withheld", "partial"], "partial"],
+      [["complete", "complete"], "complete"],
+    ];
+    const results: string[] = [];
+    for (const [pages] of cases) {
+      const server = new FakeServer();
+      server.pages = pages.map((completeness, i) => ({ claims: [], omitted: 0, completeness, ...(i < pages.length - 1 ? { continuation: `page-${i + 1}` } : {}) }));
+      const svc = new TransferService(server, (p) => FileVaultRepository.open(p), (d) => new FileBundleWriter(d));
+      const r = await svc.export({ project_id: "demo" }, join(temp(), "bundle"));
+      results.push(r.ok ? r.value.completeness : r.error.code);
+    }
+
+    expect(results).toEqual(cases.map(([, want]) => want));
+  });
+
   test("export rejects an invalid exported status", async () => {
     const server = exportServer();
     // SAFETY: deliberately forged wire value at the gateway boundary.

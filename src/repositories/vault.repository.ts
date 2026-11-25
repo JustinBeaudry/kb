@@ -149,6 +149,19 @@ export class FileBundleWriter implements BundleWriter {
     try { renameSync(tmp, path); } catch (e) { try { unlinkSync(tmp); } catch { /* best effort */ } throw e; }
   }
 
+  /** Every directory from the bundle root to the target's parent must be a
+   * real directory, not a symlink: a resumed bundle may have been altered
+   * since it was created, and writes must never follow a link out of it. */
+  private realDirectories(id: string): boolean {
+    let current = this.dir;
+    for (const part of ["", ...id.split("/").slice(0, -1)]) {
+      if (part) current = join(current, part);
+      const stat = lstatSync(current);
+      if (stat.isSymbolicLink() || !stat.isDirectory()) return false;
+    }
+    return true;
+  }
+
   async begin(resume: boolean): Promise<Result<BundleState | undefined, VaultError>> {
     try {
       let entries: string[] | undefined;
@@ -177,7 +190,7 @@ export class FileBundleWriter implements BundleWriter {
     if (!validVaultID(id) || id.startsWith(".")) return fail("path_unsafe");
     try {
       const target = join(this.dir, id);
-      if (!isWithin(target, this.dir)) return fail("path_unsafe");
+      if (!isWithin(target, this.dir) || !this.realDirectories(id)) return fail("path_unsafe");
       this.atomic(target, content);
       return { ok: true, value: undefined };
     } catch {

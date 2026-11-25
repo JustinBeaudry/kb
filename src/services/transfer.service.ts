@@ -170,7 +170,14 @@ function locatorFor(fileID: string, digest: string, bytes: number, provenance?: 
   }
 }
 function validExportedClaim(c: ExportedClaim, scope: ExportScope): boolean {
-  return !!c && opaque(c.claim_id) && opaque(c.revision) && typeof c.text === "string" && opaque(c.kind) && CLAIM_STATUSES.has(c.claim_status) && TRUSTS.has(c.origin_trust) && validScope(c.scope, false) && c.scope.project_id === scope.project_id && (scope.task_id === undefined || c.scope.task_id === scope.task_id) && Array.isArray(c.evidence) && c.evidence.length <= 50 && c.evidence.every((e) => opaque(e.artifact_id) && opaque(e.digest) && typeof e.locator === "string" && TRUSTS.has(e.origin?.trust));
+  return !!c && opaque(c.claim_id) && opaque(c.revision) && typeof c.text === "string" && opaque(c.kind) && CLAIM_STATUSES.has(c.claim_status) && TRUSTS.has(c.origin_trust) && validScope(c.scope, false) && c.scope.project_id === scope.project_id && (scope.task_id === undefined || c.scope.task_id === scope.task_id) && (scope.session_id === undefined || c.scope.session_id === scope.session_id) && Array.isArray(c.evidence) && c.evidence.length <= 50 && c.evidence.every((e) => opaque(e.artifact_id) && opaque(e.digest) && typeof e.locator === "string" && TRUSTS.has(e.origin?.trust));
+}
+
+/** Partial dominates withheld, which dominates complete: a bundle is only as
+ * complete as its least complete page. */
+function mergeCompleteness(a: ExportPage["completeness"], b: ExportPage["completeness"]): ExportPage["completeness"] {
+  if (a === "partial" || b === "partial") return "partial";
+  return a === "withheld" || b === "withheld" ? "withheld" : "complete";
 }
 
 export class TransferService {
@@ -305,7 +312,7 @@ export class TransferService {
         const written = await writer.write(bundleFileID(c.claim_id), `---\n${yamlStringify(front).trimEnd()}\n---\n${c.text}`);
         if (!written.ok) return fail("unavailable");
       }
-      state = { ...state, claims: state.claims + value.claims.length, omitted: state.omitted + value.omitted, completeness: state.completeness === "complete" && value.completeness === "complete" ? "complete" : "partial", continuation: value.continuation, done: value.continuation === undefined };
+      state = { ...state, claims: state.claims + value.claims.length, omitted: state.omitted + value.omitted, completeness: mergeCompleteness(state.completeness, value.completeness), continuation: value.continuation, done: value.continuation === undefined };
       const saved = await writer.save(state);
       if (!saved.ok) return fail("unavailable");
     }
