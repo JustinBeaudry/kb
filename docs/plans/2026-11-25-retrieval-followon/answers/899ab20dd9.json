@@ -1,0 +1,90 @@
+{
+  "id": "899ab20dd9",
+  "started": "2026-11-25T16:56:40.194Z",
+  "ended": "2026-11-25T16:56:54.828Z",
+  "wall_ms": 14634,
+  "exit_code": 0,
+  "timed_out": false,
+  "result_subtype": "success",
+  "is_error": false,
+  "model": "claude-haiku-5-5",
+  "tools_offered": [
+    "Bash"
+  ],
+  "num_turns": 7,
+  "usage": {
+    "input_tokens": 12,
+    "cache_creation_input_tokens": 17012,
+    "cache_read_input_tokens": 62010,
+    "output_tokens": 2389,
+    "output_tokens_details": {
+      "thinking_tokens": 587
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 17012,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 601,
+        "cache_read_input_tokens": 20614,
+        "cache_creation_input_tokens": 535,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 535
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 12,
+      "outputTokens": 2389,
+      "cacheReadInputTokens": 62010,
+      "cacheCreationInputTokens": 17012,
+      "webSearchRequests": 0,
+      "costUSD": 0.0052182,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 587,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 17012,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "cost_usd": 0.0052182,
+  "permission_denials": [],
+  "final_text": "{\"answer\": \"For Nacre production delivery failures, the maximum retry count is 7 and the initial retry delay is 90 seconds. The only plain \\\"Nacre\\\" production policy in the vault gives both values. Nacre-Sandbox (2 retries, 15 s) and Nacre-Legacy (3 retries, 30 s) have their own policies and are not the Nacre production values. Nacre-Lab, a disposable demo, uses 2 retries and a 5-second delay.\", \"citations\": [{\"source\": \"wiki/queue-dispatch.md\", \"start\": 11, \"end\": 13}, {\"source\": \"wiki/queue-dispatch.md\", \"start\": 15, \"end\": 16}, {\"source\": \"wiki/nacre-sandbox-dispatch.md\", \"start\": 11, \"end\": 16}], \"limitations\": \"The Nacre policy section in wiki/queue-dispatch.md has no explicit scope statement, so the reading that it covers Nacre production rests on its heading and wording. The second sentence says only \\\"the initial retry delay\\\", so the 90-second value is read as the Nacre value from its section heading. A search for plain Nacre references returned only this section. A broader search across all dispatch pages was truncated, so other pages were not fully checked, though the narrower search found no other plain Nacre policy. Only the search, read and guide operations were used; no other sources were checked.\"}",
+  "parsed_ok": true,
+  "answer": "For Nacre production delivery failures, the maximum retry count is 7 and the initial retry delay is 90 seconds. The only plain \"Nacre\" production policy in the vault gives both values. Nacre-Sandbox (2 retries, 15 s) and Nacre-Legacy (3 retries, 30 s) have their own policies and are not the Nacre production values. Nacre-Lab, a disposable demo, uses 2 retries and a 5-second delay.",
+  "citations": [
+    {
+      "source": "wiki/queue-dispatch.md",
+      "start": 11,
+      "end": 13
+    },
+    {
+      "source": "wiki/queue-dispatch.md",
+      "start": 15,
+      "end": 16
+    },
+    {
+      "source": "wiki/nacre-sandbox-dispatch.md",
+      "start": 11,
+      "end": 16
+    }
+  ],
+  "limitations": "The Nacre policy section in wiki/queue-dispatch.md has no explicit scope statement, so the reading that it covers Nacre production rests on its heading and wording. The second sentence says only \"the initial retry delay\", so the 90-second value is read as the Nacre value from its section heading. A search for plain Nacre references returned only this section. A broader search across all dispatch pages was truncated, so other pages were not fully checked, though the narrower search found no other plain Nacre policy. Only the search, read and guide operations were used; no other sources were checked."
+}

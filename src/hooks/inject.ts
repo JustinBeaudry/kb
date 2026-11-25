@@ -25,6 +25,8 @@ const ALLOWED_EVENT_NAMES = new Set(["SessionStart", "PostCompact"]);
 // Remembered for the top-level fail-soft path so a crash after event-name
 // resolution still reports the real firing event.
 let resolvedEventName = DEFAULT_EVENT_NAME;
+// Session ID from the same hook payload; only used by explicit remote restore.
+let hookSessionID: string | undefined;
 
 /**
  * Claude Code hooks receive a JSON payload on stdin whose hook_event_name
@@ -43,7 +45,11 @@ async function readHookEventName(): Promise<string> {
         timer = setTimeout(() => resolve(""), 250);
       }),
     ]);
-    const parsed = JSON.parse(text) as { hook_event_name?: unknown };
+    // SAFETY: both fields are type-checked before use; anything else is ignored.
+    const parsed = JSON.parse(text) as { hook_event_name?: unknown; session_id?: unknown };
+    if (typeof parsed.session_id === "string" && parsed.session_id.length > 0) {
+      hookSessionID = parsed.session_id;
+    }
     return typeof parsed.hook_event_name === "string" &&
       ALLOWED_EVENT_NAMES.has(parsed.hook_event_name)
       ? parsed.hook_event_name
@@ -102,6 +108,50 @@ function emitEmptyOnce(eventName: string): void {
   emitEmpty(eventName);
 }
 
+const REMOTE_RESTORE_TIMEOUT_MS = 10_000;
+
+/**
+ * Explicit remote opt-in (KB_REMOTE_PROFILE + KB_REMOTE_ENDPOINT +
+ * KB_REMOTE_PROJECT, optional KB_REMOTE_TASK). Any remote failure yields empty
+ * context; it never falls back to the local vault. Loaded lazily so the local
+ * path is unchanged when no profile is configured.
+ */
+async function remoteContext(profile: string, budget: number): Promise<string> {
+  const endpoint = process.env.KB_REMOTE_ENDPOINT;
+  const projectID = process.env.KB_REMOTE_PROJECT;
+  if (!endpoint || !projectID) return "";
+  const [{ RemoteProfiles }, { RemoteCredentials }, { HTTPMemoryGateway }, { restoreScopedContext }] =
+    await Promise.all([
+      import("../services/remote.service"),
+      import("../gateways/remote-credentials"),
+      import("../gateways/memory.gateway"),
+      import("../capture/watcher"),
+    ]);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<string>((resolve) => {
+    timer = setTimeout(() => resolve(""), REMOTE_RESTORE_TIMEOUT_MS);
+  });
+  const restore = (async () => {
+    const connected = await new RemoteProfiles(new RemoteCredentials()).connect(
+      profile,
+      endpoint,
+      (origin, token) => new HTTPMemoryGateway(origin, token),
+    );
+    if (!connected.ok) return "";
+    const restored = await restoreScopedContext(
+      connected.value,
+      { projectID, taskID: process.env.KB_REMOTE_TASK || undefined, sessionID: hookSessionID },
+      budget,
+    );
+    return restored.ok ? restored.value : "";
+  })().catch(() => "");
+  try {
+    return await Promise.race([restore, timeout]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
 async function main(): Promise<void> {
   const eventName = await readHookEventName();
   resolvedEventName = eventName;
@@ -109,6 +159,12 @@ async function main(): Promise<void> {
   const parsedBudget = Number(process.env.KB_BUDGET ?? DEFAULT_BUDGET);
   const budget =
     Number.isFinite(parsedBudget) && parsedBudget > 0 ? parsedBudget : DEFAULT_BUDGET;
+
+  const remoteProfile = process.env.KB_REMOTE_PROFILE;
+  if (remoteProfile) {
+    emitOnce(eventName, await remoteContext(remoteProfile, Math.floor(budget)));
+    return;
+  }
 
   if (!existsSync(vaultPath)) {
     emitEmptyOnce(eventName);

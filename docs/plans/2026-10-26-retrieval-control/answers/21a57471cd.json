@@ -1,0 +1,16 @@
+{
+  "answer": "No. The Larch pilot is now scheduled for November 26, 2026. The original November 12, 2026 target came from the October 5 decision. A decision on October 23, 2026 replaced it, and the reason given was to allow certificate renewal to be completed. The archive page was reorganized on October 25, but that edit was not a new launch decision. The public launch date has not been decided.",
+  "citations": [
+    {
+      "source": "wiki/larch-release.md",
+      "start": 11,
+      "end": 17
+    },
+    {
+      "source": "wiki/larch-archive.md",
+      "start": 11,
+      "end": 16
+    }
+  ],
+  "limitations": "The answer comes only from the two curated wiki pages, which agree with each other. No raw sources or sessions were checked. The public launch date is still undecided according to the KB."
+}

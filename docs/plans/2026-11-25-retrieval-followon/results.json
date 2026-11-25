@@ -1,0 +1,507 @@
+{
+  "summary": {
+    "files": {
+      "n": 8,
+      "strict_success": 3,
+      "fact_recall_macro": 1,
+      "evidence_exposed": "20/20",
+      "claims_supported": "48/52",
+      "wrong_or_superseded": 1,
+      "behavior_ok": 6,
+      "failed_only_on_unsupported_extra_claim": 3,
+      "calls": 49,
+      "kb_calls": 0,
+      "trials_using_kb": 0,
+      "visible_bytes": 260174,
+      "guide_bytes": 7992,
+      "visible_bytes_excl_guide": 252182,
+      "raw_bytes": 3314607,
+      "truncated": 14,
+      "nonzero_exit": 0,
+      "tool_ms": 707,
+      "solver_cost_usd": 0.0421,
+      "solver_output_tokens": 18395,
+      "solver_input_tokens_total": 660349,
+      "corpus_unchanged": true,
+      "off_adapter_tool_uses": 2
+    },
+    "kb-full": {
+      "n": 8,
+      "strict_success": 1,
+      "fact_recall_macro": 1,
+      "evidence_exposed": "20/20",
+      "claims_supported": "42/53",
+      "wrong_or_superseded": 1,
+      "behavior_ok": 7,
+      "failed_only_on_unsupported_extra_claim": 6,
+      "calls": 47,
+      "kb_calls": 0,
+      "trials_using_kb": 0,
+      "visible_bytes": 287028,
+      "guide_bytes": 78584,
+      "visible_bytes_excl_guide": 208444,
+      "raw_bytes": 1816446,
+      "truncated": 11,
+      "nonzero_exit": 0,
+      "tool_ms": 550.4,
+      "solver_cost_usd": 0.0448,
+      "solver_output_tokens": 18336,
+      "solver_input_tokens_total": 677422,
+      "corpus_unchanged": true,
+      "off_adapter_tool_uses": 0
+    },
+    "kb-minimal": {
+      "n": 8,
+      "strict_success": 5,
+      "fact_recall_macro": 1,
+      "evidence_exposed": "20/20",
+      "claims_supported": "43/46",
+      "wrong_or_superseded": 0,
+      "behavior_ok": 8,
+      "failed_only_on_unsupported_extra_claim": 3,
+      "calls": 47,
+      "kb_calls": 8,
+      "trials_using_kb": 4,
+      "visible_bytes": 217491,
+      "guide_bytes": 8096,
+      "visible_bytes_excl_guide": 209395,
+      "raw_bytes": 1527217,
+      "truncated": 10,
+      "nonzero_exit": 0,
+      "tool_ms": 1786,
+      "solver_cost_usd": 0.0383,
+      "solver_output_tokens": 18194,
+      "solver_input_tokens_total": 642303,
+      "corpus_unchanged": true,
+      "off_adapter_tool_uses": 0
+    }
+  },
+  "paired": [
+    {
+      "task": "T01",
+      "files": {
+        "id": "c14df0cd54",
+        "strict_success": false,
+        "facts": "2/2",
+        "wrong_or_superseded": false,
+        "behavior_ok": true,
+        "unsupported_claims": [
+          "The 'Nacre delivery retry policy' section is on the Queue Dispatch page and all three pages carry the same updated date (2026-10-24) / none is marked historical (date not shown in cited spans)"
+        ],
+        "calls": 5,
+        "kb_ops": [],
+        "visible_bytes": 5365,
+        "visible_bytes_excl_guide": 4366,
+        "truncated": 0,
+        "evidence_exposed": "2/2"
+      },
+      "kb-full": {
+        "id": "899ab20dd9",
+        "strict_success": false,
+        "facts": "2/2",
+        "wrong_or_superseded": false,
+        "behavior_ok": true,
+        "unsupported_claims": [
+          "The only plain \"Nacre\" production policy in the vault gives both values (no cited span shows this; the limitations admit the broader search was truncated)",
+          "Nacre-Legacy (3 retries, 30 s) has its own policy (no cited span covers Nacre-Legacy)"
+        ],
+        "calls": 6,
+        "kb_ops": [],
+        "visible_bytes": 29620,
+        "visible_bytes_excl_guide": 19797,
+        "truncated": 1,
+        "evidence_exposed": "2/2"
+      },
+      "kb-minimal": {
+        "id": "4e144ef409",
+        "strict_success": true,
+        "facts": "2/2",
+        "wrong_or_superseded": false,
+        "behavior_ok": true,
+        "unsupported_claims": [],
+        "calls": 6,
+        "kb_ops": [
+          "map",
+          "recall"
+        ],
+        "visible_bytes": 34636,
+        "visible_bytes_excl_guide": 33624,
+        "truncated": 2,
+        "evidence_exposed": "2/2"
+      }
+    },
+    {
+      "task": "T02",
+      "files": {
+        "id": "bcce0381b4",
+        "strict_success": false,
+        "facts": "2/2",
+        "wrong_or_superseded": false,
+        "behavior_ok": false,
+        "unsupported_claims": [
+          "The only unqualified Corundum entry is the generic Event Ledger page (the cited spans do not show that no other unqualified Corundum entry exists)"
+        ],
+        "calls": 8,
+        "kb_ops": [],
+        "visible_bytes": 53319,
+        "visible_bytes_excl_guide": 52320,
+        "truncated": 3,
+        "evidence_exposed": "2/2"
+      },
+      "kb-full": {
+        "id": "42fe0a678b",
+        "strict_success": false,
+        "facts": "2/2",
+        "wrong_or_superseded": false,
+        "behavior_ok": true,
+        "unsupported_claims": [
+          "The Corundum-Sandbox and Corundum-Legacy service pages (wiki/corundum-sandbox-service.md, wiki/corundum-legacy-service.md) name service owners, not this retention rule."
+        ],
+        "calls": 6,
+        "kb_ops": [],
+        "visible_bytes": 45322,
+        "visible_bytes_excl_guide": 35499,
+        "truncated": 2,
+        "evidence_exposed": "2/2"
+      },
+      "kb-minimal": {
+        "id": "13b87d427f",
+        "strict_success": false,
+        "facts": "2/2",
+        "wrong_or_superseded": false,
+        "behavior_ok": true,
+        "unsupported_claims": [
+          "Raw-event retention is separate from the analytics aggregates (weekly trend totals), which are kept longer and do not extend raw event retention."
+        ],
+        "calls": 5,
+        "kb_ops": [],
+        "visible_bytes": 6034,
+        "visible_bytes_excl_guide": 5022,
+        "truncated": 0,
+        "evidence_exposed": "2/2"
+      }
+    },
+    {
+      "task": "T03",
+      "files": {
+        "id": "64d3e7d3e1",
+        "strict_success": true,
+        "facts": "3/3",
+        "wrong_or_superseded": false,
+        "behavior_ok": true,
+        "unsupported_claims": [],
+        "calls": 4,
+        "kb_ops": [],
+        "visible_bytes": 18884,
+        "visible_bytes_excl_guide": 17885,
+        "truncated": 1,
+        "evidence_exposed": "3/3"
+      },
+      "kb-full": {
+        "id": "6efea2e725",
+        "strict_success": false,
+        "facts": "3/3",
+        "wrong_or_superseded": false,
+        "behavior_ok": true,
+        "unsupported_claims": [
+          "The public launch date is undecided."
+        ],
+        "calls": 4,
+        "kb_ops": [],
+        "visible_bytes": 27708,
+        "visible_bytes_excl_guide": 17885,
+        "truncated": 1,
+        "evidence_exposed": "3/3"
+      },
+      "kb-minimal": {
+        "id": "d3d1d6f77f",
+        "strict_success": true,
+        "facts": "3/3",
+        "wrong_or_superseded": false,
+        "behavior_ok": true,
+        "unsupported_claims": [],
+        "calls": 5,
+        "kb_ops": [
+          "map",
+          "recall"
+        ],
+        "visible_bytes": 18346,
+        "visible_bytes_excl_guide": 17334,
+        "truncated": 1,
+        "evidence_exposed": "3/3"
+      }
+    },
+    {
+      "task": "T04",
+      "files": {
+        "id": "915fc22453",
+        "strict_success": false,
+        "facts": "4/4",
+        "wrong_or_superseded": false,
+        "behavior_ok": true,
+        "unsupported_claims": [
+          "The US export path is owned by a different team (contact Ren Sol), which does not apply to EU suspension."
+        ],
+        "calls": 7,
+        "kb_ops": [],
+        "visible_bytes": 19681,
+        "visible_bytes_excl_guide": 18682,
+        "truncated": 1,
+        "evidence_exposed": "4/4"
+      },
+      "kb-full": {
+        "id": "372b62ce58",
+        "strict_success": false,
+        "facts": "4/4",
+        "wrong_or_superseded": false,
+        "behavior_ok": true,
+        "unsupported_claims": [
+          "Do not use the US path, which is owned by Ren Sol.",
+          "The Plover-Sandbox and Plover-Legacy pages have different contacts and resumption steps, and I did not apply them.",
+          "The duty roster was last updated 2026-10-24 (stated in limitations)."
+        ],
+        "calls": 6,
+        "kb_ops": [],
+        "visible_bytes": 44489,
+        "visible_bytes_excl_guide": 34666,
+        "truncated": 2,
+        "evidence_exposed": "4/4"
+      },
+      "kb-minimal": {
+        "id": "6de85dfe39",
+        "strict_success": true,
+        "facts": "4/4",
+        "wrong_or_superseded": false,
+        "behavior_ok": true,
+        "unsupported_claims": [],
+        "calls": 7,
+        "kb_ops": [],
+        "visible_bytes": 19694,
+        "visible_bytes_excl_guide": 18682,
+        "truncated": 1,
+        "evidence_exposed": "4/4"
+      }
+    },
+    {
+      "task": "T05",
+      "files": {
+        "id": "bf3f5d8843",
+        "strict_success": false,
+        "facts": "4/4",
+        "wrong_or_superseded": false,
+        "behavior_ok": true,
+        "unsupported_claims": [
+          "Mariner-Legacy, Mariner-Sandbox and Mariner-Lab blockers were excluded as other projects"
+        ],
+        "calls": 6,
+        "kb_ops": [],
+        "visible_bytes": 24178,
+        "visible_bytes_excl_guide": 23179,
+        "truncated": 1,
+        "evidence_exposed": "4/4"
+      },
+      "kb-full": {
+        "id": "edcfc14fde",
+        "strict_success": false,
+        "facts": "4/4",
+        "wrong_or_superseded": false,
+        "behavior_ok": true,
+        "unsupported_claims": [
+          "Mariner-Legacy, Mariner-Sandbox and Mariner-Lab have their own blocker lists, which are other projects"
+        ],
+        "calls": 10,
+        "kb_ops": [],
+        "visible_bytes": 35962,
+        "visible_bytes_excl_guide": 26139,
+        "truncated": 1,
+        "evidence_exposed": "4/4"
+      },
+      "kb-minimal": {
+        "id": "e2e38f90d1",
+        "strict_success": false,
+        "facts": "4/4",
+        "wrong_or_superseded": false,
+        "behavior_ok": true,
+        "unsupported_claims": [
+          "Mariner-Legacy, Mariner-Sandbox and Mariner-Lab entries were excluded as other projects."
+        ],
+        "calls": 5,
+        "kb_ops": [
+          "map",
+          "recall"
+        ],
+        "visible_bytes": 21080,
+        "visible_bytes_excl_guide": 20068,
+        "truncated": 1,
+        "evidence_exposed": "4/4"
+      }
+    },
+    {
+      "task": "T06",
+      "files": {
+        "id": "0ecca8e6fa",
+        "strict_success": true,
+        "facts": "2/2",
+        "wrong_or_superseded": false,
+        "behavior_ok": true,
+        "unsupported_claims": [],
+        "calls": 9,
+        "kb_ops": [],
+        "visible_bytes": 84311,
+        "visible_bytes_excl_guide": 83312,
+        "truncated": 5,
+        "evidence_exposed": "2/2"
+      },
+      "kb-full": {
+        "id": "d67f52a44e",
+        "strict_success": true,
+        "facts": "2/2",
+        "wrong_or_superseded": false,
+        "behavior_ok": true,
+        "unsupported_claims": [],
+        "calls": 6,
+        "kb_ops": [],
+        "visible_bytes": 44021,
+        "visible_bytes_excl_guide": 34198,
+        "truncated": 2,
+        "evidence_exposed": "2/2"
+      },
+      "kb-minimal": {
+        "id": "e2b6ad1255",
+        "strict_success": true,
+        "facts": "2/2",
+        "wrong_or_superseded": false,
+        "behavior_ok": true,
+        "unsupported_claims": [],
+        "calls": 7,
+        "kb_ops": [],
+        "visible_bytes": 59710,
+        "visible_bytes_excl_guide": 58698,
+        "truncated": 2,
+        "evidence_exposed": "2/2"
+      }
+    },
+    {
+      "task": "T07",
+      "files": {
+        "id": "ef7dd77b18",
+        "strict_success": true,
+        "facts": "3/3",
+        "wrong_or_superseded": false,
+        "behavior_ok": true,
+        "unsupported_claims": [],
+        "calls": 5,
+        "kb_ops": [],
+        "visible_bytes": 34960,
+        "visible_bytes_excl_guide": 33961,
+        "truncated": 2,
+        "evidence_exposed": "3/3"
+      },
+      "kb-full": {
+        "id": "4e19488c38",
+        "strict_success": false,
+        "facts": "3/3",
+        "wrong_or_superseded": false,
+        "behavior_ok": true,
+        "unsupported_claims": [
+          "The Helix-Sandbox and Helix-Legacy supplier renewal pages each have a confirmed date, but they are different contracts and do not apply here.",
+          "The date needs a decision from purchasing and legal before it can be treated as firm."
+        ],
+        "calls": 4,
+        "kb_ops": [],
+        "visible_bytes": 31705,
+        "visible_bytes_excl_guide": 21882,
+        "truncated": 1,
+        "evidence_exposed": "3/3"
+      },
+      "kb-minimal": {
+        "id": "f1a7c913ab",
+        "strict_success": false,
+        "facts": "3/3",
+        "wrong_or_superseded": false,
+        "behavior_ok": true,
+        "unsupported_claims": [
+          "The Helix-Sandbox (February 5, 2027) and Helix-Legacy renewal entries are different suppliers and do not answer this question."
+        ],
+        "calls": 5,
+        "kb_ops": [],
+        "visible_bytes": 22953,
+        "visible_bytes_excl_guide": 21941,
+        "truncated": 1,
+        "evidence_exposed": "3/3"
+      }
+    },
+    {
+      "task": "T08",
+      "files": {
+        "id": "9c5a7fffc9",
+        "strict_success": false,
+        "facts": "0/0",
+        "wrong_or_superseded": true,
+        "behavior_ok": false,
+        "unsupported_claims": [],
+        "calls": 5,
+        "kb_ops": [],
+        "visible_bytes": 19476,
+        "visible_bytes_excl_guide": 18477,
+        "truncated": 1,
+        "evidence_exposed": "0/0"
+      },
+      "kb-full": {
+        "id": "ccd868de5f",
+        "strict_success": false,
+        "facts": "0/0",
+        "wrong_or_superseded": true,
+        "behavior_ok": false,
+        "unsupported_claims": [
+          "The only signer and fee on record belong to Cinder-Sandbox (an exhaustive claim across the vault that the cited spans cannot support)"
+        ],
+        "calls": 5,
+        "kb_ops": [],
+        "visible_bytes": 28201,
+        "visible_bytes_excl_guide": 18378,
+        "truncated": 1,
+        "evidence_exposed": "0/0"
+      },
+      "kb-minimal": {
+        "id": "b79294ef49",
+        "strict_success": true,
+        "facts": "0/0",
+        "wrong_or_superseded": false,
+        "behavior_ok": true,
+        "unsupported_claims": [],
+        "calls": 7,
+        "kb_ops": [
+          "map",
+          "recall"
+        ],
+        "visible_bytes": 35038,
+        "visible_bytes_excl_guide": 34026,
+        "truncated": 2,
+        "evidence_exposed": "0/0"
+      }
+    }
+  ],
+  "pilot_reference": {
+    "files": {
+      "strict_success": 6,
+      "n": 8,
+      "fact_recall_macro": 1,
+      "evidence_exposed": "20/20",
+      "calls": 34,
+      "kb_calls": 0,
+      "visible_bytes": 104430,
+      "wrong_or_superseded": 0
+    },
+    "kb": {
+      "strict_success": 6,
+      "n": 8,
+      "fact_recall_macro": 1,
+      "evidence_exposed": "20/20",
+      "calls": 41,
+      "kb_calls": 5,
+      "visible_bytes": 192426,
+      "wrong_or_superseded": 0
+    }
+  }
+}

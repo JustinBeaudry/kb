@@ -1,0 +1,80 @@
+{
+  "id": "4e144ef409",
+  "started": "2026-11-25T16:57:34.922Z",
+  "ended": "2026-11-25T16:57:49.914Z",
+  "wall_ms": 14992,
+  "exit_code": 0,
+  "timed_out": false,
+  "result_subtype": "success",
+  "is_error": false,
+  "model": "claude-haiku-5-5",
+  "tools_offered": [
+    "Bash"
+  ],
+  "num_turns": 7,
+  "usage": {
+    "input_tokens": 14,
+    "cache_creation_input_tokens": 19134,
+    "cache_read_input_tokens": 80163,
+    "output_tokens": 2195,
+    "output_tokens_details": {
+      "thinking_tokens": 433
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 19134,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 500,
+        "cache_read_input_tokens": 22704,
+        "cache_creation_input_tokens": 567,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 567
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 14,
+      "outputTokens": 2195,
+      "cacheReadInputTokens": 80163,
+      "cacheCreationInputTokens": 19134,
+      "webSearchRequests": 0,
+      "costUSD": 0.00572733,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 433,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 19134,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "cost_usd": 0.00572733,
+  "permission_denials": [],
+  "final_text": "{\"answer\": \"For plain Nacre production delivery failures: the maximum retry count is 7, and the initial retry delay is 90 seconds. Both values come from the 'Nacre delivery retry policy' section, which covers Nacre production delivery failures. The section's second sentence says 'The initial retry delay' without repeating the name, but it sits under the Nacre heading.\", \"citations\": [{\"source\": \"wiki/queue-dispatch.md\", \"start\": 11, \"end\": 13}], \"limitations\": \"Only one plain-Nacre retry policy was found (a search for 'Nacre (production|delivery|retry|initial)' returned only this section). Nacre-Legacy (3 retries, 30 s; wiki/nacre-legacy-dispatch.md:6-14), Nacre-Sandbox (2 retries, 15 s) and Nacre-Lab (2 retries, 5 s; wiki/queue-dispatch.md:15-16) are different entities and were excluded. The Nacre-Lab entry is a demo and out of scope. The corpus has no 'effective date' or 'superseded' marker on the Nacre section, so I did not check for later revisions beyond the 'updated: 2026-10-24' front matter. The KB search tool was truncated for broad queries, so a page using different wording could exist unseen, though the targeted searches found no conflict.\"}",
+  "parsed_ok": true,
+  "answer": "For plain Nacre production delivery failures: the maximum retry count is 7, and the initial retry delay is 90 seconds. Both values come from the 'Nacre delivery retry policy' section, which covers Nacre production delivery failures. The section's second sentence says 'The initial retry delay' without repeating the name, but it sits under the Nacre heading.",
+  "citations": [
+    {
+      "source": "wiki/queue-dispatch.md",
+      "start": 11,
+      "end": 13
+    }
+  ],
+  "limitations": "Only one plain-Nacre retry policy was found (a search for 'Nacre (production|delivery|retry|initial)' returned only this section). Nacre-Legacy (3 retries, 30 s; wiki/nacre-legacy-dispatch.md:6-14), Nacre-Sandbox (2 retries, 15 s) and Nacre-Lab (2 retries, 5 s; wiki/queue-dispatch.md:15-16) are different entities and were excluded. The Nacre-Lab entry is a demo and out of scope. The corpus has no 'effective date' or 'superseded' marker on the Nacre section, so I did not check for later revisions beyond the 'updated: 2026-10-24' front matter. The KB search tool was truncated for broad queries, so a page using different wording could exist unseen, though the targeted searches found no conflict."
+}

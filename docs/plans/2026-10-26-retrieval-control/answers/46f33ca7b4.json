@@ -1,0 +1,16 @@
+{
+  "answer": "The records do not give a firm renewal date for the Helix supplier contract. Two notes from October 20 disagree. The purchasing note gives December 3, 2026, and the legal note gives December 10, 2026. The page says neither note supersedes the other and that the renewal date is unresolved. Picking one would take a decision that isn't in the records. The December 1, 2026 date for Helix Labs is not an answer: it belongs to a separate internal training subscription, which the records say is unrelated to the supplier contract.",
+  "citations": [
+    {
+      "source": "wiki/helix-renewal.md",
+      "start": 11,
+      "end": 14
+    },
+    {
+      "source": "wiki/helix-labs.md",
+      "start": 11,
+      "end": 12
+    }
+  ],
+  "limitations": "Only the wiki pages were checked, through a search for 'helix' and a full read of helix-renewal.md. The original purchasing and legal notes were not available to check. Nothing in the vault records a later decision between the two dates, but one may exist outside these records."
+}

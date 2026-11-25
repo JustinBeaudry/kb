@@ -4,3 +4,7 @@ declare module "*.md" {
   const contents: string;
   export default contents;
 }
+declare module "*.c" {
+  const contents: string;
+  export default contents;
+}

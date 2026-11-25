@@ -1,8 +1,10 @@
 import { cc, dlopen, FFIType } from "bun:ffi";
-import { constants, fstat, type Stats } from "node:fs";
+import { constants, fstat, mkdtempSync, rmSync, type Stats, writeFileSync } from "node:fs";
 import { realpath } from "node:fs/promises";
-import { basename, dirname, resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { basename, dirname, join, resolve } from "node:path";
 import type { CaptureError, Result } from "../capture/types";
+import posixSource from "./capture-posix.c" with { type: "text" };
 
 /** POSIX directory-relative I/O. Never fall back to path-based payload writes.
  * The private directory is owner-only; fd anchoring survives rename/substitution.
@@ -41,16 +43,28 @@ export class UnsafeStorage extends Error {}
 export class BoundedRead extends Error {}
 let library: ReturnType<typeof native> | undefined;
 let opener: ReturnType<typeof compileOpener> | undefined;
-function compileOpener() {
-  return cc({
-    source: new URL("./capture-posix.c", import.meta.url),
-    symbols: {
-      kb_openat: {
-        args: [FFIType.i32, FFIType.ptr, FFIType.i32, FFIType.i32],
-        returns: FFIType.i32,
+/** The C source is embedded as text because a compiled `kb` binary has no
+ * readable source tree: TinyCC cannot open paths inside Bun's embedded
+ * filesystem. It is written to a fresh owner-only directory, compiled in
+ * memory, and the directory is removed before returning. Exported for the
+ * compiled-binary regression test. */
+export function compileOpener() {
+  const dir = mkdtempSync(join(tmpdir(), "kb-posix-"));
+  try {
+    const source = join(dir, "capture-posix.c");
+    writeFileSync(source, posixSource, { mode: 0o600, flag: "wx" });
+    return cc({
+      source,
+      symbols: {
+        kb_openat: {
+          args: [FFIType.i32, FFIType.ptr, FFIType.i32, FFIType.i32],
+          returns: FFIType.i32,
+        },
       },
-    },
-  });
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 const api = () => ({
   ...(library ??= native()).symbols,

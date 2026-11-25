@@ -1,0 +1,5 @@
+{"role":"user","content":"Summarize the synthetic plan"}
+{"type":"tool_call","id":"generic_call_1","name":"read_file","arguments":{"path":"plan.md"}}
+{"type":"tool_result","call_id":"generic_call_1","output":"Step one. Step two."}
+{"type":"message","role":"assistant","content":[{"type":"text","text":"The plan has two steps."}]}
+{"type":"compaction"}

@@ -1,0 +1,394 @@
+[
+  {
+    "opaque_id": "08336f1f",
+    "facts_correct": 3,
+    "facts_required": 3,
+    "claims_total": 6,
+    "claims_supported": 6,
+    "unsupported_claims": [],
+    "wrong_or_superseded": false,
+    "citation_support": 1,
+    "behavior_ok": true,
+    "strict_success": true,
+    "note": "All three gold facts are stated correctly, and the answer marks November 12 as superseded. Each KB claim is supported by the cited spans. The 'scheduled for tomorrow' remark comes from the session date, not the KB, so it was not counted as a material KB claim.",
+    "assessor_model": "claude-sonnet-5-5",
+    "assessor_cost_usd": 0.014889499999999998
+  },
+  {
+    "opaque_id": "30f50456",
+    "facts_correct": 4,
+    "facts_required": 4,
+    "claims_total": 8,
+    "claims_supported": 5,
+    "unsupported_claims": [
+      "Do not use the US path, which is owned by Ren Sol.",
+      "The Plover-Sandbox and Plover-Legacy pages have different contacts and resumption steps, and I did not apply them.",
+      "The duty roster was last updated 2026-10-24 (stated in limitations)."
+    ],
+    "wrong_or_superseded": false,
+    "citation_support": 0.625,
+    "behavior_ok": true,
+    "strict_success": false,
+    "note": "All four gold facts are correct and supported by the cited spans. The answer also makes claims about the US path owner (Ren Sol) and about the Sandbox/Legacy pages having different contacts and steps, and none of these appear in the cited spans, so they are unsupported. Koen Li as incident lead is supported but is extra, not wrong. Strict success fails on the unsupported claims.",
+    "assessor_model": "claude-sonnet-5-5",
+    "assessor_cost_usd": 0.012153500000000001
+  },
+  {
+    "opaque_id": "39bc0521",
+    "facts_correct": 2,
+    "facts_required": 2,
+    "claims_total": 7,
+    "claims_supported": 5,
+    "unsupported_claims": [
+      "The only plain \"Nacre\" production policy in the vault gives both values (no cited span shows this; the limitations admit the broader search was truncated)",
+      "Nacre-Legacy (3 retries, 30 s) has its own policy (no cited span covers Nacre-Legacy)"
+    ],
+    "wrong_or_superseded": false,
+    "citation_support": 0.714,
+    "behavior_ok": true,
+    "strict_success": false,
+    "note": "Both gold values (7 retries, 90 seconds) are correct and cited. Strict success fails because the answer makes two claims the cited spans do not support: the vault-wide 'only policy' claim and the Nacre-Legacy values.",
+    "assessor_model": "claude-sonnet-5-5",
+    "assessor_cost_usd": 0.0155655
+  },
+  {
+    "opaque_id": "3cf5f944",
+    "facts_correct": 3,
+    "facts_required": 3,
+    "claims_total": 7,
+    "claims_supported": 7,
+    "unsupported_claims": [],
+    "wrong_or_superseded": false,
+    "citation_support": 1,
+    "behavior_ok": true,
+    "strict_success": true,
+    "note": "Answer reports both conflicting dates (Dec 3 purchasing, Dec 10 legal), states neither supersedes the other and the date is unresolved, and correctly distinguishes Sandbox and Legacy entities without substituting them. All claims are supported by the cited spans.",
+    "assessor_model": "claude-sonnet-5-5",
+    "assessor_cost_usd": 0.0118095
+  },
+  {
+    "opaque_id": "48afd9a3",
+    "facts_correct": 2,
+    "facts_required": 2,
+    "claims_total": 3,
+    "claims_supported": 3,
+    "unsupported_claims": [],
+    "wrong_or_superseded": false,
+    "citation_support": 1,
+    "behavior_ok": true,
+    "strict_success": true,
+    "note": "Both gold facts stated correctly and supported by the cited spans. The vendor r41 claim is correctly described as not approved by the team and is not presented as the answer.",
+    "assessor_model": "claude-sonnet-5-5",
+    "assessor_cost_usd": 0.0096235
+  },
+  {
+    "opaque_id": "4bbbbb64",
+    "facts_correct": 4,
+    "facts_required": 4,
+    "claims_total": 6,
+    "claims_supported": 5,
+    "unsupported_claims": [
+      "Mariner-Legacy, Mariner-Sandbox and Mariner-Lab entries were excluded as other projects."
+    ],
+    "wrong_or_superseded": false,
+    "citation_support": 0.833,
+    "behavior_ok": true,
+    "strict_success": false,
+    "note": "All four open blockers and their owners are correct, and the closed launch copy item is correctly excluded. The statement about Mariner-Legacy, Mariner-Sandbox and Mariner-Lab entries has no support in the cited spans, so strict success fails on that claim.",
+    "assessor_model": "claude-sonnet-5-5",
+    "assessor_cost_usd": 0.015501499999999998
+  },
+  {
+    "opaque_id": "5af19e7f",
+    "facts_correct": 3,
+    "facts_required": 3,
+    "claims_total": 7,
+    "claims_supported": 5,
+    "unsupported_claims": [
+      "The Helix-Sandbox and Helix-Legacy supplier renewal pages each have a confirmed date, but they are different contracts and do not apply here.",
+      "The date needs a decision from purchasing and legal before it can be treated as firm."
+    ],
+    "wrong_or_superseded": false,
+    "citation_support": 0.714,
+    "behavior_ok": true,
+    "strict_success": false,
+    "note": "All three gold facts are stated correctly and both conflicting dates are reported without picking one. The Helix Labs December 1 claim is supported by the cited helix-labs.md span. Two claims are not backed by the cited spans: the statement about the Sandbox and Legacy pages having confirmed dates (no cited span covers it), and the claim that a decision from purchasing and legal is needed (an inference, not in the cited text). Because of these unsupported claims, strict_success is false.",
+    "assessor_model": "claude-sonnet-5-5",
+    "assessor_cost_usd": 0.0122675
+  },
+  {
+    "opaque_id": "5ccb6a38",
+    "facts_correct": 2,
+    "facts_required": 2,
+    "claims_total": 3,
+    "claims_supported": 3,
+    "unsupported_claims": [],
+    "wrong_or_superseded": false,
+    "citation_support": 1,
+    "behavior_ok": true,
+    "strict_success": true,
+    "note": "Both gold facts (r57; only Tomas Bell) stated correctly and supported by cited lines 1014-1015. The vendor r41 claim is correctly framed as non-authoritative/unapproved, supported by line 1018. Limitations about unread lines are hedges and not material claims.",
+    "assessor_model": "claude-sonnet-5-5",
+    "assessor_cost_usd": 0.0100055
+  },
+  {
+    "opaque_id": "63bfb179",
+    "facts_correct": 3,
+    "facts_required": 3,
+    "claims_total": 7,
+    "claims_supported": 6,
+    "unsupported_claims": [
+      "The public launch date is undecided."
+    ],
+    "wrong_or_superseded": false,
+    "citation_support": 0.857,
+    "behavior_ok": true,
+    "strict_success": false,
+    "note": "All three gold facts are stated correctly, and the answer gives the current date and marks Nov 12 as superseded. The claim that the public launch date is undecided does not appear in either cited span, so strict success fails.",
+    "assessor_model": "claude-sonnet-5-5",
+    "assessor_cost_usd": 0.0129235
+  },
+  {
+    "opaque_id": "65681368",
+    "facts_correct": 2,
+    "facts_required": 2,
+    "claims_total": 5,
+    "claims_supported": 5,
+    "unsupported_claims": [],
+    "wrong_or_superseded": false,
+    "citation_support": 1,
+    "behavior_ok": true,
+    "strict_success": true,
+    "note": "Both gold values (7 retries, 90 s) match the cited span. The claims in the answer body are supported by the cited lines. The limitations mention other Nacre variants, but those are not presented as the answer.",
+    "assessor_model": "claude-sonnet-5-5",
+    "assessor_cost_usd": 0.012385499999999999
+  },
+  {
+    "opaque_id": "6bdae495",
+    "facts_correct": 3,
+    "facts_required": 3,
+    "claims_total": 6,
+    "claims_supported": 5,
+    "unsupported_claims": [
+      "The Helix-Sandbox (February 5, 2027) and Helix-Legacy renewal entries are different suppliers and do not answer this question."
+    ],
+    "wrong_or_superseded": false,
+    "citation_support": 0.833,
+    "behavior_ok": true,
+    "strict_success": false,
+    "note": "The answer states both conflicting dates and says the date is unresolved, which covers all gold facts and meets the conflict behavior. It also makes a claim about Helix-Sandbox and Helix-Legacy entries that no cited span supports, so strict success fails.",
+    "assessor_model": "claude-sonnet-5-5",
+    "assessor_cost_usd": 0.0138815
+  },
+  {
+    "opaque_id": "6c59cdb3",
+    "facts_correct": 4,
+    "facts_required": 4,
+    "claims_total": 7,
+    "claims_supported": 6,
+    "unsupported_claims": [
+      "Mariner-Legacy, Mariner-Sandbox and Mariner-Lab blockers were excluded as other projects"
+    ],
+    "wrong_or_superseded": false,
+    "citation_support": 0.857,
+    "behavior_ok": true,
+    "strict_success": false,
+    "note": "All four open blockers and owners are correct, and the closed launch copy item is correctly excluded. The claim about Mariner-Legacy, Sandbox and Lab blockers is not backed by any cited span, so strict success fails.",
+    "assessor_model": "claude-sonnet-5-5",
+    "assessor_cost_usd": 0.0147055
+  },
+  {
+    "opaque_id": "802573cc",
+    "facts_correct": 2,
+    "facts_required": 2,
+    "claims_total": 8,
+    "claims_supported": 7,
+    "unsupported_claims": [
+      "The Corundum-Sandbox and Corundum-Legacy service pages (wiki/corundum-sandbox-service.md, wiki/corundum-legacy-service.md) name service owners, not this retention rule."
+    ],
+    "wrong_or_superseded": false,
+    "citation_support": 0.875,
+    "behavior_ok": true,
+    "strict_success": false,
+    "note": "Answer states the correct gold values (63 days, Iona Park) for plain Corundum, but presents them alongside sandbox/legacy variants as a conflict and declines to choose. Sandbox and legacy values are correctly attributed to their own pages. The claim about the service pages naming owners is not supported by any cited span, so strict_success fails.",
+    "assessor_model": "claude-sonnet-5-5",
+    "assessor_cost_usd": 0.0126455
+  },
+  {
+    "opaque_id": "8671b82b",
+    "facts_correct": 4,
+    "facts_required": 4,
+    "claims_total": 7,
+    "claims_supported": 6,
+    "unsupported_claims": [
+      "Mariner-Legacy, Mariner-Sandbox and Mariner-Lab have their own blocker lists, which are other projects"
+    ],
+    "wrong_or_superseded": false,
+    "citation_support": 0.857,
+    "behavior_ok": true,
+    "strict_success": false,
+    "note": "All four open blockers and owners are correct, and the closed Launch copy item is correctly excluded. The claim about Mariner-Legacy, Mariner-Sandbox and Mariner-Lab is not supported by any cited span, so strict success fails.",
+    "assessor_model": "claude-sonnet-5-5",
+    "assessor_cost_usd": 0.0150875
+  },
+  {
+    "opaque_id": "89b8ff96",
+    "facts_correct": 0,
+    "facts_required": 0,
+    "claims_total": 5,
+    "claims_supported": 5,
+    "unsupported_claims": [],
+    "wrong_or_superseded": false,
+    "citation_support": 1,
+    "behavior_ok": true,
+    "strict_success": true,
+    "note": "The answer abstains on both the signatory and the fee for Cinder. It names Cinder-Sandbox's signer and fee only as a different entity and does not attribute them to Cinder. It does not substitute the service owner as signatory, invent a fee, or claim no engagement happened. Every claim is supported by the cited spans.",
+    "assessor_model": "claude-sonnet-5-5",
+    "assessor_cost_usd": 0.0140095
+  },
+  {
+    "opaque_id": "8b3f9ec6",
+    "facts_correct": 2,
+    "facts_required": 2,
+    "claims_total": 4,
+    "claims_supported": 4,
+    "unsupported_claims": [],
+    "wrong_or_superseded": false,
+    "citation_support": 1,
+    "behavior_ok": true,
+    "strict_success": true,
+    "note": "Both gold facts stated correctly and supported by the cited approval section. The additional claim about the vendor email's r41 being unapproved is supported by the second cited span. The answer correctly applies to the plain Meridian handover.",
+    "assessor_model": "claude-sonnet-5-5",
+    "assessor_cost_usd": 0.0100055
+  },
+  {
+    "opaque_id": "923953d0",
+    "facts_correct": 3,
+    "facts_required": 3,
+    "claims_total": 6,
+    "claims_supported": 6,
+    "unsupported_claims": [],
+    "wrong_or_superseded": false,
+    "citation_support": 1,
+    "behavior_ok": true,
+    "strict_success": true,
+    "note": "All three gold facts are stated correctly and supported by the cited spans. The 'no longer November 12' claim follows from the supersession statement, and the public launch claim is supported by the cited span. Limitations about the archive heading mismatch, the limited search and the date are process notes, not material claims about the knowledge base.",
+    "assessor_model": "claude-sonnet-5-5",
+    "assessor_cost_usd": 0.0107855
+  },
+  {
+    "opaque_id": "a32aa206",
+    "facts_correct": 4,
+    "facts_required": 4,
+    "claims_total": 7,
+    "claims_supported": 7,
+    "unsupported_claims": [],
+    "wrong_or_superseded": false,
+    "citation_support": 1,
+    "behavior_ok": true,
+    "strict_success": true,
+    "note": "All four gold facts are stated correctly. Each claim in the answer is supported by the cited spans: the custodian contact, Asha Venn as custodian, Eli Park retired, reconciling offsets, incident lead approval, and Koen Li as incident lead. The limitations section is a hedge about the answerer's process and was not counted as material claims.",
+    "assessor_model": "claude-sonnet-5-5",
+    "assessor_cost_usd": 0.0115555
+  },
+  {
+    "opaque_id": "b76e0050",
+    "facts_correct": 0,
+    "facts_required": 0,
+    "claims_total": 4,
+    "claims_supported": 4,
+    "unsupported_claims": [],
+    "wrong_or_superseded": true,
+    "citation_support": 1,
+    "behavior_ok": false,
+    "strict_success": false,
+    "note": "Absent-category item: no signatory or fee is recorded for Cinder. The answer substituted the Cinder-Sandbox variant's record (Hana Ines, $27000) rather than abstaining. Claims are supported by the cited spans, but presenting a different entity's values as the answer violates the abstention rule, despite the caveat about Cinder-Sandbox.",
+    "assessor_model": "claude-sonnet-5-5",
+    "assessor_cost_usd": 0.0107515
+  },
+  {
+    "opaque_id": "c4692d4c",
+    "facts_correct": 2,
+    "facts_required": 2,
+    "claims_total": 7,
+    "claims_supported": 6,
+    "unsupported_claims": [
+      "Raw-event retention is separate from the analytics aggregates (weekly trend totals), which are kept longer and do not extend raw event retention."
+    ],
+    "wrong_or_superseded": false,
+    "citation_support": 0.857,
+    "behavior_ok": true,
+    "strict_success": false,
+    "note": "Both gold facts are stated correctly (63 days, Iona Park). The Sandbox and Legacy variants are clearly labelled as qualified alternatives, not given as the answer. The claim about analytics aggregates is not in any cited span, so strict success fails.",
+    "assessor_model": "claude-sonnet-5-5",
+    "assessor_cost_usd": 0.017615500000000003
+  },
+  {
+    "opaque_id": "cf32b013",
+    "facts_correct": 4,
+    "facts_required": 4,
+    "claims_total": 7,
+    "claims_supported": 6,
+    "unsupported_claims": [
+      "The US export path is owned by a different team (contact Ren Sol), which does not apply to EU suspension."
+    ],
+    "wrong_or_superseded": false,
+    "citation_support": 0.857,
+    "behavior_ok": true,
+    "strict_success": false,
+    "note": "All four gold facts are stated correctly and are supported by the cited spans. The claim about the US export path and Ren Sol is not in any cited span, because the US section of the Plover page was not cited. It is therefore unsupported, which fails strict success.",
+    "assessor_model": "claude-sonnet-5-5",
+    "assessor_cost_usd": 0.0141855
+  },
+  {
+    "opaque_id": "df9a57f1",
+    "facts_correct": 0,
+    "facts_required": 0,
+    "claims_total": 6,
+    "claims_supported": 5,
+    "unsupported_claims": [
+      "The only signer and fee on record belong to Cinder-Sandbox (an exhaustive claim across the vault that the cited spans cannot support)"
+    ],
+    "wrong_or_superseded": true,
+    "citation_support": 0.83,
+    "behavior_ok": false,
+    "strict_success": false,
+    "note": "The answer correctly says plain Cinder has no recorded engagement. It then offers the Cinder-Sandbox signer (Hana Ines) and fee ($27000) as the candidate answer, which is a different entity's fact. The hedge 'unresolved' does not undo that substitution, so the abstention rule is violated.",
+    "assessor_model": "claude-sonnet-5-5",
+    "assessor_cost_usd": 0.0155315
+  },
+  {
+    "opaque_id": "e4aadd3f",
+    "facts_correct": 2,
+    "facts_required": 2,
+    "claims_total": 8,
+    "claims_supported": 7,
+    "unsupported_claims": [
+      "The 'Nacre delivery retry policy' section is on the Queue Dispatch page and all three pages carry the same updated date (2026-10-24) / none is marked historical (date not shown in cited spans)"
+    ],
+    "wrong_or_superseded": false,
+    "citation_support": 0.875,
+    "behavior_ok": true,
+    "strict_success": false,
+    "note": "Core gold facts (7 retries, 90 seconds) are correct and supported. Variant values for Sandbox, Legacy and Lab are supported by cited spans. The only unsupported material claim is that all three pages share the updated date 2026-10-24 and none is marked historical, which is not shown in the cited text, so strict success fails.",
+    "assessor_model": "claude-sonnet-5-5",
+    "assessor_cost_usd": 0.0129155
+  },
+  {
+    "opaque_id": "f2ea65d3",
+    "facts_correct": 2,
+    "facts_required": 2,
+    "claims_total": 10,
+    "claims_supported": 9,
+    "unsupported_claims": [
+      "The only unqualified Corundum entry is the generic Event Ledger page (the cited spans do not show that no other unqualified Corundum entry exists)"
+    ],
+    "wrong_or_superseded": false,
+    "citation_support": 0.9,
+    "behavior_ok": false,
+    "strict_success": false,
+    "note": "The answer states 63 days and Iona Park for the generic Corundum page, but frames the Sandbox (30 days) and Legacy (45 days) variants as competing answers and calls the owner unresolved. It never commits to the answer for the named Corundum service. One claim about the generic page being the only unqualified entry is not supported by the cited spans.",
+    "assessor_model": "claude-sonnet-5-5",
+    "assessor_cost_usd": 0.0186095
+  }
+]

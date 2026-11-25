@@ -1,0 +1,16 @@
+{
+  "answer": "The records don't give a firm renewal date for the Helix supplier contract. Two notes from October 20 disagree. The purchasing note says December 3, 2026, and the legal note says December 10, 2026. The page says neither note overrides the other and calls the date unresolved (page last updated 2026-10-24). Don't use December 1, 2026: that is the renewal date of the Helix Labs internal training subscription, which the records say is unrelated to the supplier contract.",
+  "citations": [
+    {
+      "source": "wiki/helix-renewal.md",
+      "start": 1,
+      "end": 14
+    },
+    {
+      "source": "wiki/helix-labs.md",
+      "start": 11,
+      "end": 12
+    }
+  ],
+  "limitations": "Only the knowledge-base wiki was searchable. The original October 20 purchasing and legal notes are not in the corpus, so neither date could be checked against them. The records leave the conflict open, and something outside the corpus may have settled it later."
+}
