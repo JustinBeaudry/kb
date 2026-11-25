@@ -361,6 +361,7 @@ func applicable(a, b domain.Applicability) bool {
 	}
 	return true
 }
+
 // lessonApplies is the stricter cross-project test: every condition a lesson
 // states must be explicitly present and equal in the request. Another
 // project's lesson never applies merely because the task omitted context.

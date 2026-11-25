@@ -65,7 +65,9 @@ func TestPublishLessonPolicyOutcomes(t *testing.T) {
 		reason domain.ReasonCode
 	}{
 		{"missing applicability", func(_ *checkWorld, in *domain.LessonInput) { in.Applicability = domain.Applicability{} }, domain.PublicationRejected, domain.ReasonApplicabilityMissing},
-		{"drops version condition", func(_ *checkWorld, in *domain.LessonInput) { in.Applicability = domain.Applicability{Environment: "ci"} }, domain.PublicationRejected, domain.ReasonOvergeneralized},
+		{"drops version condition", func(_ *checkWorld, in *domain.LessonInput) {
+			in.Applicability = domain.Applicability{Environment: "ci"}
+		}, domain.PublicationRejected, domain.ReasonOvergeneralized},
 		{"wrong environment", func(_ *checkWorld, in *domain.LessonInput) {
 			in.Applicability = domain.Applicability{Environment: "production", Versions: ciGo.Versions}
 		}, domain.PublicationRejected, domain.ReasonEnvironmentMismatch},
@@ -87,11 +89,15 @@ func TestPublishLessonPolicyOutcomes(t *testing.T) {
 			w.states["s1"] = s
 		}, domain.PublicationPending, domain.ReasonDisputedSupport},
 		{"source identifier in shared text", func(_ *checkWorld, in *domain.LessonInput) { in.Text = "Retry billing-service tests once." }, domain.PublicationPending, domain.ReasonRestrictedSourceContent},
-		{"source path in counterexample", func(_ *checkWorld, in *domain.LessonInput) { in.Counterexamples = []string{"see src/billing/retry.go#L10"} }, domain.PublicationPending, domain.ReasonRestrictedSourceContent},
+		{"source path in counterexample", func(_ *checkWorld, in *domain.LessonInput) {
+			in.Counterexamples = []string{"see src/billing/retry.go#L10"}
+		}, domain.PublicationPending, domain.ReasonRestrictedSourceContent},
 		{"repository revision is project private", func(_ *checkWorld, in *domain.LessonInput) {
 			in.Applicability.RepositoryRevision = checkHead
 		}, domain.PublicationPending, domain.ReasonRestrictedSourceContent},
-		{"possible secret", func(_ *checkWorld, in *domain.LessonInput) { in.Text = "Use token ghp_abcdefghijklmnopqrstuvwxyz0123456789 for retries." }, domain.PublicationPending, domain.ReasonPossibleSecret},
+		{"possible secret", func(_ *checkWorld, in *domain.LessonInput) {
+			in.Text = "Use token ghp_abcdefghijklmnopqrstuvwxyz0123456789 for retries."
+		}, domain.PublicationPending, domain.ReasonPossibleSecret},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -156,6 +162,79 @@ func TestPublishLessonAuthorityAndConcurrency(t *testing.T) {
 
 			assert.ErrorIs(t, err, tc.want)
 			assert.Empty(t, w.publications)
+		})
+	}
+}
+
+func TestLessonPreservesEveryTransitiveCondition(t *testing.T) {
+	goOnly := domain.Applicability{Versions: map[string]string{"go": "1.27"}}
+	chain := func(w *checkWorld) {
+		w.verified("b", goOnly)
+		w.verified("a", domain.Applicability{Environment: "ci"}, "b")
+	}
+	cases := []struct {
+		name     string
+		seed     func(*checkWorld)
+		supports []string
+		lesson   domain.Applicability
+		state    string
+		reason   domain.ReasonCode
+	}{
+		{"dependency environment applies through direct support", func(w *checkWorld) {
+			w.verified("s0", domain.Applicability{Environment: "production"})
+			w.verified("s1", goOnly, "s0")
+		}, []string{"s1"}, domain.Applicability{Environment: "dev", Versions: goOnly.Versions}, domain.PublicationRejected, domain.ReasonEnvironmentMismatch},
+		{"conflicting explicit support listed after its dependent", chain, []string{"a", "b"}, domain.Applicability{Environment: "ci", Versions: map[string]string{"go": "1.28"}}, domain.PublicationRejected, domain.ReasonOvergeneralized},
+		{"conflicting explicit support listed before its dependent", chain, []string{"b", "a"}, domain.Applicability{Environment: "ci", Versions: map[string]string{"go": "1.28"}}, domain.PublicationRejected, domain.ReasonOvergeneralized},
+		{"compatible explicit support after its dependent", chain, []string{"a", "b"}, ciGo, domain.PublicationPublished, ""},
+		{"compatible explicit support before its dependent", chain, []string{"b", "a"}, ciGo, domain.PublicationPublished, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := newCheckWorld()
+			tc.seed(w)
+			in := lessonInput(domain.SharingProject)
+			in.SupportRevisions, in.Applicability = tc.supports, tc.lesson
+
+			publication, err := w.lessons().PublishLesson(t.Context(), verifier, in)
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.state, publication.State)
+			if tc.reason != "" {
+				assert.Contains(t, publication.Reasons, tc.reason)
+			}
+		})
+	}
+}
+
+func TestShortSourceIdentifiersAreScreened(t *testing.T) {
+	cases := []struct {
+		name, project, text string
+		state               string
+	}{
+		{"standalone short project id", "db", "Applies only to project db.", domain.PublicationPending},
+		{"standalone short revision id", "demo", "Derived from s1 in CI.", domain.PublicationPending},
+		{"short id inside a word", "db", "Retry the sdb cache tests1 once in CI.", domain.PublicationPublished},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := newCheckWorld()
+			w.verified("s1", ciGo)
+			s := w.states["s1"]
+			s.Claim.Scope.ProjectID = tc.project
+			w.states["s1"] = s
+			p := verifier
+			p.ProjectIDs = []string{tc.project}
+			in := lessonInput(domain.SharingCrossProject)
+			in.ProjectID, in.Text = tc.project, tc.text
+
+			publication, err := w.lessons().PublishLesson(t.Context(), p, in)
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.state, publication.State)
+			if tc.state == domain.PublicationPending {
+				assert.Contains(t, publication.Reasons, domain.ReasonRestrictedSourceContent)
+			}
 		})
 	}
 }

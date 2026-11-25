@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/JustinBeaudry/kb/server/internal/domain"
@@ -111,9 +112,11 @@ func (s *LessonService) review(ctx context.Context, tx Tx, in domain.LessonInput
 	if !explicitApplicability(in.Applicability) {
 		r.rejected = addReason(r.rejected, domain.ReasonApplicabilityMissing)
 	}
+	// Every revision in the support closure carries conditions the lesson
+	// depends on, so each is checked exactly once regardless of input order.
 	visited := map[string]bool{}
-	var visit func(string, bool) error
-	visit = func(id string, direct bool) error {
+	var visit func(string) error
+	visit = func(id string) error {
 		if visited[id] {
 			return nil
 		}
@@ -135,7 +138,7 @@ func (s *LessonService) review(ctx context.Context, tx Tx, in domain.LessonInput
 		case state.Status != domain.ClaimVerified || !state.Valid:
 			r.rejected = addReason(r.rejected, domain.ReasonSupportNotVerified)
 		}
-		if direct && explicitApplicability(in.Applicability) {
+		if explicitApplicability(in.Applicability) {
 			r.rejected = addReason(r.rejected, preservesConditions(in.Applicability, c.Applicability, cross)...)
 		}
 		r.restricted = append(r.restricted, c.ClaimID, c.Revision, c.Applicability.RepositoryRevision, c.Applicability.DirtyDigest)
@@ -145,14 +148,14 @@ func (s *LessonService) review(ctx context.Context, tx Tx, in domain.LessonInput
 		}
 		r.closure = append(r.closure, id)
 		for _, dep := range c.DependsOn {
-			if err = visit(dep, false); err != nil {
+			if err = visit(dep); err != nil {
 				return err
 			}
 		}
 		return nil
 	}
 	for _, id := range in.SupportRevisions {
-		if err := visit(id, true); err != nil {
+		if err := visit(id); err != nil {
 			return r, err
 		}
 	}
@@ -166,14 +169,44 @@ func (s *LessonService) review(ctx context.Context, tx Tx, in domain.LessonInput
 		if in.Applicability.RepositoryRevision != "" || in.Applicability.DirtyDigest != "" {
 			r.pending = addReason(r.pending, domain.ReasonRestrictedSourceContent)
 		}
-		for _, token := range r.restricted {
-			if len(token) >= 4 && strings.Contains(shared, token) {
-				r.pending = addReason(r.pending, domain.ReasonRestrictedSourceContent)
-				break
-			}
+		if slices.ContainsFunc(r.restricted, func(token string) bool { return mentions(shared, token) }) {
+			r.pending = addReason(r.pending, domain.ReasonRestrictedSourceContent)
 		}
 	}
 	return r, nil
+}
+
+// shortIdentifier is the length below which a substring match would flag
+// unrelated words, so shorter identifiers are matched only as whole tokens.
+const shortIdentifier = 4
+
+func identifierRune(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '-'
+}
+
+// mentions reports whether shared text contains a restricted identifier.
+// Long identifiers match anywhere; short ones match at token boundaries so a
+// standalone private ID is held while words that contain it are not.
+func mentions(shared, token string) bool {
+	if token == "" {
+		return false
+	}
+	if len(token) >= shortIdentifier {
+		return strings.Contains(shared, token)
+	}
+	for i := 0; ; {
+		j := strings.Index(shared[i:], token)
+		if j < 0 {
+			return false
+		}
+		start, end := i+j, i+j+len(token)
+		before, _ := utf8.DecodeLastRuneInString(shared[:start])
+		after, _ := utf8.DecodeRuneInString(shared[end:])
+		if (start == 0 || !identifierRune(before)) && (end == len(shared) || !identifierRune(after)) {
+			return true
+		}
+		i = start + 1
+	}
 }
 
 // lessonSurface is every lesson field another project could read.
