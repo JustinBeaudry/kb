@@ -2,7 +2,7 @@
 title: Delivery status
 type: overview
 created: 2026-11-13
-updated: 2026-11-24
+updated: 2026-11-25
 tags:
   - delivery
   - status
@@ -30,20 +30,36 @@ Shipped on `main`:
 | I1 owner-adjudication slice, O1 deletion and retention, O2 packaging and Railway deploy | 2026-11-01 handoff; merged as pull request #22 |
 | One live synthetic backup, purge, and restore drill | same handoff; API deployment `84be0e9d-d9e6-4c98-91d8-1311d6451b59` |
 
-## Planned
+## Merged on 2026-11-25
 
-The 2026-10-31 owner decision deferred these, and the 2026-11-01 section still lists them as deferred. The tree has no `src/adapters/` directory and no `integrations/hermes/` directory.
+The repository was recreated on 2026-11-24 after the original was deleted. Pull request numbers below are in the new `JustinBeaudry/kb`; older numbers above refer to the deleted repository.
+
+| Work | Pull request | Deployed |
+|---|---|---|
+| Project knowledge vault | kb#1 | n/a |
+| C2 capture adapters, `kb capture poll` | kb#2 | n/a (client) |
+| C4 selected import and portable export | kb#10 | No |
+| I1 remainder: evidence policy, git source reader, cross-project lessons | kb#7 | No |
+| I2 Buzz decisions and owner recovery | kb#9 | No |
+| I3 budgeted dreaming | kb#8 | No |
+| I4 Hermes memory provider | kb#6 | n/a (plugin) |
+| Supersede older verified revisions, backfill migration | kb#14 | No |
+| Remote CLI and API error details | kb#4 | No (API) |
+| `kb get` accepts map paths | kb#13 | n/a (client) |
+| Backup recovery point evidence in logs | kb#5 | Yes: graph deployment `5ed3e589`, commit `7787c3d` |
+| Retrieval follow-on at 1,000 pages (APP-17) | kb#11 | n/a |
+| Local usefulness trial (APP-15) | kb#12 | n/a |
+| Recovery custody and backup provider decision | kb#15, ADR 0002 | n/a |
+
+## Not yet done
 
 | Work | State |
 |---|---|
-| C2 Codex, Claude, and generic capture adapters | Deferred. Adapters must consume the remote client. |
-| C4 selected import and export | Deferred. No historical import unless selected. |
-| I2 Buzz owner decisions and recovery | Deferred. Model routes, Buzz, and Hermes remain disabled. |
-| I3 budgeted dreaming | Deferred with I2 and I4. |
-| I4 Hermes conversations | Deferred. No Hermes plugin directory in the tree. |
-| O3 fair usefulness evaluation | Deferred. |
-| Private usefulness and a new enrolled client | Qualification credentials were revoked. The handoff says to enroll a new scoped client for later authorized use. |
-| Recovery targets beyond one drill | 24-hour RPO, four-hour RTO, 30-day retention, off-device custody, and provider disaster independence are not claimed. |
+| Deploy kb#7, #8, #9, #10, #14 | Their migrations (007, 008, 010, 011) change the backup schema digest, so the new build cannot restore earlier backups. Take a backup right after deploying, and keep graph deployment `5ed3e589` for restoring older ones. |
+| Off-device custody | Decided in ADR 0002 (1Password). Needs the owner to sign in to 1Password. |
+| Backups outside Railway | Decided in ADR 0002 (Cloudflare R2). Needs a Cloudflare account. |
+| 24-hour RPO and 30-day retention evidence | Accumulates from `backup_completed` lines after the kb#5 deploy. |
+| Usefulness on real knowledge | Production holds no knowledge yet. A read-only client `app15-o3-agent` is enrolled for project `kb-railway-qualification`. |
 
 ## Gaps
 
