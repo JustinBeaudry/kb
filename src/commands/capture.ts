@@ -1,5 +1,5 @@
 import { defineCommand } from "citty";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { homedir } from "node:os";
 import {
   CaptureConnectionService,
@@ -14,7 +14,28 @@ import {
   MAX_SPOOL_BYTES,
   type CaptureEvent,
   type CaptureUploadGateway,
+  type CredentialStore,
 } from "../capture/types";
+import { claudeAdapter } from "../adapters/claude";
+import { codexAdapter } from "../adapters/codex";
+import { genericAdapter } from "../adapters/generic";
+import type { HarnessAdapter } from "../adapters/types";
+import { FileCursorStore, FsSourceReader } from "../capture/cursor";
+import { CaptureWatcher } from "../capture/watcher";
+
+const adapters: Record<string, HarnessAdapter> = {
+  codex: codexAdapter,
+  claude: claudeAdapter,
+  generic: genericAdapter,
+};
+/** The poll action requires the profile to be named on the command line. */
+const explicitProfile = (rawArgs: readonly string[]) =>
+  rawArgs.some((a) => a === "--profile" || a.startsWith("--profile="));
+
+export type CaptureCommandDependencies = {
+  credentials: CredentialStore;
+  uploader: (endpoint: string, token: string) => CaptureUploadGateway;
+};
 /** Explicit decimal byte count; no exponent, sign, or fraction. */
 export function parseSpoolLimit(value: string | undefined): number {
   if (value === undefined) return DEFAULT_SPOOL_BYTES;
@@ -45,7 +66,13 @@ async function input(max: number): Promise<string> {
     await reader.cancel();
   }
 }
-export default defineCommand({
+export function createCaptureCommand(
+  dependencies: CaptureCommandDependencies = {
+    credentials: new NativeCredentials(),
+    uploader: (endpoint, token) => new F4Uploader(endpoint, token, 3),
+  },
+) {
+  return defineCommand({
   meta: {
     name: "capture",
     description: "Explicit filtered event capture with bounded local spooling",
@@ -54,8 +81,20 @@ export default defineCommand({
     action: {
       type: "positional",
       required: true,
-      description: "enqueue, flush, pause, resume, status, credential-set",
+      description: "enqueue, flush, poll, pause, resume, status, credential-set",
     },
+    adapter: {
+      type: "string",
+      description: "poll: harness adapter (codex, claude, generic)",
+    },
+    source: {
+      type: "string",
+      description:
+        "poll: the one explicitly selected transcript file; new records only, never a directory",
+    },
+    project: { type: "string", description: "poll: project ID for captured events" },
+    task: { type: "string", description: "poll: optional task ID" },
+    session: { type: "string", description: "poll: session ID for captured events" },
     endpoint: {
       type: "string",
       description:
@@ -82,7 +121,7 @@ export default defineCommand({
       description: "Comma-separated additional field exclusions",
     },
   },
-  async run({ args }) {
+  async run({ args, rawArgs }) {
     try {
       const spool = new DiskSpool(
         args.spool,
@@ -93,9 +132,9 @@ export default defineCommand({
         localExcludedFields: args["exclude-fields"]?.split(","),
       };
       const connection = new CaptureConnectionService(
-        new NativeCredentials(),
+        dependencies.credentials,
         spool,
-        (token) => new F4Uploader(args.endpoint ?? "", token, 3),
+        (token) => dependencies.uploader(args.endpoint ?? "", token),
         options,
       );
       // Pause/resume/status need no credential access or server availability.
@@ -122,12 +161,49 @@ export default defineCommand({
         if (!result.ok) process.exitCode = 1;
         return;
       }
-      if (!["enqueue", "flush"].includes(args.action) || !args.endpoint)
+      if (!["enqueue", "flush", "poll"].includes(args.action) || !args.endpoint)
         throw Error("command");
+      const adapter =
+        args.adapter && Object.hasOwn(adapters, args.adapter)
+          ? adapters[args.adapter]
+          : undefined;
+      // Validate the whole poll selection before touching credentials.
+      if (
+        args.action === "poll" &&
+        (!explicitProfile(rawArgs ?? []) ||
+          !adapter ||
+          !args.source ||
+          args.source.includes("\0") ||
+          !args.project ||
+          !args.session)
+      )
+        throw Error("poll selection");
       const connected = await connection.connect(args.profile);
       if (!connected.ok) {
         console.log(JSON.stringify(connected));
         process.exitCode = 1;
+        return;
+      }
+      if (args.action === "poll" && adapter && args.source && args.project && args.session) {
+        const watcher = new CaptureWatcher({
+          sources: [
+            {
+              path: resolve(args.source),
+              adapter,
+              clientID: args.profile,
+              sessionID: args.session,
+              scope: args.task
+                ? { projectID: args.project, taskID: args.task }
+                : { projectID: args.project },
+            },
+          ],
+          cursors: new FileCursorStore(join(args.spool, "cursors")),
+          reader: new FsSourceReader(),
+          sink: connected.value,
+        });
+        const result = await watcher.poll(AbortSignal.timeout(60_000));
+        console.log(JSON.stringify(result));
+        if (!result.ok) process.exitCode = 1;
         return;
       }
       if (args.action === "flush") {
@@ -157,3 +233,5 @@ export default defineCommand({
     }
   },
 });
+}
+export default createCaptureCommand();
