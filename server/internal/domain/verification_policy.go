@@ -2,6 +2,7 @@ package domain
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"slices"
@@ -167,6 +168,20 @@ func EvaluateEvidencePolicy(c ClaimRevision, obs []EvidenceObservation) PolicyDe
 	return d
 }
 
+// RuleTrust names the only origin trust whose observations vote for kind. A
+// supported outcome is established solely by observations of this trust.
+func RuleTrust(kind string) (OriginTrust, bool) {
+	switch kind {
+	case KindOwnerPreference:
+		return TrustOwnerAuthenticated, true
+	case KindDependencyVersion, KindAPIContract:
+		return TrustGatewayObserved, true
+	case KindTestOutcome:
+		return TrustCollectorAttested, true
+	}
+	return "", false
+}
+
 func policyReasons(c ClaimRevision, obs []EvidenceObservation) []ReasonCode {
 	if len(obs) == 0 {
 		return []ReasonCode{ReasonNoEvidence}
@@ -273,25 +288,120 @@ func checkExecution(c ClaimRevision, o EvidenceObservation) []ReasonCode {
 	return nil
 }
 
+// exactVersion is a complete MAJOR.MINOR.PATCH version. npm and Go both treat
+// shorter forms such as "1.2" as ranges, so they never prove an install.
 var (
-	exactVersion   = regexp.MustCompile(`^[=v]?\d+(\.\d+){0,3}(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$`)
-	declaredQuoted = `"%s"\s*:\s*"([^"]*)"`
-	declaredPlain  = `(?m)^\s*(?:require\s+)?%s\s+(\S+)`
+	exactVersion = regexp.MustCompile(`^[=v]?\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$`)
+	versionToken = regexp.MustCompile(`[=v]?\d+(?:\.\d+)+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?`)
 )
 
+// npmDependencyFields are the package.json maps that declare dependencies.
+// Other fields (scripts, config, overrides) never declare an installed version.
+var npmDependencyFields = []string{"dependencies", "devDependencies", "optionalDependencies", "peerDependencies"}
+
 // DeclaredVersion extracts the declared specifier for name from a manifest or
-// lockfile snapshot (JSON-style or go.mod-style). ok is false when absent.
+// lockfile snapshot. JSON content is read structurally (package-lock installed
+// entries first, then package.json dependency maps); other content is read as
+// go.mod require directives. ok is false when absent.
 func DeclaredVersion(content []byte, name string) (string, bool) {
-	q := regexp.QuoteMeta(name)
-	for _, pattern := range []string{declaredQuoted, declaredPlain} {
-		if m := regexp.MustCompile(fmt.Sprintf(pattern, q)).FindSubmatch(content); m != nil {
-			return string(m[1]), true
+	if json.Valid(content) {
+		return declaredJSON(content, name)
+	}
+	return declaredGoMod(content, name)
+}
+
+func declaredJSON(content []byte, name string) (string, bool) {
+	var doc map[string]json.RawMessage
+	if json.Unmarshal(content, &doc) != nil {
+		return "", false
+	}
+	if raw, ok := doc["packages"]; ok {
+		var packages map[string]struct {
+			Version *string `json:"version"`
+		}
+		if json.Unmarshal(raw, &packages) == nil {
+			if p, ok := packages["node_modules/"+name]; ok && p.Version != nil {
+				return *p.Version, true
+			}
+		}
+	}
+	for _, field := range npmDependencyFields {
+		raw, ok := doc[field]
+		if !ok {
+			continue
+		}
+		var deps map[string]json.RawMessage
+		if json.Unmarshal(raw, &deps) != nil {
+			continue
+		}
+		entry, ok := deps[name]
+		if !ok {
+			continue
+		}
+		var spec string
+		if json.Unmarshal(entry, &spec) == nil {
+			return spec, true
+		}
+		// package-lock v1 nests the installed version in an object.
+		var locked struct {
+			Version *string `json:"version"`
+		}
+		if json.Unmarshal(entry, &locked) == nil && locked.Version != nil {
+			return *locked.Version, true
+		}
+	}
+	return "", false
+}
+
+// declaredGoMod reads only require directives; replace and exclude blocks
+// name versions that are not requirements.
+func declaredGoMod(content []byte, name string) (string, bool) {
+	inRequire := false
+	for line := range strings.Lines(string(content)) {
+		if i := strings.Index(line, "//"); i >= 0 {
+			line = line[:i]
+		}
+		fields := strings.Fields(line)
+		switch {
+		case len(fields) == 0:
+			continue
+		case inRequire && fields[0] == ")":
+			inRequire = false
+			continue
+		case !inRequire && fields[0] == "require" && len(fields) == 2 && fields[1] == "(":
+			inRequire = true
+			continue
+		case !inRequire && fields[0] == "require":
+			fields = fields[1:]
+		case !inRequire:
+			continue
+		}
+		if len(fields) == 2 && fields[0] == name {
+			return fields[1], true
 		}
 	}
 	return "", false
 }
 
 func normalizeVersion(v string) string { return strings.TrimLeft(v, "=v") }
+
+// statesVersion requires the displayed text to name the dependency and to
+// state only the claimed version, so a verdict never endorses other text.
+func statesVersion(text, name, claimed string) bool {
+	if !strings.Contains(text, name) {
+		return false
+	}
+	tokens := versionToken.FindAllString(strings.ReplaceAll(text, name, " "), -1)
+	if len(tokens) == 0 {
+		return false
+	}
+	for _, t := range tokens {
+		if normalizeVersion(t) != normalizeVersion(claimed) {
+			return false
+		}
+	}
+	return true
+}
 
 func checkDeclaredVersion(c ClaimRevision, o EvidenceObservation) []ReasonCode {
 	if len(c.Applicability.Versions) != 1 {
@@ -310,6 +420,9 @@ func checkDeclaredVersion(c ClaimRevision, o EvidenceObservation) []ReasonCode {
 		}
 		if normalizeVersion(declared) != normalizeVersion(claimed) {
 			return []ReasonCode{ReasonVersionMismatch}
+		}
+		if !statesVersion(c.Text, name, claimed) {
+			return []ReasonCode{ReasonStatementExceedsObservation}
 		}
 	}
 	return nil
