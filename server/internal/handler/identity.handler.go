@@ -27,6 +27,7 @@ type IdentityHandler struct {
 	retrieval   RetrievalService
 	policy      PolicyService
 	status      StatusService
+	transfer    TransferService
 }
 
 var _ StrictServerInterface = (*IdentityHandler)(nil)
@@ -37,8 +38,8 @@ type StatusService interface {
 
 // NewServer composes every implemented route, including the authoritative
 // status service that MCP and HTTP share.
-func NewServer(i IdentityService, c CaptureService, t CheckpointService, m MemoryService, r RetrievalService, p PolicyService, s StatusService, l *slog.Logger) (*echo.Echo, error) {
-	return configuredServer(i, c, t, m, r, p, s, l)
+func NewServer(i IdentityService, c CaptureService, t CheckpointService, m MemoryService, r RetrievalService, p PolicyService, s StatusService, x TransferService, l *slog.Logger) (*echo.Echo, error) {
+	return configuredServer(i, c, t, m, r, p, s, x, l)
 }
 func NewIdentityServer(identity IdentityService, logger *slog.Logger) (*echo.Echo, error) {
 	return newMemoryServer(identity, nil, nil, logger)
@@ -47,9 +48,9 @@ func newMemoryServer(identity IdentityService, capture CaptureService, checkpoin
 	return configuredMemoryServer(identity, capture, checkpoints, nil, nil, nil, logger)
 }
 func configuredMemoryServer(identity IdentityService, capture CaptureService, checkpoints CheckpointService, memory MemoryService, retrieval RetrievalService, policy PolicyService, logger *slog.Logger) (*echo.Echo, error) {
-	return configuredServer(identity, capture, checkpoints, memory, retrieval, policy, nil, logger)
+	return configuredServer(identity, capture, checkpoints, memory, retrieval, policy, nil, nil, logger)
 }
-func configuredServer(identity IdentityService, capture CaptureService, checkpoints CheckpointService, memory MemoryService, retrieval RetrievalService, policy PolicyService, status StatusService, logger *slog.Logger) (*echo.Echo, error) {
+func configuredServer(identity IdentityService, capture CaptureService, checkpoints CheckpointService, memory MemoryService, retrieval RetrievalService, policy PolicyService, status StatusService, transfer TransferService, logger *slog.Logger) (*echo.Echo, error) {
 	spec, err := GetSpec()
 	if err != nil {
 		return nil, domain.ErrUnavailable
@@ -92,7 +93,7 @@ func configuredServer(identity IdentityService, capture CaptureService, checkpoi
 		}
 		return problem(c, domain.ErrInvalidInput)
 	}}))
-	strict := NewStrictHandler(&IdentityHandler{identity: identity, capture: capture, checkpoints: checkpoints, memory: memory, retrieval: retrieval, policy: policy, status: status}, nil)
+	strict := NewStrictHandler(&IdentityHandler{identity: identity, capture: capture, checkpoints: checkpoints, memory: memory, retrieval: retrieval, policy: policy, status: status, transfer: transfer}, nil)
 
 	wrapper := ServerInterfaceWrapper{Handler: strict}
 	if policy != nil {
@@ -117,6 +118,9 @@ func configuredServer(identity IdentityService, capture CaptureService, checkpoi
 		e.POST("/v1/retrieval\\:orient", wrapper.OrientMemory)
 		e.POST("/v1/retrieval\\:search", wrapper.SearchMemory)
 		e.GET("/v1/evidence/:id", wrapper.FetchEvidence)
+	}
+	if transfer != nil {
+		e.POST("/v1/exports", wrapper.ExportMemory)
 	}
 	e.Any("/*", func(c echo.Context) error { return problem(c, domain.ErrUnavailable) })
 	return e, nil

@@ -197,7 +197,11 @@ func composeRuntime(ctx context.Context, cfg platform.Config, key []byte, object
 		return nil, err
 	}
 	status := service.NewStatusService(store, retrievalRepo)
-	e, err := handler.NewServer(service.NewIdentityService(store, repository.NewIdentityRepository(store), gateway.NostrIdentity{}), capture, checkpoints, memory, retrieval, service.NewPolicyService(store, evidenceRepo, retrievalRepo), status, logger)
+	transfer, err := service.NewTransferService(store, repository.NewTransferRepository(store), retrievalRepo, key)
+	if err != nil {
+		return nil, err
+	}
+	e, err := handler.NewServer(service.NewIdentityService(store, repository.NewIdentityRepository(store), gateway.NostrIdentity{}), capture, checkpoints, memory, retrieval, service.NewPolicyService(store, evidenceRepo, retrievalRepo), status, transfer, logger)
 	if err != nil {
 		return nil, err
 	}

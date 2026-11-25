@@ -135,6 +135,7 @@ const (
 	ClientInputCapabilitiesCheckpointWrite   ClientInputCapabilities = "checkpoint:write"
 	ClientInputCapabilitiesEventsAppend      ClientInputCapabilities = "events:append"
 	ClientInputCapabilitiesEvidenceRead      ClientInputCapabilities = "evidence:read"
+	ClientInputCapabilitiesMemoryExport      ClientInputCapabilities = "memory:export"
 	ClientInputCapabilitiesPolicyRead        ClientInputCapabilities = "policy:read"
 	ClientInputCapabilitiesRetrievalRead     ClientInputCapabilities = "retrieval:read"
 	ClientInputCapabilitiesStatusRead        ClientInputCapabilities = "status:read"
@@ -153,6 +154,8 @@ func (e ClientInputCapabilities) Valid() bool {
 	case ClientInputCapabilitiesEventsAppend:
 		return true
 	case ClientInputCapabilitiesEvidenceRead:
+		return true
+	case ClientInputCapabilitiesMemoryExport:
 		return true
 	case ClientInputCapabilitiesPolicyRead:
 		return true
@@ -260,6 +263,21 @@ func (e EventInputKind) Valid() bool {
 	case EventInputKindToolCall:
 		return true
 	case EventInputKindToolResult:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ExportResultSchemaVersion.
+const (
+	ExportResultSchemaVersionN3 ExportResultSchemaVersion = "3"
+)
+
+// Valid indicates whether the value is a known member of the ExportResultSchemaVersion enum.
+func (e ExportResultSchemaVersion) Valid() bool {
+	switch e {
+	case ExportResultSchemaVersionN3:
 		return true
 	default:
 		return false
@@ -931,12 +949,30 @@ type EvidenceRef struct {
 	SourceRevision OpaqueID `json:"source_revision"`
 }
 
-// ExportInput defines model for ExportInput.
+// ExportInput Read-only, resumable export page. Every page re-authorizes the caller and every record against current grants, epochs, and deletion tombstones.
 type ExportInput struct {
-	// IdempotencyKey Nonempty opaque identifier. Never a database elementId.
-	IdempotencyKey OpaqueID `json:"idempotency_key"`
-	Scope          Scope    `json:"scope"`
+	// Continuation Opaque authenticated resume cursor from the previous page. Bound to the requesting client and scope.
+	Continuation *string `json:"continuation,omitempty"`
+	Scope        Scope   `json:"scope"`
 }
+
+// ExportResult defines model for ExportResult.
+type ExportResult struct {
+	// Claims Authorized claim revisions with stored status and evidence provenance. Status and origin are reported, never upgraded; an importer must resubmit them as candidates.
+	Claims       []ClaimRevision `json:"claims"`
+	Completeness Completeness    `json:"completeness"`
+
+	// Continuation Present when more pages remain.
+	Continuation *string `json:"continuation,omitempty"`
+
+	// Omitted Records on this page withheld because they are unauthorized, deleted, or their evidence is unavailable. Never identifies them.
+	Omitted       int                       `json:"omitted"`
+	SchemaVersion ExportResultSchemaVersion `json:"schema_version"`
+	Scope         Scope                     `json:"scope"`
+}
+
+// ExportResultSchemaVersion defines model for ExportResult.SchemaVersion.
+type ExportResultSchemaVersion string
 
 // FetchMode publication is ID-only eligible publication evidence; working is explicit owned task evidence and stays unverified.
 type FetchMode string
@@ -3458,15 +3494,15 @@ func (r FetchEvidenceResponse) ContentType() string {
 type ExportMemoryResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	// JSON202 the response for an HTTP 202 `application/json` response
-	JSON202 *JobResult
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ExportResult
 	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
 	ApplicationproblemJSONDefault *Problem
 }
 
-// GetJSON202 returns the response for an HTTP 202 `application/json` response
-func (r ExportMemoryResponse) GetJSON202() *JobResult {
-	return r.JSON202
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ExportMemoryResponse) GetJSON200() *ExportResult {
+	return r.JSON200
 }
 
 // GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
@@ -4487,12 +4523,12 @@ func ParseExportMemoryResponse(rsp *http.Response) (*ExportMemoryResponse, error
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
-		var dest JobResult
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ExportResult
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON202 = &dest
+		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Problem

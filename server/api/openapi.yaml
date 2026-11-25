@@ -601,12 +601,12 @@
       "post": {
         "operationId": "exportMemory",
         "responses": {
-          "202": {
+          "200": {
             "description": "Success from an implemented operation only.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JobResult"
+                  "$ref": "#/components/schemas/ExportResult"
                 }
               }
             }
@@ -1727,7 +1727,8 @@
                 "events:append",
                 "artifacts:write",
                 "verification:write",
-                "policy:read"
+                "policy:read",
+                "memory:export"
               ]
             },
             "minItems": 1,
@@ -1853,14 +1854,17 @@
           "scope": {
             "$ref": "#/components/schemas/Scope"
           },
-          "idempotency_key": {
-            "$ref": "#/components/schemas/OpaqueID"
+          "continuation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "description": "Opaque authenticated resume cursor from the previous page. Bound to the requesting client and scope."
           }
         },
         "required": [
-          "scope",
-          "idempotency_key"
-        ]
+          "scope"
+        ],
+        "description": "Read-only, resumable export page. Every page re-authorizes the caller and every record against current grants, epochs, and deletion tombstones."
       },
       "JobResult": {
         "type": "object",
@@ -2191,6 +2195,50 @@
           }
         },
         "description": "Exact selected UTF-8 byte span [start_byte,end_byte) of the stored artifact. The text is the whole source only when start_byte is 0 and end_byte equals source_bytes."
+      },
+      "ExportResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "3"
+            ]
+          },
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          },
+          "claims": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/ClaimRevision"
+            },
+            "description": "Authorized claim revisions with stored status and evidence provenance. Status and origin are reported, never upgraded; an importer must resubmit them as candidates."
+          },
+          "omitted": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Records on this page withheld because they are unauthorized, deleted, or their evidence is unavailable. Never identifies them."
+          },
+          "completeness": {
+            "$ref": "#/components/schemas/Completeness"
+          },
+          "continuation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "description": "Present when more pages remain."
+          }
+        },
+        "required": [
+          "schema_version",
+          "scope",
+          "claims",
+          "omitted",
+          "completeness"
+        ]
       }
     },
     "responses": {
