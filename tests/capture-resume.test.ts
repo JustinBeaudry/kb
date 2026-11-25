@@ -197,6 +197,31 @@ describe("capture watcher resume", () => {
     expect(sink.events).toHaveLength(5);
   });
 
+  it("deduplicates copied Codex history after rotation", async () => {
+    const path = emptySource();
+    const w = watcher(path, codexAdapter);
+    await poll(w);
+    appendFileSync(path, fixture("codex.jsonl"));
+    await poll(w);
+    const before = new Set(sink.events.map((e) => e.id));
+    const next = JSON.stringify({
+      timestamp: "2026-11-01T10:00:07.000Z",
+      type: "response_item",
+      payload: { type: "message", role: "user", content: [{ type: "input_text", text: "NEW_AFTER_COPY" }] },
+    });
+    renameSync(path, join(root, "rollout.old.jsonl"));
+    writeFileSync(path, fixture("codex.jsonl") + next + "\n");
+
+    const report = await poll(w);
+
+    expect(report.sources[0]?.gaps.map((g) => g.reason)).toEqual(["rotated"]);
+    expect(report.duplicates).toBe(4);
+    expect(report.events).toBe(1);
+    const added = sink.events.map((e) => e.id).filter((id) => !before.has(id));
+    expect(added).toHaveLength(1);
+    expect(JSON.stringify(sink.events.at(-1)?.content)).toContain("NEW_AFTER_COPY");
+  });
+
   it("keeps the cursor in place when the capture sink is unavailable", async () => {
     const path = emptySource();
     const w = watcher(path, codexAdapter);

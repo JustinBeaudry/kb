@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   finalize,
   ignore,
@@ -62,6 +63,13 @@ export function decodeEvents(line: string, source: SourceIdentity): DecodeResult
           role,
           completeness: text.partial ? "partial" : "complete",
           observedAt: at,
+          // Codex messages carry no native ID. Session (hashed in finalize),
+          // record timestamp, role and text survive a copy into a rotated file,
+          // so copied history keeps its ID. Without a timestamp, fall back to
+          // the source offset.
+          nativeID: at
+            ? `msg:${at}:${role}:${createHash("sha256").update(text.text).digest("hex")}`
+            : undefined,
           content: { text: text.text },
         },
       ],

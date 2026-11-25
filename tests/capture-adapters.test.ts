@@ -169,6 +169,20 @@ describe("harness adapters", () => {
     expect(repeated).toBe(atStart);
   });
 
+  it("derives Codex message IDs from content that survives a copy", () => {
+    const line = JSON.stringify({
+      timestamp: "2026-11-01T10:00:01.000Z",
+      type: "response_item",
+      payload: { type: "message", role: "user", content: [{ type: "input_text", text: "same" }] },
+    });
+
+    const original = codexAdapter.decodeEvents(line, source(0)).events[0]?.id;
+    const copied = codexAdapter.decodeEvents(line, { ...source(512), fileIdentity: "other-file" }).events[0]?.id;
+
+    expect(original).toBeDefined();
+    expect(copied).toBe(original);
+  });
+
   it("never captures hidden reasoning or session instructions", () => {
     for (const { adapter, fixture } of adapters) {
       const { events } = decodeFixture(adapter, fixture);
