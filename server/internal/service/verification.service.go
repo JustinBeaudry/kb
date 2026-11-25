@@ -170,7 +170,7 @@ func (s *VerificationService) artifact(ctx context.Context, tx Tx, ref domain.Ev
 	if p.Paused || p.Revision == "" || (p.Revision != a.PolicyRevision && p.Revision != a.CurrentPolicyRevision) {
 		return a, domain.ErrStale
 	}
-	if err = validateSource(p, a.SourcePath); err != nil {
+	if err = validateEvidenceSource(p, a); err != nil {
 		return a, err
 	}
 	return a, nil

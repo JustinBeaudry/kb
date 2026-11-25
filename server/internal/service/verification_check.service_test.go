@@ -25,6 +25,7 @@ type checkWorld struct {
 	verifications map[string]domain.Verification
 	snapshots     map[string]domain.SourceSnapshot
 	sourceReads   int
+	policy        domain.Policy
 }
 
 func newCheckWorld() *checkWorld {
@@ -33,6 +34,7 @@ func newCheckWorld() *checkWorld {
 		owner:                   OwnerIdentity{ID: "owner", PublicKey: ownerNostrPublicKey},
 		revoked:                 map[string]bool{}, artifacts: map[string]domain.Artifact{}, uploaders: map[string]string{}, objects: map[string][]byte{},
 		attestations: map[string]domain.ExecutionAttestation{}, verifications: map[string]domain.Verification{}, snapshots: map[string]domain.SourceSnapshot{},
+		policy: domain.Policy{Revision: "p1"},
 	}
 }
 func (w *checkWorld) Owner(context.Context, Tx) (OwnerIdentity, error) { return w.owner, nil }
@@ -50,7 +52,7 @@ func (w *checkWorld) Artifact(_ context.Context, _ Tx, id string) (domain.Artifa
 	return a, w.uploaders[id], nil
 }
 func (w *checkWorld) Policy(context.Context, Tx, string) (domain.Policy, error) {
-	return domain.Policy{Revision: "p1"}, nil
+	return w.policy, nil
 }
 func (w *checkWorld) Attestation(_ context.Context, _ Tx, id string) (domain.ExecutionAttestation, error) {
 	a, ok := w.attestations[id]
@@ -373,6 +375,70 @@ func TestCheckRejectsTamperedEvidence(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Contains(t, verification.Reasons, tc.reason)
+		})
+	}
+}
+
+func TestStoredTrustIsTheTrustThatVoted(t *testing.T) {
+	w := newCheckWorld()
+	manifest := []byte(`{"dependencies":{"left-pad":"1.3.0"}}`)
+	w.gitFile("demo", "package.json", manifest)
+	owned := w.artifact("owner-note", ownerActorPrefix+TokenDigest(w.owner.ID), domain.Scope{ProjectID: "demo"}, "owner#1", []byte("left-pad is 1.3.0"))
+	w.candidate("r1", domain.KindDependencyVersion, "left-pad is 1.3.0", domain.Applicability{RepositoryRevision: checkHead, Versions: map[string]string{"left-pad": "1.3.0"}}, w.gitRef("manifest", "demo", "package.json", manifest), owned)
+
+	verification, err := w.service().Check(t.Context(), verifier, "r1")
+
+	require.NoError(t, err)
+	assert.Equal(t, domain.VerificationSupported, verification.Outcome)
+	assert.Equal(t, domain.TrustGatewayObserved, verification.Origin.Trust)
+}
+
+func TestInvalidatedRevisionNeverReplaysSupport(t *testing.T) {
+	w := newCheckWorld()
+	manifest := []byte(`{"dependencies":{"left-pad":"1.3.0"}}`)
+	w.gitFile("demo", "package.json", manifest)
+	w.candidate("r1", domain.KindDependencyVersion, "left-pad is 1.3.0", domain.Applicability{RepositoryRevision: checkHead, Versions: map[string]string{"left-pad": "1.3.0"}}, w.gitRef("manifest", "demo", "package.json", manifest))
+	s := w.service()
+	first, err := s.Check(t.Context(), verifier, "r1")
+	require.NoError(t, err)
+	require.Equal(t, domain.VerificationSupported, first.Outcome)
+	state := w.states["r1"]
+	state.Status, state.Valid = domain.ClaimInvalidated, false
+	w.states["r1"] = state
+
+	_, err = s.Check(t.Context(), verifier, "r1")
+
+	assert.ErrorIs(t, err, domain.ErrConflict)
+}
+
+func TestExcludedGitLocatorPathIsNeverRead(t *testing.T) {
+	cases := []struct {
+		name, path string
+		want       error
+	}{
+		{"excluded locator path", "secrets/package.json", domain.ErrForbidden},
+		{"permitted locator path", "package.json", nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := newCheckWorld()
+			w.policy.ExcludedPaths = []string{"secrets/"}
+			manifest := []byte(`{"dependencies":{"left-pad":"1.3.0"}}`)
+			w.gitFile("demo", tc.path, manifest)
+			ref := w.gitRef("manifest", "demo", tc.path, manifest)
+			a := w.artifacts["manifest"]
+			a.SourcePath = "package.json"
+			w.artifacts["manifest"] = a
+			w.candidate("r1", domain.KindDependencyVersion, "left-pad is 1.3.0", domain.Applicability{RepositoryRevision: checkHead, Versions: map[string]string{"left-pad": "1.3.0"}}, ref)
+
+			_, err := w.service().Check(t.Context(), verifier, "r1")
+
+			if tc.want == nil {
+				require.NoError(t, err)
+				return
+			}
+			assert.ErrorIs(t, err, tc.want)
+			assert.Zero(t, w.sourceReads)
 		})
 	}
 }

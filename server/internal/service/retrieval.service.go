@@ -498,7 +498,7 @@ func (s *RetrievalService) authorizeFetch(ctx context.Context, tx Tx, p domain.P
 	if e != nil {
 		return fetchAuthority{}, e
 	}
-	if policy.Paused || policy.Revision == "" || policy.Revision != a.PolicyRevision || validateSource(policy, a.SourcePath) != nil {
+	if policy.Paused || policy.Revision == "" || policy.Revision != a.PolicyRevision || validateEvidenceSource(policy, a) != nil {
 		return fetchAuthority{}, domain.ErrForbidden
 	}
 	candidates, boundReached, e := s.repo.CitationSeeds(ctx, tx, p, scope, r.Mode, domain.EvidenceRef{ArtifactID: r.ArtifactID, Digest: a.Digest, Locator: r.Locator}, domain.MaxGraphVisited)

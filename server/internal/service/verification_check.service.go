@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
-	"slices"
 	"time"
 
 	"github.com/JustinBeaudry/kb/server/internal/domain"
@@ -129,7 +128,7 @@ func (s *VerificationService) plan(ctx context.Context, tx Tx, p domain.Principa
 		if policy.Revision != a.PolicyRevision && policy.Revision != a.CurrentPolicyRevision {
 			return plan, domain.ErrStale
 		}
-		if e = validateSource(policy, a.SourcePath); e != nil {
+		if e = validateEvidenceSource(policy, a); e != nil {
 			return plan, e
 		}
 		item := plannedEvidence{Ref: ref, Artifact: a, Uploader: uploader, OwnerAuthenticate: owned}
@@ -210,14 +209,11 @@ func (s *VerificationService) observe(ctx context.Context, plan checkPlan) ([]do
 	return out, nil
 }
 
-func supportingTrust(d domain.PolicyDecision, obs []domain.EvidenceObservation) domain.OriginTrust {
-	if d.Outcome != domain.VerificationSupported {
-		return domain.TrustSubmitted
-	}
-	for _, trust := range []domain.OriginTrust{domain.TrustOwnerAuthenticated, domain.TrustCollectorAttested, domain.TrustGatewayObserved} {
-		if slices.ContainsFunc(obs, func(o domain.EvidenceObservation) bool { return o.Origin.Trust == trust }) {
-			return trust
-		}
+// supportingTrust records the trust of the observations the kind's rule used.
+// Observations of other trusts never vote, so they never label the outcome.
+func supportingTrust(d domain.PolicyDecision, kind string) domain.OriginTrust {
+	if trust, ok := domain.RuleTrust(kind); ok && d.Outcome == domain.VerificationSupported {
+		return trust
 	}
 	return domain.TrustSubmitted
 }
@@ -256,7 +252,7 @@ func (s *VerificationService) Check(ctx context.Context, p domain.Principal, rev
 		digests = append(digests, o.SourceKey+"\x00"+string(o.Origin.Trust)+"\x00"+hex.EncodeToString(sum[:]))
 	}
 	evidenceDigest := captureID(plan.State.Claim, plan.Evidence, digests)
-	v := domain.Verification{ID: captureID("check", revisionID, domain.EvidencePolicyVersion, evidenceDigest), ClaimRevision: revisionID, PolicyRevision: domain.EvidencePolicyVersion, EvidenceDigest: evidenceDigest, Outcome: decision.Outcome, Method: decision.Method, Origin: domain.Origin{ClientID: p.ClientID, Trust: supportingTrust(decision, observations)}, CheckedAt: time.Now().UTC(), Reasons: decision.Reasons, DistinctOrigins: decision.DistinctOrigins}
+	v := domain.Verification{ID: captureID("check", revisionID, domain.EvidencePolicyVersion, evidenceDigest), ClaimRevision: revisionID, PolicyRevision: domain.EvidencePolicyVersion, EvidenceDigest: evidenceDigest, Outcome: decision.Outcome, Method: decision.Method, Origin: domain.Origin{ClientID: p.ClientID, Trust: supportingTrust(decision, plan.State.Claim.Kind)}, CheckedAt: time.Now().UTC(), Reasons: decision.Reasons, DistinctOrigins: decision.DistinctOrigins}
 	var out domain.Verification
 	err = s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
 		current, e := s.plan(ctx, tx, p, revisionID)
@@ -265,6 +261,10 @@ func (s *VerificationService) Check(ctx context.Context, p domain.Principal, rev
 		}
 		if captureID(current) != captureID(plan) {
 			return domain.ErrStale
+		}
+		// A withdrawn revision never replays an earlier supported result.
+		if !current.State.Valid && current.State.Status != domain.ClaimCandidate {
+			return domain.ErrConflict
 		}
 		if existing, e := s.checks.Attestations.LoadVerification(ctx, tx, v.ID); e == nil {
 			out = existing
