@@ -69,7 +69,9 @@ func (r *RetrievalRepository) Seeds(ctx context.Context, tx domain.Tx, scope dom
 		return nil, domain.ErrInvalidInput
 	}
 	params := map[string]any{"project": scope.ProjectID, "task": scope.TaskID, "limit": limit, "query": strings.ToLower(query), "exact": query}
-	where := `(c.projectID=$project AND (coalesce(c.taskID,'')='' OR c.taskID=$task)) OR EXISTS { MATCH (p:Publication {claimRevision:c.id,sharingScope:'cross_project',valid:true}) }`
+	// Only statuses Eligible can admit compete for the seed limit; superseded,
+	// invalidated and rejected revisions would otherwise starve current heads.
+	where := `c.status IN ['candidate','verified','disputed'] AND ((c.projectID=$project AND (coalesce(c.taskID,'')='' OR c.taskID=$task)) OR EXISTS { MATCH (p:Publication {claimRevision:c.id,sharingScope:'cross_project',valid:true}) })`
 	if strings.HasPrefix(query, "@ids:") {
 		var ids []string
 		if json.Unmarshal([]byte(strings.TrimPrefix(query, "@ids:")), &ids) != nil || len(ids) > 50 {
@@ -287,6 +289,15 @@ func (r *RetrievalRepository) Eligible(ctx context.Context, tx domain.Tx, p doma
 		if !valid {
 			continue
 		}
+		for _, dep := range all[1:] {
+			if dep.Status == domain.ClaimSuperseded {
+				if result.SupersededSupport == nil {
+					result.SupersededSupport = map[string]bool{}
+				}
+				result.SupersededSupport[c.Revision] = true
+				break
+			}
+		}
 		usable, e := r.sources(ctx, tx, all)
 		if e != nil {
 			return result, e
@@ -376,7 +387,9 @@ func (r *RetrievalRepository) supportClosure(ctx context.Context, tx domain.Tx, 
 			return true
 		}
 		dep, ok := supports[id]
-		if !ok || dep.deleted || !dep.valid || dep.status != domain.ClaimVerified || len(dep.claim.DependsOn) > domain.MaxSupportReferences {
+		// A superseded support revision stays valid evidence for publications the
+		// owner already pinned to it; only invalidation or deletion withdraws them.
+		if !ok || dep.deleted || !dep.valid || (dep.status != domain.ClaimVerified && dep.status != domain.ClaimSuperseded) || len(dep.claim.DependsOn) > domain.MaxSupportReferences {
 			return false
 		}
 		visiting[id] = true

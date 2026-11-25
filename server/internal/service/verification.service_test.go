@@ -463,3 +463,118 @@ func (f *verificationRepoFixture) PinPublicationSupport(_ context.Context, _ Tx,
 func (r *captureRepo) BindDerivedArtifact(context.Context, Tx, string, domain.Artifact) error {
 	return nil
 }
+
+// SupersedePrevious mirrors the graph repository: only other verified
+// project-scope revisions of the same claim are retired.
+func (f *verificationRepoFixture) SupersedePrevious(_ context.Context, _ Tx, project, claim, current string) error {
+	for id, state := range f.states {
+		if id != current && state.Claim.ClaimID == claim && state.Claim.Scope == (domain.Scope{ProjectID: project}) && state.Status == domain.ClaimVerified {
+			state.Status = domain.ClaimSuperseded
+			f.states[id] = state
+		}
+	}
+	return nil
+}
+
+// publishRevision verifies a fresh task candidate into the shared target claim.
+func publishRevision(t *testing.T, s *VerificationService, f *verificationRepoFixture, d AdjudicationDraft, n int) string {
+	t.Helper()
+	candidate := f.states["candidate"]
+	candidate.Claim.Revision = fmt.Sprintf("candidate-%d", n)
+	candidate.Claim.ClaimID = fmt.Sprintf("claim-%d", n)
+	f.states[candidate.Claim.Revision] = candidate
+	f.heads[candidate.Claim.ClaimID] = candidate.Claim.Revision
+	d.CandidateRevision = candidate.Claim.Revision
+	d.ExpectedCandidateHead = candidate.Claim.Revision
+	d.ExpectedTargetHead = f.heads[d.TargetID]
+	d.TargetText = fmt.Sprintf("approved revision %d", n)
+	d.IdempotencyKey = fmt.Sprintf("decision-%d", n)
+	preview, err := s.PreviewHost(t.Context(), d)
+	require.NoError(t, err)
+	result, err := s.AdjudicateHost(t.Context(), AdjudicationInput{d, preview.Digest})
+	require.NoError(t, err)
+	return result.TargetRevision
+}
+
+func TestPublishingNewerTargetRevisionSupersedesPriorVerifiedRevision(t *testing.T) {
+	tests := []struct {
+		name      string
+		revisions int
+	}{
+		{"second revision supersedes first", 2},
+		{"third revision supersedes every earlier revision", 3},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, f, d := verificationFixture(t)
+			var published []string
+			for n := 1; n <= tt.revisions; n++ {
+				published = append(published, publishRevision(t, s, f, d, n))
+			}
+
+			current := published[len(published)-1]
+			assert.Equal(t, current, f.heads[d.TargetID])
+			assert.Equal(t, domain.ClaimVerified, f.states[current].Status)
+			assert.True(t, f.states[current].Valid)
+			for _, old := range published[:len(published)-1] {
+				assert.Equal(t, domain.ClaimSuperseded, f.states[old].Status, old)
+				assert.True(t, f.states[old].Valid, "supersession is not invalidation")
+			}
+		})
+	}
+}
+
+func TestInvalidatingNewerRevisionDoesNotResurrectSupersededRevision(t *testing.T) {
+	s, f, d := verificationFixture(t)
+	first := publishRevision(t, s, f, d, 1)
+	second := publishRevision(t, s, f, d, 2)
+	require.Equal(t, domain.ClaimSuperseded, f.states[first].Status)
+	input, err := s.PreviewInvalidationHost(t.Context(), second)
+	require.NoError(t, err)
+	input.IdempotencyKey = "invalidate-second"
+
+	_, err = s.InvalidateHost(t.Context(), input)
+
+	require.NoError(t, err)
+	assert.Equal(t, domain.ClaimInvalidated, f.states[second].Status)
+	assert.Equal(t, domain.ClaimSuperseded, f.states[first].Status, "the older revision stays retired")
+	assert.Equal(t, second, f.heads[d.TargetID])
+}
+
+// A superseded revision stays valid support for publications pinned to it, so
+// the owner must still be able to invalidate it and withdraw those dependents.
+func TestOwnerCanInvalidateValidSupersededRevision(t *testing.T) {
+	tests := []struct {
+		name    string
+		mutate  func(*domain.RevisionState)
+		wantErr error
+	}{
+		{"valid superseded revision is offered for invalidation", func(*domain.RevisionState) {}, nil},
+		{"invalid superseded revision is rejected", func(s *domain.RevisionState) { s.Valid = false }, domain.ErrConflict},
+		{"disputed revision is rejected", func(s *domain.RevisionState) { s.Status = domain.ClaimDisputed }, domain.ErrConflict},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, f, d := verificationFixture(t)
+			first := publishRevision(t, s, f, d, 1)
+			publishRevision(t, s, f, d, 2)
+			state := f.states[first]
+			require.Equal(t, domain.ClaimSuperseded, state.Status)
+			tt.mutate(&state)
+			f.states[first] = state
+
+			input, err := s.PreviewInvalidationHost(t.Context(), first)
+
+			if tt.wantErr != nil {
+				assert.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, string(domain.ClaimSuperseded), input.ExpectedStatus)
+			input.IdempotencyKey = "invalidate-first"
+			_, err = s.InvalidateHost(t.Context(), input)
+			require.NoError(t, err)
+			assert.Equal(t, domain.ClaimInvalidated, f.states[first].Status)
+		})
+	}
+}

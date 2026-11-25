@@ -19,6 +19,7 @@ type retrievalFixture struct {
 	snapshotCalls int
 	claims        []domain.ClaimRevision
 	eligible      map[string]bool
+	superseded    map[string]bool
 	snapshot      RetrievalSnapshot
 	checkpoint    domain.Checkpoint
 	examined      int
@@ -84,6 +85,12 @@ func (f *retrievalFixture) Eligible(_ context.Context, _ Tx, _ domain.Principal,
 		for _, c := range f.claims {
 			if c.Revision == id && f.eligible[id] {
 				r.Claims = append(r.Claims, c)
+				if f.superseded[id] {
+					if r.SupersededSupport == nil {
+						r.SupersededSupport = map[string]bool{}
+					}
+					r.SupersededSupport[id] = true
+				}
 			}
 		}
 	}
@@ -192,16 +199,64 @@ func TestCrossProjectLessonHidesSourceMetadata(t *testing.T) {
 	assert.Empty(t, v.Chunks[0].Evidence)
 }
 func TestConflictingVersionsRemainVisible(t *testing.T) {
-	s, f, p, r := retrievalSetup(t)
-	for _, id := range []string{"a", "b"} {
-		f.claims = append(f.claims, domain.ClaimRevision{ClaimID: "same", Revision: id, Text: id, Scope: r.Scope, Status: domain.ClaimDisputed})
-		f.eligible[id] = true
+	tests := []struct {
+		name          string
+		statuses      map[string]domain.ClaimStatus
+		wantRevisions []string
+		wantConflict  bool
+	}{
+		{"disputed revisions keep the conflict warning", map[string]domain.ClaimStatus{"a": domain.ClaimDisputed, "b": domain.ClaimDisputed}, []string{"a", "b"}, true},
+		{"a lone disputed revision keeps the conflict warning", map[string]domain.ClaimStatus{"a": domain.ClaimDisputed}, []string{"a"}, true},
+		{"superseded revisions are omitted without a conflict", map[string]domain.ClaimStatus{"a": domain.ClaimSuperseded, "b": domain.ClaimVerified}, []string{"b"}, false},
 	}
-	v, e := s.Retrieve(t.Context(), p, r)
-	require.NoError(t, e)
-	require.Len(t, v.Chunks, 2)
-	for _, c := range v.Chunks {
-		assert.Contains(t, c.Warnings, "conflicting_versions")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, f, p, r := retrievalSetup(t)
+			for _, id := range []string{"a", "b"} {
+				status, ok := tt.statuses[id]
+				if !ok {
+					continue
+				}
+				f.claims = append(f.claims, domain.ClaimRevision{ClaimID: "same", Revision: id, Text: id, Scope: r.Scope, Status: status})
+				f.eligible[id] = true
+			}
+
+			v, e := s.Retrieve(t.Context(), p, r)
+
+			require.NoError(t, e)
+			var got []string
+			for _, c := range v.Chunks {
+				got = append(got, c.Revision)
+				assert.Equal(t, tt.wantConflict, slices.Contains(c.Warnings, "conflicting_versions"), c.Revision)
+				assert.NotEqual(t, domain.ClaimSuperseded, c.ClaimStatus)
+			}
+			assert.Equal(t, tt.wantRevisions, got)
+		})
+	}
+}
+func TestRetrievalWarnsWhenSupportIsSuperseded(t *testing.T) {
+	tests := []struct {
+		name       string
+		superseded bool
+		want       bool
+	}{
+		{"claim pinned to a superseded support revision carries the warning", true, true},
+		{"claim with current support carries no warning", false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, f, p, r := retrievalSetup(t)
+			f.claims = append(f.claims, domain.ClaimRevision{ClaimID: "dependent", Revision: "d1", Text: "dependent", Scope: r.Scope, Status: domain.ClaimVerified})
+			f.eligible["d1"] = true
+			f.superseded = map[string]bool{"d1": tt.superseded}
+
+			v, e := s.Retrieve(t.Context(), p, r)
+
+			require.NoError(t, e)
+			require.Len(t, v.Chunks, 1)
+			assert.Equal(t, domain.ClaimVerified, v.Chunks[0].ClaimStatus, "the claim itself stays visible and verified")
+			assert.Equal(t, tt.want, slices.Contains(v.Chunks[0].Warnings, "support_superseded"))
+		})
 	}
 }
 func TestRetrievalTaskState(t *testing.T) {

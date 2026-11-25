@@ -187,6 +187,7 @@ func (s *RetrievalService) Retrieve(ctx context.Context, p domain.Principal, inp
 		}
 		seen := map[string]bool{}
 		var claims []domain.ClaimRevision
+		supersededSupport := map[string]bool{}
 		unavailable := false
 		for depth := 0; len(batch) > 0 && depth <= r.MaxDepth; depth++ {
 			remaining := r.MaxVisited - result.Visited
@@ -213,6 +214,9 @@ func (s *RetrievalService) Retrieve(ctx context.Context, p domain.Principal, inp
 			for _, c := range eligible.Claims {
 				if !retrievalScope(c, r) || !applicable(c.Applicability, r.Applicability) || (c.Scope.ProjectID == "" && !lessonApplies(c.Applicability, r.Applicability)) {
 					continue
+				}
+				if eligible.SupersededSupport[c.Revision] {
+					supersededSupport[c.Revision] = true
 				}
 				claims = append(claims, c)
 				next = append(next, c.Revision)
@@ -269,6 +273,9 @@ func (s *RetrievalService) Retrieve(ctx context.Context, p domain.Principal, inp
 			}
 			if c.Scope.ProjectID == "" {
 				warnings = append(warnings, "generalized_lesson_source_withheld")
+			}
+			if supersededSupport[c.Revision] {
+				warnings = append(warnings, "support_superseded")
 			}
 			chunk := domain.EvidenceChunk{RecordID: c.ClaimID, Revision: c.Revision, Text: c.Text, ClaimStatus: c.Status, OriginTrust: trust, Evidence: c.Evidence, Warnings: warnings, Applicability: targetApplicability(c.Applicability)}
 			if v := c.Verification; v != nil && c.Status != domain.ClaimCandidate {

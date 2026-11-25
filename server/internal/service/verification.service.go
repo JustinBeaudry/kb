@@ -48,6 +48,9 @@ type PublicationRepository interface {
 	FinalizeDerivation(context.Context, Tx, domain.ExcerptLineage) error
 	PinPublicationSupport(context.Context, Tx, string, []string, []domain.Artifact) error
 	PutTarget(context.Context, Tx, domain.ClaimRevision, string) error
+	// SupersedePrevious marks every other verified project-scope revision of
+	// the claim superseded. Disputed and invalidated revisions are untouched.
+	SupersedePrevious(ctx context.Context, tx Tx, projectID, claimID, currentRevision string) error
 	PutPublication(context.Context, Tx, domain.Publication) error
 	PutExcerptLineage(context.Context, Tx, domain.ExcerptLineage) error
 	InvalidateSupport(context.Context, Tx, string) error
@@ -538,6 +541,11 @@ func (s *VerificationService) AdjudicateHost(ctx context.Context, input Adjudica
 			if e = s.publications.PutTarget(ctx, tx, target, d.ExpectedTargetHead); e != nil {
 				return e
 			}
+			// The new head replaces earlier verified revisions in the same
+			// transaction, under the OwnerState lock taken by hostOwner.
+			if e = s.publications.SupersedePrevious(ctx, tx, d.ProjectID, d.TargetID, targetRevision); e != nil {
+				return e
+			}
 			verification.ID = captureID(decisionID, "target")
 			verification.ClaimRevision = targetRevision
 			if e = s.repo.PutVerification(ctx, tx, verification, domain.ClaimVerified, true); e != nil {
@@ -637,7 +645,9 @@ func (s *VerificationService) PreviewInvalidationHost(ctx context.Context, revis
 		if err != nil {
 			return err
 		}
-		if !state.Valid || state.Status != domain.ClaimVerified {
+		// A valid superseded revision still supports pinned publications, so the
+		// owner must be able to invalidate it to withdraw them.
+		if !state.Valid || (state.Status != domain.ClaimVerified && state.Status != domain.ClaimSuperseded) {
 			return domain.ErrConflict
 		}
 		head, err := s.repo.Head(ctx, tx, state.Claim.ClaimID)
