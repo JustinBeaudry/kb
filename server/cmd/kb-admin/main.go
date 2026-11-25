@@ -49,6 +49,18 @@ Adjudication input is strict owner-controlled JSON, read from stdin by default.
 Preview is read-only; execution requires exact expected HEAD and digest.
 Never put target text, evidence content or credentials in argv.
 
+kb-admin decisions [--input PATH|-]           {"Limit":50}
+kb-admin decision-sync [--input PATH|-]       {"Limit":50}
+kb-admin decision-challenge [--input PATH|-]  {"DecisionID":"ID","Action":"approve|reject"}
+kb-admin decision-approve [--input PATH|-]    {"ChallengeID":"ID","DecisionID":"ID","Action":"approve|reject","Signature":"128_HEX"}
+Decisions bind one candidate revision and evidence digest and expire after 24h.
+decision-sync delivers pending decision posts and ingests owner replies via KB's
+own Buzz identity (KB_BUZZ_BINARY, KB_BUZZ_RELAY_URL, KB_BUZZ_CHANNEL,
+KB_BUZZ_PRIVATE_KEY_FILE); a Buzz outage leaves decisions pending.
+Recovery without Buzz: decision-challenge prints SigningDigest; the owner signs it
+(BIP-340) on their own device; decision-approve verifies that signature and redeems
+a one-use grant for exactly that action. No owner key or grant token is printed.
+
 kb-admin delete --preview [--input PATH|-]
 kb-admin delete [--input PATH|-]
 kb-admin deletion-status [--input PATH|-]
@@ -132,6 +144,7 @@ type administration struct {
 	adjudication hostAdjudication
 	lifecycle    hostLifecycle
 	recovery     hostRecovery
+	decisions    hostDecisions
 }
 type adminFactory func(context.Context, bool) (administration, func(), error)
 
@@ -143,6 +156,9 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	if len(args) > 0 && lifecycleCommand(args[0]) {
 		factory = composeLifecycleAdministration
 	}
+	if len(args) > 0 && decisionCommand(args[0]) {
+		factory = composeDecisionAdministration
+	}
 	route, complete := productionAdminRoute(ctx, output)
 	err := runAdminRouted(ctx, args, output, os.Stdin, factory, route)
 	if completionErr := complete(err); completionErr != nil {
@@ -150,7 +166,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	}
 	if err != nil && len(args) > 0 {
 		switch args[0] {
-		case "setup", "enroll", "revoke", "list", "verify", "reject", "invalidate", "recover", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check":
+		case "setup", "enroll", "revoke", "list", "verify", "reject", "invalidate", "recover", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-sync", "decision-challenge", "decision-approve":
 			return commandError{command: args[0], cause: err}
 		}
 	}
@@ -172,7 +188,7 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 		return domain.ErrUnavailable
 	}
 	switch command {
-	case "setup", "enroll", "revoke", "list", "verify", "reject", "invalidate", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check":
+	case "setup", "enroll", "revoke", "list", "verify", "reject", "invalidate", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-sync", "decision-challenge", "decision-approve":
 	default:
 		return domain.ErrInvalidInput
 	}
@@ -229,6 +245,12 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 	var invalidation service.InvalidationInput
 	var invalidationPreview struct{ Revision string }
 	var lifecycleInput lifecycleInput
+	var decisionArgs decisionInput
+	if decisionCommand(command) {
+		if err := readAdminInput(inputPath, stdin, &decisionArgs); err != nil {
+			return err
+		}
+	}
 	if lifecycleCommand(command) && command != "journal-init" && command != "journal-check" {
 		if err := readAdminInput(inputPath, stdin, lifecycleInput.target(command)); err != nil {
 			return err
@@ -278,6 +300,8 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 		switch {
 		case lifecycleCommand(command) && command != "journal-init" && command != "journal-check":
 			input = lifecycleInput.target(command)
+		case decisionCommand(command):
+			input = decisionArgs
 		case command == "invalidate" && preview:
 			input = invalidationPreview
 		case command == "invalidate":
@@ -316,6 +340,9 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 	}
 	if lifecycleCommand(command) {
 		return runLifecycle(ctx, command, preview, lifecycleInput, admin.lifecycle, output)
+	}
+	if decisionCommand(command) {
+		return runDecisions(ctx, command, decisionArgs, admin.decisions, output)
 	}
 	switch command {
 	case "setup", "enroll":

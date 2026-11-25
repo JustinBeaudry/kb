@@ -23,5 +23,8 @@ var Memory string
 //go:embed 006_verification.cypher
 var Verification string
 
+//go:embed 007_decisions.cypher
+var Decisions string
+
 //go:embed 009_lifecycle.cypher
 var Lifecycle string

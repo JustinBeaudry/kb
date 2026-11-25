@@ -27,6 +27,7 @@ type IdentityHandler struct {
 	retrieval   RetrievalService
 	policy      PolicyService
 	status      StatusService
+	decisions   DecisionService
 }
 
 var _ StrictServerInterface = (*IdentityHandler)(nil)
@@ -37,8 +38,8 @@ type StatusService interface {
 
 // NewServer composes every implemented route, including the authoritative
 // status service that MCP and HTTP share.
-func NewServer(i IdentityService, c CaptureService, t CheckpointService, m MemoryService, r RetrievalService, p PolicyService, s StatusService, l *slog.Logger) (*echo.Echo, error) {
-	return configuredServer(i, c, t, m, r, p, s, l)
+func NewServer(i IdentityService, c CaptureService, t CheckpointService, m MemoryService, r RetrievalService, p PolicyService, s StatusService, l *slog.Logger, opts ...ServerOption) (*echo.Echo, error) {
+	return configuredServer(i, c, t, m, r, p, s, l, opts...)
 }
 func NewIdentityServer(identity IdentityService, logger *slog.Logger) (*echo.Echo, error) {
 	return newMemoryServer(identity, nil, nil, logger)
@@ -49,7 +50,7 @@ func newMemoryServer(identity IdentityService, capture CaptureService, checkpoin
 func configuredMemoryServer(identity IdentityService, capture CaptureService, checkpoints CheckpointService, memory MemoryService, retrieval RetrievalService, policy PolicyService, logger *slog.Logger) (*echo.Echo, error) {
 	return configuredServer(identity, capture, checkpoints, memory, retrieval, policy, nil, logger)
 }
-func configuredServer(identity IdentityService, capture CaptureService, checkpoints CheckpointService, memory MemoryService, retrieval RetrievalService, policy PolicyService, status StatusService, logger *slog.Logger) (*echo.Echo, error) {
+func configuredServer(identity IdentityService, capture CaptureService, checkpoints CheckpointService, memory MemoryService, retrieval RetrievalService, policy PolicyService, status StatusService, logger *slog.Logger, opts ...ServerOption) (*echo.Echo, error) {
 	spec, err := GetSpec()
 	if err != nil {
 		return nil, domain.ErrUnavailable
@@ -92,7 +93,11 @@ func configuredServer(identity IdentityService, capture CaptureService, checkpoi
 		}
 		return problem(c, domain.ErrInvalidInput)
 	}}))
-	strict := NewStrictHandler(&IdentityHandler{identity: identity, capture: capture, checkpoints: checkpoints, memory: memory, retrieval: retrieval, policy: policy, status: status}, nil)
+	impl := &IdentityHandler{identity: identity, capture: capture, checkpoints: checkpoints, memory: memory, retrieval: retrieval, policy: policy, status: status}
+	for _, opt := range opts {
+		opt(impl)
+	}
+	strict := NewStrictHandler(impl, nil)
 
 	wrapper := ServerInterfaceWrapper{Handler: strict}
 	if policy != nil {
@@ -112,6 +117,9 @@ func configuredServer(identity IdentityService, capture CaptureService, checkpoi
 	}
 	if memory != nil {
 		e.POST("/v1/candidates", wrapper.SubmitCandidate)
+	}
+	if impl.decisions != nil {
+		e.POST("/v1/decisions/:id\\:respond", wrapper.RespondDecision)
 	}
 	if retrieval != nil {
 		e.POST("/v1/retrieval\\:orient", wrapper.OrientMemory)
