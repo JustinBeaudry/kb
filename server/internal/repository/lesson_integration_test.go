@@ -67,7 +67,7 @@ func TestLessonsAndAttestedVerificationOnRealGraph(t *testing.T) {
 	lessons := service.NewLessonService(store, struct {
 		*repository.VerificationRepository
 		*repository.PublicationRepository
-	}{verifyRepo, pubRepo}, auth)
+	}{verifyRepo, pubRepo}, auth, owners)
 	memory := service.NewMemoryService(store, repository.NewMemoryRepository(store), auth, evidence, capture)
 	retrieval, err := service.NewRetrievalService(store, auth, repository.NewCheckpointRepository(store), evidence, objects, bytes.Repeat([]byte{2}, 32))
 	require.NoError(t, err)
@@ -232,6 +232,29 @@ func TestLessonsAndAttestedVerificationOnRealGraph(t *testing.T) {
 		assert.True(t, out.NoResults, "other project's private claims are never discoverable")
 	})
 
+	t.Run("host owner checks and publishes through confirmed preview", func(t *testing.T) {
+		copyOf := stage(t, collector.Principal, manifest, domain.GitLocator("demo", "package.json"))
+		c, e := memory.Submit(t.Context(), agent.Principal, domain.CandidateInput{ClaimID: "left-pad-host", Scope: scope, Text: "left-pad is 1.3.0", Kind: domain.KindDependencyVersion, Applicability: domain.Applicability{RepositoryRevision: head, Versions: map[string]string{"left-pad": "1.3.0"}}, Evidence: []domain.EvidenceRef{ref(copyOf, head)}})
+		require.NoError(t, e)
+		v, e := verify.CheckHost(t.Context(), c.Revision)
+		require.NoError(t, e)
+		require.Equal(t, domain.VerificationSupported, v.Outcome)
+		assert.Equal(t, "owner", v.Origin.ClientID)
+		in := lesson
+		in.LessonID, in.SharingScope, in.SupportRevisions = "host-lesson", domain.SharingProject, []string{adjudicate(t, "host")}
+		preview, e := lessons.PreviewLessonHost(t.Context(), in)
+		require.NoError(t, e)
+		require.Equal(t, domain.PublicationPublished, preview.State)
+
+		out, e := lessons.PublishLessonHost(t.Context(), service.LessonPublishInput{LessonInput: in, ExpectedDigest: preview.Digest})
+
+		require.NoError(t, e)
+		assert.Equal(t, domain.PublicationPublished, out.State)
+		assert.Equal(t, preview.SupportRevisions, out.SupportRevisions)
+		_, e = lessons.PublishLessonHost(t.Context(), service.LessonPublishInput{LessonInput: in, ExpectedDigest: preview.Digest})
+		assert.ErrorIs(t, e, domain.ErrConflict, "the lesson head moved, so the same confirmation cannot publish twice")
+	})
+
 	t.Run("TestPublicationRaceWithInvalidation", func(t *testing.T) {
 		for i := range 4 {
 			support := adjudicate(t, fmt.Sprintf("race-%d", i))
@@ -245,7 +268,10 @@ func TestLessonsAndAttestedVerificationOnRealGraph(t *testing.T) {
 			var publishErr, invalidateErr error
 			var outcome domain.Publication
 			wg.Add(2)
-			go func() { defer wg.Done(); outcome, publishErr = lessons.PublishLesson(t.Context(), verifierClient.Principal, in) }()
+			go func() {
+				defer wg.Done()
+				outcome, publishErr = lessons.PublishLesson(t.Context(), verifierClient.Principal, in)
+			}()
 			go func() { defer wg.Done(); _, invalidateErr = verify.InvalidateHost(t.Context(), preview) }()
 			wg.Wait()
 			require.NoError(t, invalidateErr)

@@ -60,8 +60,27 @@ type plannedEvidence struct {
 }
 
 type checkPlan struct {
+	Actor    string
 	State    domain.RevisionState
 	Evidence []plannedEvidence
+}
+
+// checkAuthority re-reads the caller's current authority for project under the
+// transaction lock and returns the actor recorded on the verification.
+type checkAuthority func(context.Context, Tx, string) (string, error)
+
+func verifierCheckAuthority(principals VerifierPrincipals, p domain.Principal) checkAuthority {
+	return func(ctx context.Context, tx Tx, project string) (string, error) {
+		return p.ClientID, verifierAuthority(ctx, tx, principals, p, project)
+	}
+}
+
+// hostCheckAuthority is the persisted host owner; kb-admin holds no principal.
+func hostCheckAuthority(owners HostOwnerRepository) checkAuthority {
+	return func(ctx context.Context, tx Tx, _ string) (string, error) {
+		owner, err := hostOwner(ctx, tx, owners)
+		return owner.OwnerID, err
+	}
 }
 
 func verifierAuthority(ctx context.Context, tx Tx, principals VerifierPrincipals, p domain.Principal, project string) error {
@@ -78,14 +97,14 @@ func verifierAuthority(ctx context.Context, tx Tx, principals VerifierPrincipals
 // plan authenticates every evidence reference under the lock. Origin trust is
 // derived only from server records: the host owner's actor, a qualified
 // collector attestation bound to the exact artifact, or an approved snapshot.
-func (s *VerificationService) plan(ctx context.Context, tx Tx, p domain.Principal, revision string) (checkPlan, error) {
+func (s *VerificationService) plan(ctx context.Context, tx Tx, authority checkAuthority, revision string) (checkPlan, error) {
 	var plan checkPlan
 	state, err := s.repo.LoadRevision(ctx, tx, revision)
 	if err != nil {
 		return plan, err
 	}
 	c := state.Claim
-	if err = verifierAuthority(ctx, tx, s.checks.Principals, p, c.Scope.ProjectID); err != nil {
+	if plan.Actor, err = authority(ctx, tx, c.Scope.ProjectID); err != nil {
 		return plan, err
 	}
 	head, err := s.repo.Head(ctx, tx, c.ClaimID)
@@ -232,10 +251,26 @@ func (s *VerificationService) Check(ctx context.Context, p domain.Principal, rev
 	if p.Role != domain.RoleVerifier {
 		return domain.Verification{}, domain.ErrForbidden
 	}
+	return s.check(ctx, verifierCheckAuthority(s.checks.Principals, p), revisionID)
+}
+
+// CheckHost applies the same evidence policy on behalf of the persisted host
+// owner. It is composed only into kb-admin and is never a handler port.
+func (s *VerificationService) CheckHost(ctx context.Context, revisionID string) (domain.Verification, error) {
+	if s.checks == nil {
+		return domain.Verification{}, domain.ErrUnavailable
+	}
+	if domain.ValidateIDs(revisionID) != nil {
+		return domain.Verification{}, domain.ErrInvalidInput
+	}
+	return s.check(ctx, hostCheckAuthority(s.owners), revisionID)
+}
+
+func (s *VerificationService) check(ctx context.Context, authority checkAuthority, revisionID string) (domain.Verification, error) {
 	var plan checkPlan
 	err := s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
 		var e error
-		plan, e = s.plan(ctx, tx, p, revisionID)
+		plan, e = s.plan(ctx, tx, authority, revisionID)
 		return e
 	})
 	if err != nil {
@@ -252,10 +287,10 @@ func (s *VerificationService) Check(ctx context.Context, p domain.Principal, rev
 		digests = append(digests, o.SourceKey+"\x00"+string(o.Origin.Trust)+"\x00"+hex.EncodeToString(sum[:]))
 	}
 	evidenceDigest := captureID(plan.State.Claim, plan.Evidence, digests)
-	v := domain.Verification{ID: captureID("check", revisionID, domain.EvidencePolicyVersion, evidenceDigest), ClaimRevision: revisionID, PolicyRevision: domain.EvidencePolicyVersion, EvidenceDigest: evidenceDigest, Outcome: decision.Outcome, Method: decision.Method, Origin: domain.Origin{ClientID: p.ClientID, Trust: supportingTrust(decision, plan.State.Claim.Kind)}, CheckedAt: time.Now().UTC(), Reasons: decision.Reasons, DistinctOrigins: decision.DistinctOrigins}
+	v := domain.Verification{ID: captureID("check", revisionID, domain.EvidencePolicyVersion, evidenceDigest), ClaimRevision: revisionID, PolicyRevision: domain.EvidencePolicyVersion, EvidenceDigest: evidenceDigest, Outcome: decision.Outcome, Method: decision.Method, Origin: domain.Origin{ClientID: plan.Actor, Trust: supportingTrust(decision, plan.State.Claim.Kind)}, CheckedAt: time.Now().UTC(), Reasons: decision.Reasons, DistinctOrigins: decision.DistinctOrigins}
 	var out domain.Verification
 	err = s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
-		current, e := s.plan(ctx, tx, p, revisionID)
+		current, e := s.plan(ctx, tx, authority, revisionID)
 		if e != nil {
 			return e
 		}

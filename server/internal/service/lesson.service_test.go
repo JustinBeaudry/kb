@@ -17,7 +17,7 @@ func (w *checkWorld) PutLesson(_ context.Context, _ Tx, c domain.ClaimRevision, 
 	w.heads[c.ClaimID] = c.Revision
 	return nil
 }
-func (w *checkWorld) lessons() *LessonService { return NewLessonService(directTx{}, w, w) }
+func (w *checkWorld) lessons() *LessonService { return NewLessonService(directTx{}, w, w, w) }
 
 // verified seeds a project-scoped verified support with conditions.
 func (w *checkWorld) verified(revision string, a domain.Applicability, dependsOn ...string) {
@@ -237,4 +237,63 @@ func TestShortSourceIdentifiersAreScreened(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHostLessonPublicationRequiresPreviewedDigest(t *testing.T) {
+	cases := []struct {
+		name   string
+		mutate func(*checkWorld, *LessonPublishInput)
+		want   error
+	}{
+		{"exact confirmation publishes", func(*checkWorld, *LessonPublishInput) {}, nil},
+		{"different digest", func(_ *checkWorld, in *LessonPublishInput) { in.ExpectedDigest = TokenDigest("other") }, domain.ErrStale},
+		{"input changed after preview", func(_ *checkWorld, in *LessonPublishInput) { in.Text = "Retry flaky tests twice in CI." }, domain.ErrStale},
+		{"support invalidated after preview", func(w *checkWorld, _ *LessonPublishInput) {
+			s := w.states["s1"]
+			s.Status, s.Valid = domain.ClaimInvalidated, false
+			w.states["s1"] = s
+		}, domain.ErrStale},
+		{"owner missing", func(w *checkWorld, _ *LessonPublishInput) { w.owner = OwnerIdentity{} }, domain.ErrForbidden},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := newCheckWorld()
+			w.verified("s1", ciGo)
+			lessons := w.lessons()
+			in := lessonInput(domain.SharingCrossProject)
+			preview, err := lessons.PreviewLessonHost(t.Context(), in)
+			require.NoError(t, err)
+			require.Equal(t, domain.PublicationPublished, preview.State)
+			require.Empty(t, w.publications, "preview is read-only")
+			confirm := LessonPublishInput{LessonInput: in, ExpectedDigest: preview.Digest}
+			tc.mutate(w, &confirm)
+
+			publication, err := lessons.PublishLessonHost(t.Context(), confirm)
+
+			if tc.want != nil {
+				assert.ErrorIs(t, err, tc.want)
+				assert.Empty(t, w.publications)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, domain.PublicationPublished, publication.State)
+			assert.Equal(t, w.owner.ID, w.states[publication.ClaimRevision].Claim.SubmittedBy)
+			assert.Len(t, w.publications, 1)
+		})
+	}
+}
+
+func TestHostLessonPreviewReportsPolicyOutcome(t *testing.T) {
+	w := newCheckWorld()
+	w.verified("s1", ciGo)
+	in := lessonInput(domain.SharingCrossProject)
+	in.Applicability = domain.Applicability{Environment: "ci"}
+
+	preview, err := w.lessons().PreviewLessonHost(t.Context(), in)
+
+	require.NoError(t, err)
+	assert.Equal(t, domain.PublicationRejected, preview.State)
+	assert.Contains(t, preview.Reasons, domain.ReasonOvergeneralized)
+	assert.Equal(t, []string{"s1"}, preview.SupportRevisions)
+	assert.NotEmpty(t, preview.Digest)
 }

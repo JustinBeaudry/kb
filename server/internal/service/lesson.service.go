@@ -24,15 +24,31 @@ type LessonRepository interface {
 }
 
 // LessonService publishes qualified lessons derived from verified support.
-// Only an authenticated verifier may invoke it; there is no agent route.
+// Only an authenticated verifier or the persisted host owner (through kb-admin)
+// may invoke it; there is no agent route.
 type LessonService struct {
 	tx         Transactor
 	repo       LessonRepository
 	principals VerifierPrincipals
+	owners     HostOwnerRepository
 }
 
-func NewLessonService(tx Transactor, r LessonRepository, p VerifierPrincipals) *LessonService {
-	return &LessonService{tx: tx, repo: r, principals: p}
+func NewLessonService(tx Transactor, r LessonRepository, p VerifierPrincipals, o HostOwnerRepository) *LessonService {
+	return &LessonService{tx: tx, repo: r, principals: p, owners: o}
+}
+
+// LessonPreview is the read-only outcome a confirmed publication would
+// produce. Digest binds the input, lesson head and every support state.
+type LessonPreview struct {
+	Digest, ExpectedHead, State string
+	Reasons                     []domain.ReasonCode
+	SupportRevisions            []string
+}
+
+// LessonPublishInput confirms a previewed lesson by its exact digest.
+type LessonPublishInput struct {
+	domain.LessonInput
+	ExpectedDigest string
 }
 
 const (
@@ -91,6 +107,7 @@ func preservesConditions(lesson, support domain.Applicability, cross bool) []dom
 }
 
 type lessonReview struct {
+	states     []domain.RevisionState
 	closure    []string
 	restricted []string
 	rejected   []domain.ReasonCode
@@ -132,6 +149,7 @@ func (s *LessonService) review(ctx context.Context, tx Tx, in domain.LessonInput
 		if c.Scope.ProjectID != in.ProjectID {
 			return domain.ErrForbidden
 		}
+		r.states = append(r.states, state)
 		switch {
 		case state.Status == domain.ClaimDisputed && state.Valid:
 			r.pending = addReason(r.pending, domain.ReasonDisputedSupport)
@@ -218,6 +236,72 @@ func lessonSurface(in domain.LessonInput) string {
 	return strings.Join(parts, "\n")
 }
 
+// lessonAuthority re-reads the caller's authority for project under the lock
+// and returns the actor recorded as the lesson's submitter.
+type lessonAuthority func(context.Context, Tx, string) (string, error)
+
+type lessonEvaluation struct {
+	actor, head, digest string
+	review              lessonReview
+}
+
+func (e lessonEvaluation) outcome() (string, []domain.ReasonCode) {
+	switch {
+	case len(e.review.rejected) > 0:
+		return domain.PublicationRejected, append(slices.Clone(e.review.rejected), e.review.pending...)
+	case len(e.review.pending) > 0:
+		return domain.PublicationPending, e.review.pending
+	}
+	return domain.PublicationPublished, nil
+}
+
+func (s *LessonService) evaluate(ctx context.Context, tx Tx, authority lessonAuthority, in domain.LessonInput) (lessonEvaluation, error) {
+	var ev lessonEvaluation
+	actor, err := authority(ctx, tx, in.ProjectID)
+	if err != nil {
+		return ev, err
+	}
+	head, err := s.repo.Head(ctx, tx, in.LessonID)
+	if err != nil {
+		return ev, err
+	}
+	if head != in.ExpectedHead {
+		return ev, domain.ErrConflict
+	}
+	if head != "" {
+		previous, e := s.repo.LoadRevision(ctx, tx, head)
+		if e != nil {
+			return ev, e
+		}
+		if previous.Claim.Kind != domain.KindLesson || previous.Claim.Scope != (domain.Scope{ProjectID: in.ProjectID}) {
+			return ev, domain.ErrForbidden
+		}
+	}
+	review, err := s.review(ctx, tx, in)
+	if err != nil {
+		return ev, err
+	}
+	ev = lessonEvaluation{actor: actor, head: head, review: review}
+	ev.digest = captureID("lesson-preview", in, head, review.states, review.closure, review.rejected, review.pending)
+	return ev, nil
+}
+
+func (s *LessonService) verifierLessonAuthority(p domain.Principal) lessonAuthority {
+	return func(ctx context.Context, tx Tx, project string) (string, error) {
+		return p.ClientID, verifierAuthority(ctx, tx, s.principals, p, project)
+	}
+}
+
+func (s *LessonService) hostLessonAuthority() lessonAuthority {
+	return func(ctx context.Context, tx Tx, _ string) (string, error) {
+		if s.owners == nil {
+			return "", domain.ErrUnavailable
+		}
+		owner, err := hostOwner(ctx, tx, s.owners)
+		return owner.OwnerID, err
+	}
+}
+
 // PublishLesson atomically creates a separate lesson revision, its verification
 // and its publication under the OwnerState lock. Support validity, the lesson
 // head and authority are all read in the same transaction, so a concurrent
@@ -230,46 +314,65 @@ func (s *LessonService) PublishLesson(ctx context.Context, p domain.Principal, i
 	if p.Role != domain.RoleVerifier {
 		return domain.Publication{}, domain.ErrForbidden
 	}
+	return s.publish(ctx, s.verifierLessonAuthority(p), in, "")
+}
+
+// PreviewLessonHost reports, without writing, the outcome a host-owner
+// publication of in would produce and the digest that confirms it.
+func (s *LessonService) PreviewLessonHost(ctx context.Context, in domain.LessonInput) (LessonPreview, error) {
+	if err := validLessonInput(in); err != nil {
+		return LessonPreview{}, err
+	}
+	var out LessonPreview
+	err := s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
+		ev, err := s.evaluate(ctx, tx, s.hostLessonAuthority(), in)
+		if err != nil {
+			return err
+		}
+		out = LessonPreview{Digest: ev.digest, ExpectedHead: ev.head, SupportRevisions: ev.review.closure}
+		out.State, out.Reasons = ev.outcome()
+		return nil
+	})
+	if err != nil {
+		return LessonPreview{}, err
+	}
+	return out, nil
+}
+
+// PublishLessonHost publishes as the persisted host owner only when the
+// current evaluation still matches the previewed digest exactly.
+func (s *LessonService) PublishLessonHost(ctx context.Context, in LessonPublishInput) (domain.Publication, error) {
+	if err := validLessonInput(in.LessonInput); err != nil {
+		return domain.Publication{}, err
+	}
+	if !validDigest(in.ExpectedDigest) {
+		return domain.Publication{}, domain.ErrInvalidInput
+	}
+	return s.publish(ctx, s.hostLessonAuthority(), in.LessonInput, in.ExpectedDigest)
+}
+
+// publish requires expectedDigest to match when it is non-empty.
+func (s *LessonService) publish(ctx context.Context, authority lessonAuthority, in domain.LessonInput, expectedDigest string) (domain.Publication, error) {
 	var out domain.Publication
 	err := s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
-		if err := verifierAuthority(ctx, tx, s.principals, p, in.ProjectID); err != nil {
-			return err
-		}
-		head, err := s.repo.Head(ctx, tx, in.LessonID)
+		ev, err := s.evaluate(ctx, tx, authority, in)
 		if err != nil {
 			return err
 		}
-		if head != in.ExpectedHead {
-			return domain.ErrConflict
-		}
-		if head != "" {
-			previous, e := s.repo.LoadRevision(ctx, tx, head)
-			if e != nil {
-				return e
-			}
-			if previous.Claim.Kind != domain.KindLesson || previous.Claim.Scope != (domain.Scope{ProjectID: in.ProjectID}) {
-				return domain.ErrForbidden
-			}
-		}
-		review, err := s.review(ctx, tx, in)
-		if err != nil {
-			return err
+		if expectedDigest != "" && ev.digest != expectedDigest {
+			return domain.ErrStale
 		}
 		out = domain.Publication{SharingScope: in.SharingScope}
-		switch {
-		case len(review.rejected) > 0:
-			out.State, out.Reasons = domain.PublicationRejected, append(review.rejected, review.pending...)
-			return nil
-		case len(review.pending) > 0:
-			out.State, out.Reasons = domain.PublicationPending, review.pending
+		if out.State, out.Reasons = ev.outcome(); out.State != domain.PublicationPublished {
 			return nil
 		}
+		review := ev.review
 		supports := slices.Sorted(slices.Values(in.SupportRevisions))
-		lesson := domain.ClaimRevision{ClaimID: in.LessonID, Revision: newRevision(), Text: domain.LessonText(in.Text, in.Counterexamples), Kind: domain.KindLesson, Scope: domain.Scope{ProjectID: in.ProjectID}, DependsOn: supports, Applicability: in.Applicability, Status: domain.ClaimVerified, SubmittedBy: p.ClientID}
+		lesson := domain.ClaimRevision{ClaimID: in.LessonID, Revision: newRevision(), Text: domain.LessonText(in.Text, in.Counterexamples), Kind: domain.KindLesson, Scope: domain.Scope{ProjectID: in.ProjectID}, DependsOn: supports, Applicability: in.Applicability, Status: domain.ClaimVerified, SubmittedBy: ev.actor}
 		if err = s.repo.PutLesson(ctx, tx, lesson, in.ExpectedHead); err != nil {
 			return err
 		}
-		v := domain.Verification{ID: captureID("lesson", lesson.Revision), ClaimRevision: lesson.Revision, PolicyRevision: domain.EvidencePolicyVersion, EvidenceDigest: captureID(review.closure), Outcome: domain.VerificationSupported, Method: domain.MethodLessonPolicy, Origin: domain.Origin{ClientID: p.ClientID, Trust: domain.TrustSubmitted}, CheckedAt: time.Now().UTC()}
+		v := domain.Verification{ID: captureID("lesson", lesson.Revision), ClaimRevision: lesson.Revision, PolicyRevision: domain.EvidencePolicyVersion, EvidenceDigest: captureID(review.closure), Outcome: domain.VerificationSupported, Method: domain.MethodLessonPolicy, Origin: domain.Origin{ClientID: ev.actor, Trust: domain.TrustSubmitted}, CheckedAt: time.Now().UTC()}
 		if err = s.repo.PutVerification(ctx, tx, v, domain.ClaimVerified, true); err != nil {
 			return err
 		}

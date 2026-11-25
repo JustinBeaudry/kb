@@ -442,3 +442,35 @@ func TestExcludedGitLocatorPathIsNeverRead(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckHostActsAsPersistedOwner(t *testing.T) {
+	cases := []struct {
+		name  string
+		owner OwnerIdentity
+		want  error
+	}{
+		{"persisted owner", OwnerIdentity{ID: "owner", PublicKey: ownerNostrPublicKey}, nil},
+		{"no persisted owner", OwnerIdentity{}, domain.ErrForbidden},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := newCheckWorld()
+			w.owner = tc.owner
+			manifest := []byte(`{"dependencies":{"left-pad":"1.3.0"}}`)
+			w.gitFile("demo", "package.json", manifest)
+			w.candidate("r1", domain.KindDependencyVersion, "left-pad is 1.3.0", domain.Applicability{RepositoryRevision: checkHead, Versions: map[string]string{"left-pad": "1.3.0"}}, w.gitRef("manifest", "demo", "package.json", manifest))
+
+			verification, err := w.service().CheckHost(t.Context(), "r1")
+
+			if tc.want != nil {
+				assert.ErrorIs(t, err, tc.want)
+				assert.Empty(t, w.verifications)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, domain.VerificationSupported, verification.Outcome)
+			assert.Equal(t, "owner", verification.Origin.ClientID)
+			assert.Equal(t, domain.ClaimVerified, w.states["r1"].Status)
+		})
+	}
+}
