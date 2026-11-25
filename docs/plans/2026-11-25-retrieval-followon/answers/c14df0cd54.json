@@ -1,0 +1,95 @@
+{
+  "id": "c14df0cd54",
+  "started": "2026-11-25T16:56:47.635Z",
+  "ended": "2026-11-25T16:56:58.377Z",
+  "wall_ms": 10742,
+  "exit_code": 0,
+  "timed_out": false,
+  "result_subtype": "success",
+  "is_error": false,
+  "model": "claude-haiku-5-5",
+  "tools_offered": [
+    "Bash"
+  ],
+  "num_turns": 6,
+  "usage": {
+    "input_tokens": 8,
+    "cache_creation_input_tokens": 5526,
+    "cache_read_input_tokens": 23019,
+    "output_tokens": 1868,
+    "output_tokens_details": {
+      "thinking_tokens": 311
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 5526,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 759,
+        "cache_read_input_tokens": 7161,
+        "cache_creation_input_tokens": 2502,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 2502
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 8,
+      "outputTokens": 1868,
+      "cacheReadInputTokens": 23019,
+      "cacheCreationInputTokens": 5526,
+      "webSearchRequests": 0,
+      "costUSD": 0.00227019,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 311,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 5526,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "cost_usd": 0.00227019,
+  "permission_denials": [],
+  "final_text": "{\"answer\": \"For plain Nacre production delivery failures, the maximum retry count is 7 and the initial retry delay is 90 seconds. The 'Nacre delivery retry policy' section in the Queue Dispatch page states both values. Two more-specific pages give different values for their own variants: Nacre-Sandbox is 2 retries with a 15-second delay, and Nacre-Legacy is 3 retries with a 30-second delay. Nacre-Lab, mentioned on the Queue Dispatch page, is 2 retries with a 5-second delay, but it is described as a disposable demo, not production.\", \"citations\": [{\"source\": \"wiki/queue-dispatch.md\", \"start\": 11, \"end\": 13}, {\"source\": \"wiki/queue-dispatch.md\", \"start\": 15, \"end\": 16}, {\"source\": \"wiki/nacre-sandbox-dispatch.md\", \"start\": 11, \"end\": 16}, {\"source\": \"wiki/nacre-legacy-dispatch.md\", \"start\": 11, \"end\": 16}], \"limitations\": \"The answer assumes plain 'Nacre' refers to the general policy on the Queue Dispatch page, since that page has no scope qualifier. The Sandbox and Legacy pages scope their policies explicitly. All three pages carry the same updated date (2026-10-24), and none is marked historical, so no recency conflict was found. I did not read the Nacre event ledger pages or search for other retry settings (such as a later override), so an override elsewhere in the corpus cannot be ruled out. Search was limited to one regex, so absence of other Nacre policy pages is not proven.\"}",
+  "parsed_ok": true,
+  "answer": "For plain Nacre production delivery failures, the maximum retry count is 7 and the initial retry delay is 90 seconds. The 'Nacre delivery retry policy' section in the Queue Dispatch page states both values. Two more-specific pages give different values for their own variants: Nacre-Sandbox is 2 retries with a 15-second delay, and Nacre-Legacy is 3 retries with a 30-second delay. Nacre-Lab, mentioned on the Queue Dispatch page, is 2 retries with a 5-second delay, but it is described as a disposable demo, not production.",
+  "citations": [
+    {
+      "source": "wiki/queue-dispatch.md",
+      "start": 11,
+      "end": 13
+    },
+    {
+      "source": "wiki/queue-dispatch.md",
+      "start": 15,
+      "end": 16
+    },
+    {
+      "source": "wiki/nacre-sandbox-dispatch.md",
+      "start": 11,
+      "end": 16
+    },
+    {
+      "source": "wiki/nacre-legacy-dispatch.md",
+      "start": 11,
+      "end": 16
+    }
+  ],
+  "limitations": "The answer assumes plain 'Nacre' refers to the general policy on the Queue Dispatch page, since that page has no scope qualifier. The Sandbox and Legacy pages scope their policies explicitly. All three pages carry the same updated date (2026-10-24), and none is marked historical, so no recency conflict was found. I did not read the Nacre event ledger pages or search for other retry settings (such as a later override), so an override elsewhere in the corpus cannot be ruled out. Search was limited to one regex, so absence of other Nacre policy pages is not proven."
+}

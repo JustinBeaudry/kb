@@ -30,13 +30,15 @@ P1 trials run four at a time in the frozen seeded order. R1 assessor calls run f
 ## Completion checklist
 
 - [x] Protocol, fixtures, gold, prompts and scripts frozen and hashed before any solver trial.
-- [ ] 24 solver trials run and audited.
-- [ ] Blinded assessment complete.
-- [ ] Results and limits reported; checks/progress updated.
+- [x] 24 solver trials run and audited.
+- [x] Blinded assessment complete.
+- [x] Results and limits reported; checks/progress updated.
 
 ## Rules learned
 
 - Claude Code auto-approves read-only shell commands inside its cwd even in `dontAsk` mode, so a solver's cwd must not contain the corpus. Use an empty cwd and an absolute adapter path.
+- A prefix allow rule still lets through compound commands whose parts are each allowed or read-only, such as `adapter … | head; adapter …`. Audit transcripts and do not assume every recorded adapter output was seen.
+- A weaker solver given the full KB guide ignored KB commands entirely. Guide length alone does not produce tool adoption.
 
 ## Decisions log
 

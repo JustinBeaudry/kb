@@ -1,0 +1,100 @@
+{
+  "id": "e2e38f90d1",
+  "started": "2026-11-25T16:56:57.260Z",
+  "ended": "2026-11-25T16:57:09.876Z",
+  "wall_ms": 12616,
+  "exit_code": 0,
+  "timed_out": false,
+  "result_subtype": "success",
+  "is_error": false,
+  "model": "claude-haiku-5-5",
+  "tools_offered": [
+    "Bash"
+  ],
+  "num_turns": 6,
+  "usage": {
+    "input_tokens": 12,
+    "cache_creation_input_tokens": 12977,
+    "cache_read_input_tokens": 53827,
+    "output_tokens": 2153,
+    "output_tokens_details": {
+      "thinking_tokens": 574
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 12977,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 889,
+        "cache_read_input_tokens": 15970,
+        "cache_creation_input_tokens": 1144,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 1144
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 12,
+      "outputTokens": 2153,
+      "cacheReadInputTokens": 53827,
+      "cacheCreationInputTokens": 12977,
+      "webSearchRequests": 0,
+      "costUSD": 0.004211370000000001,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 574,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 12977,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "cost_usd": 0.004211370000000001,
+  "permission_denials": [],
+  "final_text": "```json\n{\"answer\": \"Four Mariner launch blockers are OPEN. Each is listed below with its owner:\\n1. Certificate rotation, owner Leda Fox (wiki/mariner-certificates.md, 12-12)\\n2. Access review, owner Dev Shah (wiki/mariner-access.md, 12-12)\\n3. Supplier contract, owner Oona Reed (wiki/mariner-contract.md, 12-12)\\n4. Restore drill, owner Mika Sen (wiki/mariner-restore.md, 12-12)\\n\\nExcluded: launch copy for Mariner is CLOSED (owner Pax Vale; wiki/mariner-copy.md, 12-12). Mariner-Legacy, Mariner-Sandbox and Mariner-Lab entries were excluded as other projects.\", \"citations\": [{\"source\": \"wiki/mariner-certificates.md\", \"start\": 12, \"end\": 12}, {\"source\": \"wiki/mariner-access.md\", \"start\": 12, \"end\": 12}, {\"source\": \"wiki/mariner-contract.md\", \"start\": 12, \"end\": 12}, {\"source\": \"wiki/mariner-restore.md\", \"start\": 12, \"end\": 12}, {\"source\": \"wiki/mariner-copy.md\", \"start\": 12, \"end\": 12}], \"limitations\": \"Evidence came from the KB map, a broad recall (truncated, so not fully read), and two regex searches over the wiki. The search for 'Mariner.*(OPEN|blocker|Blocker)' found no other Mariner-only blocker lines. wiki/mariner-overview.md was referenced by the blocker pages but was not read, so any additional blockers recorded only there are unverified. I did not read the full pages beyond the blocker lines, so there may be context on those blockers that was not checked. Adapter calls used: 5 of 16.\"}\n```",
+  "parsed_ok": true,
+  "answer": "Four Mariner launch blockers are OPEN. Each is listed below with its owner:\n1. Certificate rotation, owner Leda Fox (wiki/mariner-certificates.md, 12-12)\n2. Access review, owner Dev Shah (wiki/mariner-access.md, 12-12)\n3. Supplier contract, owner Oona Reed (wiki/mariner-contract.md, 12-12)\n4. Restore drill, owner Mika Sen (wiki/mariner-restore.md, 12-12)\n\nExcluded: launch copy for Mariner is CLOSED (owner Pax Vale; wiki/mariner-copy.md, 12-12). Mariner-Legacy, Mariner-Sandbox and Mariner-Lab entries were excluded as other projects.",
+  "citations": [
+    {
+      "source": "wiki/mariner-certificates.md",
+      "start": 12,
+      "end": 12
+    },
+    {
+      "source": "wiki/mariner-access.md",
+      "start": 12,
+      "end": 12
+    },
+    {
+      "source": "wiki/mariner-contract.md",
+      "start": 12,
+      "end": 12
+    },
+    {
+      "source": "wiki/mariner-restore.md",
+      "start": 12,
+      "end": 12
+    },
+    {
+      "source": "wiki/mariner-copy.md",
+      "start": 12,
+      "end": 12
+    }
+  ],
+  "limitations": "Evidence came from the KB map, a broad recall (truncated, so not fully read), and two regex searches over the wiki. The search for 'Mariner.*(OPEN|blocker|Blocker)' found no other Mariner-only blocker lines. wiki/mariner-overview.md was referenced by the blocker pages but was not read, so any additional blockers recorded only there are unverified. I did not read the full pages beyond the blocker lines, so there may be context on those blockers that was not checked. Adapter calls used: 5 of 16."
+}
