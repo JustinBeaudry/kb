@@ -1,0 +1,513 @@
+{
+  "root": "$TMP/kb-control-ND9ZZs",
+  "repo": "$REPO",
+  "source_commit": "8b0de6fc61eec60a1ee506ddb810cb51a5e9595c",
+  "corpus_files": 123,
+  "wiki_pages": 120,
+  "corpus_bytes": 209501,
+  "corpus_sha256": "8f1a8d690168332f67a4b29dfb767b9f2782b3890606b0d92c810c647234f15f",
+  "corpus_hashes": {
+    "KB.md": "269b251c9a867fd051423a02900bbb452e1847cf3c088058dc712648800eef22",
+    "context.md": "0c982ae3242889760e9335b86886e4c4af4e274644f3a400799b810f192b4793",
+    "index.md": "a578aa76c0052f94c04608e0926fa86349121ff65c53efb4262cccd90a488595",
+    "wiki/queue-dispatch.md": "bdc624e27a7de59e44e041ff25dc19f1a74330826aac979801f7b2af9c06239e",
+    "wiki/event-ledger.md": "60f03d811e2e0814c53558dbbf4d79093d629ca7137317c5086a089dae745cf8",
+    "wiki/larch-release.md": "9f399443c3685228145cd51a61539117f3024d9a2d9691a4a98e96fb67375e95",
+    "wiki/larch-archive.md": "69ee5b5a96f36efcac8f843c36d9b8ddadb3e16aea92acf131c1fcdc2f07bbf7",
+    "wiki/plover-export.md": "63da78fdec9a09936e8e86cfdada650a22f4cf12a44a0ceef9f7e83a9da1948f",
+    "wiki/duty-roster.md": "366b46c6dbb4740182dc8ab700748f685aca0c4e39d5281069a67c3970e0b091",
+    "wiki/export-runbook.md": "45f5fcfd030c455372f3f424e0ca3edf024e16f7e8497f7d6de94ac0f3beecc1",
+    "wiki/mariner-overview.md": "d32cb1791c133a033eb622e5e6eaae6b5188a1e3892e48f1c1c4e6d89af56ac0",
+    "wiki/mariner-certificates.md": "f0842074086989c2302edd76920f2e7ad9fde9a7e09c07e003315acaef17a9db",
+    "wiki/mariner-restore.md": "8a51b4e87b2ead5a69159517265bc9617349f03ecaf831ae25a7f8105a6c9aa1",
+    "wiki/mariner-access.md": "bd762cd27bfe8b904702818e7f043e386dba1cfa39c0d1ddff2e192a67d59982",
+    "wiki/mariner-contract.md": "dbf347573b0d8d2c4b75c959e0981d7305e774f441cb526e23162031ba872d31",
+    "wiki/mariner-copy.md": "7565b17ae3fd0b26d1d54687d3caf6fa520a59b5db4fd3b77cf0cf7c91fa19c1",
+    "wiki/mariner-lab.md": "9b64c238f58be9722ea1a6a51ed06545788ea9e521e01132f90499429108d9ed",
+    "wiki/meridian-handover.md": "6a121e7c107761bacc922b51e55b7b61249a4bbf15402e0ebc68a01ab1bb307d",
+    "wiki/helix-renewal.md": "d5f6593575c978ee3cd07d23fc4e071868028592be7eb2803840db790f1762d2",
+    "wiki/helix-labs.md": "bf9d342db7a4d5e878673b71b72ba0b1309bb507b2931e4c9d17892c9ff05e28",
+    "wiki/cinder-service.md": "98ea8bfc768a1041af25cf193ecd486b740c6575406e8e4daf6e6b8095bfbfb8",
+    "wiki/ops-000.md": "c5b299aa2adf8e215a947431c800d2e19807e9bedb6f6802b213131e3b1ad429",
+    "wiki/ops-001.md": "5c46bd411a45a7c00e8fc6ac54b46a1fa67d629dd64156a7425ec1752ccb5400",
+    "wiki/ops-002.md": "b926042dbda503b52774f2727bd1d4c2ee83c51a33f77f6329bf4ac1e8716677",
+    "wiki/ops-003.md": "8d48b999228bf61746f1eec5fdf34abb036cec80ca0ed008f441cd807d00b5fe",
+    "wiki/ops-004.md": "d4fc54716f57a323d58a8e3530eca2d8e791acd2984cf3062e2ac0e16d21162b",
+    "wiki/ops-005.md": "42e40ea1c61676b571bcea9dbddea36b60c00c15404c002a000f7ad5f980760b",
+    "wiki/ops-006.md": "44f834755a13bd2b0c98113035ec4be8dd88e469e83349759f8261597821813e",
+    "wiki/ops-007.md": "85ebe44096d9457a53a40504bb25fef6e8c3de913270b041be1a42f3ddf3cc99",
+    "wiki/ops-008.md": "d86fdc567c7067134132047e19f61f2d2b14d8ccffab5535455431bef2fb114e",
+    "wiki/ops-009.md": "4cc78ca46fcfe606405ffc9de3a1b312c48d472633e7662c52029fda0530e38a",
+    "wiki/ops-010.md": "e779490a455038a7e647d0630327ba5b12c0f436b1a5677f9d460828b68df2b3",
+    "wiki/ops-011.md": "60e965e20db177d2c0e0e6650a74a2bd3cd0eb047edb37166f7b3b1c48a093bc",
+    "wiki/ops-012.md": "ee16a39ebe6846d297da6222b511ba0d8e841ee91e8ec7f5ff1e180a1b0d893f",
+    "wiki/ops-013.md": "e15d29452efe3debae15daad19addde1ac2be450cbe4b1c4163da770492210f4",
+    "wiki/ops-014.md": "6f18656ae9cdc71a4147f8775ad3b43ca4525d3ddb2494fc3ba42321e5c3952b",
+    "wiki/ops-015.md": "b3171a0e2cefaca2481f91faaf67e1e7c6d41184aecc5a0a6fc9ceac0d1aff99",
+    "wiki/ops-016.md": "142d646aa28d70b5d187d77965f02289990229efbbef43e0e9f0bda5c04fde5f",
+    "wiki/ops-017.md": "cea0f2aa970c9100c5121ce846214776cde5062e4d614a35d035d4095c39e49d",
+    "wiki/ops-018.md": "810867df5b5e094227a2033ade59062299178724c498fb91c72e79f16511768b",
+    "wiki/ops-019.md": "04d8f5bfc31b33a313a8619d1cd691efa8e2f055e6550cc3bb0bb41033cc34d9",
+    "wiki/ops-020.md": "5b2bc74904047047d4665feeff623998c2168c0a5c2bd31185dc12efabe6ef44",
+    "wiki/ops-021.md": "87371860525d085dda51346812f78ebe3a5015d0f540d2a331bf5156e51375da",
+    "wiki/ops-022.md": "1f64162f8a165c077ca6e09fa079a93c60cc6b9aa63316b1a02a331b84981cb0",
+    "wiki/ops-023.md": "4daee2b54af9ee1023ad1076bcc508a4cbe1f207dc21227a73da003457de2197",
+    "wiki/ops-024.md": "c38dd8e7d90490066a2f78d0c17f2efc3e9a04a413e7d5216fe5eb81e125fc7c",
+    "wiki/ops-025.md": "d0a479e2d944593815e218c7b634c4a9fbcb8457806843b661a97cdac9e06116",
+    "wiki/ops-026.md": "89b585ab38fa467d5824bc13728d16123db0247a6c9f4ae9f0fa111659c552f9",
+    "wiki/ops-027.md": "99de992200afbf3703be19d3f3151f2cddc3882ce3392a7af0c77bebf41e78ab",
+    "wiki/ops-028.md": "03897dad226a2a02056dd474e37050cd0881696e36e5c05d60fc3fe930d8ef4b",
+    "wiki/ops-029.md": "af1a3ed2a261ab9cb34fc126ea6acff7a2f9b4f3b75831cec2ed41cea6ff9095",
+    "wiki/ops-030.md": "b89ac3792cb1b65d3a5edb5734a964af8f6bcfbb5699b8c548de42045657be51",
+    "wiki/ops-031.md": "72fe667214ceb70654712cfd99cf0bff4b1471387f46d6d6b0a4583c812aed64",
+    "wiki/ops-032.md": "9b8654802f44a130ba32b2d2d3f766b5c9a5179122be327c3556530ef4d7637b",
+    "wiki/ops-033.md": "d19ffd23a064ee8b0571971b413538380f8251642b63c95e8f67d2114a540d35",
+    "wiki/ops-034.md": "9829bf2bdecc986bf5f1a85a2f8b093cd00ef7e3d0370faf700b425726b267cc",
+    "wiki/ops-035.md": "d0bc52c729e4072e61f3cfc345435620b8408ce7645979576b0f8f8da7396e4b",
+    "wiki/ops-036.md": "0c06ebc27973cd556a6c38644547a5a0bfd6546ba72665b67c283397fa5517f3",
+    "wiki/ops-037.md": "85b8278302b0c01b0ab1ee33fc098964b8664e45b350e8da7d1507c48f3cf2a6",
+    "wiki/ops-038.md": "49f2e38807d6f87335a333362e75895379cf95cb66d9a9a05733b3da49fbd2c1",
+    "wiki/ops-039.md": "649e264509e9a18b5fe01fd1767112965185977c0886a5d7ff7d058b4e13ed8c",
+    "wiki/ops-040.md": "d20ee6c51be1b0cc7d87bf0a5d77910cd7f80a3608a4b92631a440775b2cbaa1",
+    "wiki/ops-041.md": "af7eae9e1142319510ff34fe56fc92a13c84a58adbf8e694ba3a77b071e1be27",
+    "wiki/ops-042.md": "b2647243d6b767185bab783d25a6c0b1fbb52921d85f314f203757316739e296",
+    "wiki/ops-043.md": "7fdb0d225a38c063dbc11c0b193c76f8f870e03c99b0472e850c9892d3096291",
+    "wiki/ops-044.md": "89425259957b974446b86f9b7c3d0fefdb7ec53b21c6b805ce79e22f8cf0367f",
+    "wiki/ops-045.md": "7c9d545526efb6fc591ec17b02e5745cb83ceb167954574b9ed314ba6eee0204",
+    "wiki/ops-046.md": "faaad54a24cbcbf6944ec1b72ebb05372cbd2ea4db2c2b6799b577995f9ac9b5",
+    "wiki/ops-047.md": "dc03865588875fc60221b380c004591e09b322a7d14bf1ab5599887f5ccbc9e3",
+    "wiki/ops-048.md": "35e9df30f386f322159d3a0f4d56861b138513a6713993b8d65f290655c9ed46",
+    "wiki/ops-049.md": "5a8bb4c2be22be3b180f18a928e740256eb07504675d957426a486a921934b66",
+    "wiki/ops-050.md": "415f539787cccf87287eece916ded92613d7d6c0ccf799a59e4451b8bfa4c4bf",
+    "wiki/ops-051.md": "ccdadff06bd29d6d1e2ba5285977393e2d884638539d70a43df8571f24a9a3dc",
+    "wiki/ops-052.md": "cc0696756e345d18b0c9dc0e2e4728fb8ab5534fb128ad80c1ad4b3d0240b760",
+    "wiki/ops-053.md": "151a43ca190f6e3a70009c6adcb0af05b9eacacc67da87ff9c9a1cc1555b48b4",
+    "wiki/ops-054.md": "f7a993398a6bad185d2ec3abc9f60cf6e9417e29f36ac26577292db31ed3eb5a",
+    "wiki/ops-055.md": "7b806c253122361d4c2ddd0a88189f2de2e5d7a9d4b93aaf7ea310bfb2679c6b",
+    "wiki/ops-056.md": "2a31701a780f16b9fbf6478ebbf755dc8335452b77f3873ab2785bf1783762d3",
+    "wiki/ops-057.md": "736f933252f46bc9718e92d3414c38ccd3d396d3e598d6b46fb81f3254e7fc59",
+    "wiki/ops-058.md": "35846ef15dee6533646f6e5f42288c8b294b7ae957bd99c047f0d7ed02bc2716",
+    "wiki/ops-059.md": "d5eb1a0218a25433b6e06af550a4281085c6cd209b9b58fcb0924e7232751fa6",
+    "wiki/ops-060.md": "f32f93502b19d7d7c95c22768abf97166bd0ec491e01f467c354decc822dd4bb",
+    "wiki/ops-061.md": "71f97add670206ef51d4d0d7a4db2559e0cb1b0d8f19d08a1c910f5911699c58",
+    "wiki/ops-062.md": "66801fb19cd16d5c0731fa499d99901813727fed225caf5772fb5de0ba3639d2",
+    "wiki/ops-063.md": "3427beaacae3112de5061c0346799b8e6a3f2b79bbbadefd39d542ebb6822abe",
+    "wiki/ops-064.md": "92b9b4780bbded984385e34f016d3b5610d00289eefc2fc016e07caa602be92b",
+    "wiki/ops-065.md": "9e8d348f7323d3656cb7e908cadfc8b620dd2467d953a72a8fef466b905eb11a",
+    "wiki/ops-066.md": "18ebab7c24b7abc54e771b210205cbda4d120dca8172553c3f3601907b0f45e5",
+    "wiki/ops-067.md": "1cd44f965b4a36a089f827966e58dfaee79835e75bc59faa72c4affde99cd742",
+    "wiki/ops-068.md": "aced6e25721930ce0a4e7936d0f1d2ad0cab25b4c19877d0559501d9f5d1b7a0",
+    "wiki/ops-069.md": "333f4b7562df134bf246216c9a77f5e530cf979d8e80048ce134f078e3a43863",
+    "wiki/ops-070.md": "8ee1da7bfbeb2d7fcb2a511bdd1dd37526715dd1341dace20f0edae6a04955bd",
+    "wiki/ops-071.md": "15cb44bcf6d88c2175160b3e9961e063927825e9beac590f6ddb097cf0655994",
+    "wiki/ops-072.md": "74433e4030ef297218f154e98c2fee4a9d44baf9e3c9b25eea376c9d2db134f5",
+    "wiki/ops-073.md": "0dc0709fb4b12f555e7c5aa1ee82497e3d5c9bacd71ae29cb26e216c1c293d26",
+    "wiki/ops-074.md": "4f72ddad8b4f24051bfddbacb16d7d5d1c4021db89bb88d661233af841635f80",
+    "wiki/ops-075.md": "76cc7e55e356fd6ea39b6f9193814e234204680ad9d201aa1d95d48d8926a648",
+    "wiki/ops-076.md": "f8935aa403845794a80b8383e21ec1de8f34ab67da3fc261035facedfb2b55ad",
+    "wiki/ops-077.md": "0fec4f14f0680299ebb1229a3a4c44386e7de0005d1d2442919e70f6d043a112",
+    "wiki/ops-078.md": "e7a96efdb5f0920f426f7ca4a8c3419df887237267be297b507f785662d2ef94",
+    "wiki/ops-079.md": "b3a4d9a43de261863e2fe0773ecc5b8500dfe9e9210f511c03749a2bcbf2b1da",
+    "wiki/ops-080.md": "bd03b9b5cdf5200c9eb806835118cc90f75f00d56282adc27c57c0afc54a313e",
+    "wiki/ops-081.md": "3de8ac256df9d00da3747ad8796088ec99d8cb5c346084ea5f9f4b5217bb20f1",
+    "wiki/ops-082.md": "55028362ac842ca8601863f212b2ef02da2fbd2ab77fa8b221bde671c07c4cb0",
+    "wiki/ops-083.md": "63a71ff92d20aa9f59ed0bcd0fdbc21a734af4da50968fac3b8f48836e064035",
+    "wiki/ops-084.md": "2f8601f1ead7f5dd19f53124a5998686ee4ca4b2a6fe7f103d73cba9da1b3bf4",
+    "wiki/ops-085.md": "9de276d16821c4e52a6111dbb2d62dcb8853c5d43201b321aac96ee7ce51fa73",
+    "wiki/ops-086.md": "3b6788c828e703173d98a9af3209c422ccb31333d0713070299faa75e59d9a74",
+    "wiki/ops-087.md": "bcb6efacafee7f85e2277d12dd8a688ad23f48b07d5ee87d32af2480c3a7f433",
+    "wiki/ops-088.md": "355f59034c29cb95f126576ef4bfbc4c919cd92bc13729206e87ac6057c650c5",
+    "wiki/ops-089.md": "fa6bca81dcb2cd9fb288d4eca53f583a7caa673f0164a370db46b226db54d70a",
+    "wiki/ops-090.md": "065e5884b3a11a1749f02b2742def3f83943eaf681715d40e04b4a3e22438287",
+    "wiki/ops-091.md": "eb57c7907af57f31842f7347c1ec6cff055e09cbcc14e0d20fc5bf4dce8cb31c",
+    "wiki/ops-092.md": "b5d24803c4fc775923c859a276e7370c17111ed1ca6fe8186853e68d1b1a4e8b",
+    "wiki/ops-093.md": "00349523ee1514404184aca7e9276a04f1685b9b2fba9fdc6251167fcbef507e",
+    "wiki/ops-094.md": "ca89792b0179a8e527b1d7ff89ae834bda3bedfa4dba93a078a07bb5cbdd7aa9",
+    "wiki/ops-095.md": "9b4731dd3a7a43f5a3f80858639be5a64414b8d330711ea7da217d81183a3181",
+    "wiki/ops-096.md": "4ee8b6b05b0c44cac1b0cca4798a38ee18de04bf470e481dc6c876cb89ed9e4e",
+    "wiki/ops-097.md": "db8a5ee90d66c08706888010e7e8c6131425a3924f3b38b5a959a4ad2ef726f2",
+    "wiki/ops-098.md": "20b78835dab5fa3bc9872b6499876b83c81004b0102e63cbb10f3b51ae5bc934",
+    "wiki/ops-099.md": "71b0aad87730640d16abb0941bb1d8e6eb526c8725cb703756bea34759e91b06",
+    "wiki/ops-100.md": "188171f0c7e99c9fb3a9ab61f9f653cf13e4959e9da38bae1fde38df1e70953b",
+    "wiki/ops-101.md": "99e52fd139561661c5077adac59943e21b7390267b436e3429212289115c1e55"
+  },
+  "tasks": [
+    {
+      "id": "T01",
+      "category": "scoped-exact",
+      "question": "For Nacre production delivery failures, what are the maximum retry count and initial retry delay?",
+      "gold": [
+        {
+          "source": "wiki/queue-dispatch.md",
+          "line": 12,
+          "text": "Nacre production delivery failures are retried at most 7 times."
+        },
+        {
+          "source": "wiki/queue-dispatch.md",
+          "line": 13,
+          "text": "The initial retry delay is 90 seconds."
+        }
+      ],
+      "answer_requirements": [
+        "Nacre production delivery failures are retried at most 7 times.",
+        "The initial retry delay is 90 seconds."
+      ]
+    },
+    {
+      "id": "T02",
+      "category": "paraphrase",
+      "question": "How long do we keep the history used to investigate missing parcels in the Corundum service, and who is responsible for that rule?",
+      "gold": [
+        {
+          "source": "wiki/event-ledger.md",
+          "line": 12,
+          "text": "Corundum delivery audit events are retained for 63 days."
+        },
+        {
+          "source": "wiki/event-ledger.md",
+          "line": 13,
+          "text": "The policy steward is Iona Park."
+        }
+      ],
+      "answer_requirements": [
+        "Corundum delivery audit events are retained for 63 days.",
+        "The policy steward is Iona Park."
+      ]
+    },
+    {
+      "id": "T03",
+      "category": "temporal-update",
+      "question": "Is the Larch pilot still on November 12? Give the current plan, when it changed, and why.",
+      "gold": [
+        {
+          "source": "wiki/larch-release.md",
+          "line": 12,
+          "text": "The Larch pilot is scheduled for November 26, 2026."
+        },
+        {
+          "source": "wiki/larch-release.md",
+          "line": 13,
+          "text": "The October 23, 2026 decision superseded the November 12 target."
+        },
+        {
+          "source": "wiki/larch-release.md",
+          "line": 14,
+          "text": "The change allows completion of certificate renewal."
+        }
+      ],
+      "answer_requirements": [
+        "The Larch pilot is scheduled for November 26, 2026.",
+        "The October 23, 2026 decision superseded the November 12 target.",
+        "The change allows completion of certificate renewal."
+      ]
+    },
+    {
+      "id": "T04",
+      "category": "cross-page",
+      "question": "If Plover EU telemetry export is suspended, who should we contact and what must happen before resuming?",
+      "gold": [
+        {
+          "source": "wiki/plover-export.md",
+          "line": 12,
+          "text": "When Plover EU telemetry export is suspended, contact the release custodian."
+        },
+        {
+          "source": "wiki/duty-roster.md",
+          "line": 12,
+          "text": "The release custodian is Asha Venn."
+        },
+        {
+          "source": "wiki/export-runbook.md",
+          "line": 12,
+          "text": "Before resuming Plover EU telemetry export, reconcile the export offsets."
+        },
+        {
+          "source": "wiki/export-runbook.md",
+          "line": 13,
+          "text": "Obtain incident lead approval before resuming."
+        }
+      ],
+      "answer_requirements": [
+        "The release custodian is Asha Venn.",
+        "Before resuming Plover EU telemetry export, reconcile the export offsets.",
+        "Obtain incident lead approval before resuming."
+      ]
+    },
+    {
+      "id": "T05",
+      "category": "exhaustive-list",
+      "question": "List every currently open launch blocker for Mariner and its owner. Exclude resolved items and other projects.",
+      "gold": [
+        {
+          "source": "wiki/mariner-certificates.md",
+          "line": 12,
+          "text": "Mariner launch blocker: certificate rotation. Status OPEN. Owner: Leda Fox."
+        },
+        {
+          "source": "wiki/mariner-restore.md",
+          "line": 12,
+          "text": "Mariner launch blocker: restore drill. Status OPEN. Owner: Mika Sen."
+        },
+        {
+          "source": "wiki/mariner-access.md",
+          "line": 12,
+          "text": "Mariner launch blocker: access review. Status OPEN. Owner: Dev Shah."
+        },
+        {
+          "source": "wiki/mariner-contract.md",
+          "line": 12,
+          "text": "Mariner launch blocker: supplier contract. Status OPEN. Owner: Oona Reed."
+        }
+      ],
+      "answer_requirements": [
+        "Mariner launch blocker: certificate rotation. Status OPEN. Owner: Leda Fox.",
+        "Mariner launch blocker: restore drill. Status OPEN. Owner: Mika Sen.",
+        "Mariner launch blocker: access review. Status OPEN. Owner: Dev Shah.",
+        "Mariner launch blocker: supplier contract. Status OPEN. Owner: Oona Reed."
+      ]
+    },
+    {
+      "id": "T06",
+      "category": "long-document",
+      "question": "In the Meridian handover notes, what rollback checkpoint is approved, and who can authorize rollback?",
+      "gold": [
+        {
+          "source": "wiki/meridian-handover.md",
+          "line": 1014,
+          "text": "The approved Meridian rollback checkpoint is r57."
+        },
+        {
+          "source": "wiki/meridian-handover.md",
+          "line": 1015,
+          "text": "Only Tomas Bell can authorize a Meridian rollback."
+        }
+      ],
+      "answer_requirements": [
+        "The approved Meridian rollback checkpoint is r57.",
+        "Only Tomas Bell can authorize a Meridian rollback."
+      ]
+    },
+    {
+      "id": "T07",
+      "category": "conflict",
+      "question": "What is the firm renewal date for the Helix supplier contract? Explain whether the records settle it.",
+      "gold": [
+        {
+          "source": "wiki/helix-renewal.md",
+          "line": 12,
+          "text": "The October 20 purchasing note gives the Helix supplier renewal date as December 3, 2026."
+        },
+        {
+          "source": "wiki/helix-renewal.md",
+          "line": 13,
+          "text": "The October 20 legal note gives the Helix supplier renewal date as December 10, 2026."
+        },
+        {
+          "source": "wiki/helix-renewal.md",
+          "line": 14,
+          "text": "Neither note supersedes the other; the renewal date is unresolved."
+        }
+      ],
+      "answer_requirements": [
+        "The October 20 purchasing note gives the Helix supplier renewal date as December 3, 2026.",
+        "The October 20 legal note gives the Helix supplier renewal date as December 10, 2026.",
+        "Neither note supersedes the other; the renewal date is unresolved."
+      ]
+    },
+    {
+      "id": "T08",
+      "category": "absent",
+      "question": "Who signed the external penetration-test engagement for Cinder, and what is the approved fee? Use only the stored knowledge.",
+      "gold": [],
+      "abstention": "Neither a signatory nor approved fee is recorded. Do not substitute the service owner, invent a fee, or claim an engagement did not happen.",
+      "answer_requirements": []
+    }
+  ],
+  "trials": [
+    {
+      "id": "46f33ca7b4",
+      "task": "T07",
+      "arm": "kb",
+      "directory": "$TMP/kb-control-ND9ZZs/trials/46f33ca7b4",
+      "question": "What is the firm renewal date for the Helix supplier contract? Explain whether the records settle it.",
+      "guide_sha256": "e107651b2179fb59d5f233586fcbb67c3cdbd5f003c459fd7344c8493c0c5c89",
+      "guide_bytes": 9786,
+      "prompt": "You are solving one saved-knowledge question. Your only permitted evidence tools are calls to the provided recording adapter. Do not use memory, external research, other agents, other files, parent directories, experiment artifacts, wrapper/config source, or prior context. Do not edit any files. First load the guide with: bun $TMP/kb-control-ND9ZZs/trials/46f33ca7b4/tool.mjs guide. Then use the guide's operations via this same adapter (one operation per invocation). Examples of syntax only: tool.mjs files [name-fragment]; tool.mjs search REGEX [context-lines]; tool.mjs read PATH [start] [end]; tool.mjs kb COMMAND ARGS when enabled. Run through exec_command with workdir $TMP/kb-control-ND9ZZs/trials/46f33ca7b4; request at least 6000 max_output_tokens so the adapter's output is not additionally truncated. The trial permits at most 16 adapter calls and 128 KiB of visible output; the initial guide counts. Use evidence to answer accurately and concisely, with source file paths and inclusive line ranges. Preserve unresolved conflicts and unknowns; do not infer a real-world negative just because evidence is missing. Return ONLY a JSON object in your final message with keys answer (string), citations (array of {source,start,end}), limitations (string). Do not write the answer to disk.\n\nQuestion: What is the firm renewal date for the Helix supplier contract? Explain whether the records settle it.",
+      "prompt_sha256": "6c24725eedec469ea9d036d92e7f64a67a49a8604f691a2fc686aefa8a621158"
+    },
+    {
+      "id": "48c343151d",
+      "task": "T03",
+      "arm": "files",
+      "directory": "$TMP/kb-control-ND9ZZs/trials/48c343151d",
+      "question": "Is the Larch pilot still on November 12? Give the current plan, when it changed, and why.",
+      "guide_sha256": "f856939eac3e771e49fcd50c6f02dabdc355f4f61c6215e15052274f566ec38a",
+      "guide_bytes": 962,
+      "prompt": "You are solving one saved-knowledge question. Your only permitted evidence tools are calls to the provided recording adapter. Do not use memory, external research, other agents, other files, parent directories, experiment artifacts, wrapper/config source, or prior context. Do not edit any files. First load the guide with: bun $TMP/kb-control-ND9ZZs/trials/48c343151d/tool.mjs guide. Then use the guide's operations via this same adapter (one operation per invocation). Examples of syntax only: tool.mjs files [name-fragment]; tool.mjs search REGEX [context-lines]; tool.mjs read PATH [start] [end]; tool.mjs kb COMMAND ARGS when enabled. Run through exec_command with workdir $TMP/kb-control-ND9ZZs/trials/48c343151d; request at least 6000 max_output_tokens so the adapter's output is not additionally truncated. The trial permits at most 16 adapter calls and 128 KiB of visible output; the initial guide counts. Use evidence to answer accurately and concisely, with source file paths and inclusive line ranges. Preserve unresolved conflicts and unknowns; do not infer a real-world negative just because evidence is missing. Return ONLY a JSON object in your final message with keys answer (string), citations (array of {source,start,end}), limitations (string). Do not write the answer to disk.\n\nQuestion: Is the Larch pilot still on November 12? Give the current plan, when it changed, and why.",
+      "prompt_sha256": "0e280ac6114db19e007d78c217ff2c8065f19425b8b1a083203b7bdb3cb814c5"
+    },
+    {
+      "id": "188e376b4d",
+      "task": "T04",
+      "arm": "kb",
+      "directory": "$TMP/kb-control-ND9ZZs/trials/188e376b4d",
+      "question": "If Plover EU telemetry export is suspended, who should we contact and what must happen before resuming?",
+      "guide_sha256": "e107651b2179fb59d5f233586fcbb67c3cdbd5f003c459fd7344c8493c0c5c89",
+      "guide_bytes": 9786,
+      "prompt": "You are solving one saved-knowledge question. Your only permitted evidence tools are calls to the provided recording adapter. Do not use memory, external research, other agents, other files, parent directories, experiment artifacts, wrapper/config source, or prior context. Do not edit any files. First load the guide with: bun $TMP/kb-control-ND9ZZs/trials/188e376b4d/tool.mjs guide. Then use the guide's operations via this same adapter (one operation per invocation). Examples of syntax only: tool.mjs files [name-fragment]; tool.mjs search REGEX [context-lines]; tool.mjs read PATH [start] [end]; tool.mjs kb COMMAND ARGS when enabled. Run through exec_command with workdir $TMP/kb-control-ND9ZZs/trials/188e376b4d; request at least 6000 max_output_tokens so the adapter's output is not additionally truncated. The trial permits at most 16 adapter calls and 128 KiB of visible output; the initial guide counts. Use evidence to answer accurately and concisely, with source file paths and inclusive line ranges. Preserve unresolved conflicts and unknowns; do not infer a real-world negative just because evidence is missing. Return ONLY a JSON object in your final message with keys answer (string), citations (array of {source,start,end}), limitations (string). Do not write the answer to disk.\n\nQuestion: If Plover EU telemetry export is suspended, who should we contact and what must happen before resuming?",
+      "prompt_sha256": "cf0111878874bca245840b6de6113dbe769691653661ada0a364bb166bb9d765"
+    },
+    {
+      "id": "92da455f7d",
+      "task": "T02",
+      "arm": "kb",
+      "directory": "$TMP/kb-control-ND9ZZs/trials/92da455f7d",
+      "question": "How long do we keep the history used to investigate missing parcels in the Corundum service, and who is responsible for that rule?",
+      "guide_sha256": "e107651b2179fb59d5f233586fcbb67c3cdbd5f003c459fd7344c8493c0c5c89",
+      "guide_bytes": 9786,
+      "prompt": "You are solving one saved-knowledge question. Your only permitted evidence tools are calls to the provided recording adapter. Do not use memory, external research, other agents, other files, parent directories, experiment artifacts, wrapper/config source, or prior context. Do not edit any files. First load the guide with: bun $TMP/kb-control-ND9ZZs/trials/92da455f7d/tool.mjs guide. Then use the guide's operations via this same adapter (one operation per invocation). Examples of syntax only: tool.mjs files [name-fragment]; tool.mjs search REGEX [context-lines]; tool.mjs read PATH [start] [end]; tool.mjs kb COMMAND ARGS when enabled. Run through exec_command with workdir $TMP/kb-control-ND9ZZs/trials/92da455f7d; request at least 6000 max_output_tokens so the adapter's output is not additionally truncated. The trial permits at most 16 adapter calls and 128 KiB of visible output; the initial guide counts. Use evidence to answer accurately and concisely, with source file paths and inclusive line ranges. Preserve unresolved conflicts and unknowns; do not infer a real-world negative just because evidence is missing. Return ONLY a JSON object in your final message with keys answer (string), citations (array of {source,start,end}), limitations (string). Do not write the answer to disk.\n\nQuestion: How long do we keep the history used to investigate missing parcels in the Corundum service, and who is responsible for that rule?",
+      "prompt_sha256": "f98329e16fa298adc4a0ff5f9d502080f2e0bab68e0ccd9c6087eecb8782ad95"
+    },
+    {
+      "id": "e3da746faa",
+      "task": "T05",
+      "arm": "kb",
+      "directory": "$TMP/kb-control-ND9ZZs/trials/e3da746faa",
+      "question": "List every currently open launch blocker for Mariner and its owner. Exclude resolved items and other projects.",
+      "guide_sha256": "e107651b2179fb59d5f233586fcbb67c3cdbd5f003c459fd7344c8493c0c5c89",
+      "guide_bytes": 9786,
+      "prompt": "You are solving one saved-knowledge question. Your only permitted evidence tools are calls to the provided recording adapter. Do not use memory, external research, other agents, other files, parent directories, experiment artifacts, wrapper/config source, or prior context. Do not edit any files. First load the guide with: bun $TMP/kb-control-ND9ZZs/trials/e3da746faa/tool.mjs guide. Then use the guide's operations via this same adapter (one operation per invocation). Examples of syntax only: tool.mjs files [name-fragment]; tool.mjs search REGEX [context-lines]; tool.mjs read PATH [start] [end]; tool.mjs kb COMMAND ARGS when enabled. Run through exec_command with workdir $TMP/kb-control-ND9ZZs/trials/e3da746faa; request at least 6000 max_output_tokens so the adapter's output is not additionally truncated. The trial permits at most 16 adapter calls and 128 KiB of visible output; the initial guide counts. Use evidence to answer accurately and concisely, with source file paths and inclusive line ranges. Preserve unresolved conflicts and unknowns; do not infer a real-world negative just because evidence is missing. Return ONLY a JSON object in your final message with keys answer (string), citations (array of {source,start,end}), limitations (string). Do not write the answer to disk.\n\nQuestion: List every currently open launch blocker for Mariner and its owner. Exclude resolved items and other projects.",
+      "prompt_sha256": "dd9b5a616925f3c149efcf1eb8d47aa4605120f3f27fd8f694aa77a0df50a787"
+    },
+    {
+      "id": "2342f92634",
+      "task": "T08",
+      "arm": "kb",
+      "directory": "$TMP/kb-control-ND9ZZs/trials/2342f92634",
+      "question": "Who signed the external penetration-test engagement for Cinder, and what is the approved fee? Use only the stored knowledge.",
+      "guide_sha256": "e107651b2179fb59d5f233586fcbb67c3cdbd5f003c459fd7344c8493c0c5c89",
+      "guide_bytes": 9786,
+      "prompt": "You are solving one saved-knowledge question. Your only permitted evidence tools are calls to the provided recording adapter. Do not use memory, external research, other agents, other files, parent directories, experiment artifacts, wrapper/config source, or prior context. Do not edit any files. First load the guide with: bun $TMP/kb-control-ND9ZZs/trials/2342f92634/tool.mjs guide. Then use the guide's operations via this same adapter (one operation per invocation). Examples of syntax only: tool.mjs files [name-fragment]; tool.mjs search REGEX [context-lines]; tool.mjs read PATH [start] [end]; tool.mjs kb COMMAND ARGS when enabled. Run through exec_command with workdir $TMP/kb-control-ND9ZZs/trials/2342f92634; request at least 6000 max_output_tokens so the adapter's output is not additionally truncated. The trial permits at most 16 adapter calls and 128 KiB of visible output; the initial guide counts. Use evidence to answer accurately and concisely, with source file paths and inclusive line ranges. Preserve unresolved conflicts and unknowns; do not infer a real-world negative just because evidence is missing. Return ONLY a JSON object in your final message with keys answer (string), citations (array of {source,start,end}), limitations (string). Do not write the answer to disk.\n\nQuestion: Who signed the external penetration-test engagement for Cinder, and what is the approved fee? Use only the stored knowledge.",
+      "prompt_sha256": "5b014ef34fb78bd2b269c28f6f8a6b294f89cd839f2c6d7989a35a735a39e2db"
+    },
+    {
+      "id": "5be75d806f",
+      "task": "T02",
+      "arm": "files",
+      "directory": "$TMP/kb-control-ND9ZZs/trials/5be75d806f",
+      "question": "How long do we keep the history used to investigate missing parcels in the Corundum service, and who is responsible for that rule?",
+      "guide_sha256": "f856939eac3e771e49fcd50c6f02dabdc355f4f61c6215e15052274f566ec38a",
+      "guide_bytes": 962,
+      "prompt": "You are solving one saved-knowledge question. Your only permitted evidence tools are calls to the provided recording adapter. Do not use memory, external research, other agents, other files, parent directories, experiment artifacts, wrapper/config source, or prior context. Do not edit any files. First load the guide with: bun $TMP/kb-control-ND9ZZs/trials/5be75d806f/tool.mjs guide. Then use the guide's operations via this same adapter (one operation per invocation). Examples of syntax only: tool.mjs files [name-fragment]; tool.mjs search REGEX [context-lines]; tool.mjs read PATH [start] [end]; tool.mjs kb COMMAND ARGS when enabled. Run through exec_command with workdir $TMP/kb-control-ND9ZZs/trials/5be75d806f; request at least 6000 max_output_tokens so the adapter's output is not additionally truncated. The trial permits at most 16 adapter calls and 128 KiB of visible output; the initial guide counts. Use evidence to answer accurately and concisely, with source file paths and inclusive line ranges. Preserve unresolved conflicts and unknowns; do not infer a real-world negative just because evidence is missing. Return ONLY a JSON object in your final message with keys answer (string), citations (array of {source,start,end}), limitations (string). Do not write the answer to disk.\n\nQuestion: How long do we keep the history used to investigate missing parcels in the Corundum service, and who is responsible for that rule?",
+      "prompt_sha256": "71eebc37f5ea3f04fe7cf53d4ae0e6a03aa1ac9edbf5dc0b83d698ae0dd75f01"
+    },
+    {
+      "id": "7760ae5c93",
+      "task": "T01",
+      "arm": "files",
+      "directory": "$TMP/kb-control-ND9ZZs/trials/7760ae5c93",
+      "question": "For Nacre production delivery failures, what are the maximum retry count and initial retry delay?",
+      "guide_sha256": "f856939eac3e771e49fcd50c6f02dabdc355f4f61c6215e15052274f566ec38a",
+      "guide_bytes": 962,
+      "prompt": "You are solving one saved-knowledge question. Your only permitted evidence tools are calls to the provided recording adapter. Do not use memory, external research, other agents, other files, parent directories, experiment artifacts, wrapper/config source, or prior context. Do not edit any files. First load the guide with: bun $TMP/kb-control-ND9ZZs/trials/7760ae5c93/tool.mjs guide. Then use the guide's operations via this same adapter (one operation per invocation). Examples of syntax only: tool.mjs files [name-fragment]; tool.mjs search REGEX [context-lines]; tool.mjs read PATH [start] [end]; tool.mjs kb COMMAND ARGS when enabled. Run through exec_command with workdir $TMP/kb-control-ND9ZZs/trials/7760ae5c93; request at least 6000 max_output_tokens so the adapter's output is not additionally truncated. The trial permits at most 16 adapter calls and 128 KiB of visible output; the initial guide counts. Use evidence to answer accurately and concisely, with source file paths and inclusive line ranges. Preserve unresolved conflicts and unknowns; do not infer a real-world negative just because evidence is missing. Return ONLY a JSON object in your final message with keys answer (string), citations (array of {source,start,end}), limitations (string). Do not write the answer to disk.\n\nQuestion: For Nacre production delivery failures, what are the maximum retry count and initial retry delay?",
+      "prompt_sha256": "e8d5f4fa765c71d5598ae94040d9c9d3d0dd7568f7f9f67dc403fe55f60ee044"
+    },
+    {
+      "id": "e94c8ae914",
+      "task": "T05",
+      "arm": "files",
+      "directory": "$TMP/kb-control-ND9ZZs/trials/e94c8ae914",
+      "question": "List every currently open launch blocker for Mariner and its owner. Exclude resolved items and other projects.",
+      "guide_sha256": "f856939eac3e771e49fcd50c6f02dabdc355f4f61c6215e15052274f566ec38a",
+      "guide_bytes": 962,
+      "prompt": "You are solving one saved-knowledge question. Your only permitted evidence tools are calls to the provided recording adapter. Do not use memory, external research, other agents, other files, parent directories, experiment artifacts, wrapper/config source, or prior context. Do not edit any files. First load the guide with: bun $TMP/kb-control-ND9ZZs/trials/e94c8ae914/tool.mjs guide. Then use the guide's operations via this same adapter (one operation per invocation). Examples of syntax only: tool.mjs files [name-fragment]; tool.mjs search REGEX [context-lines]; tool.mjs read PATH [start] [end]; tool.mjs kb COMMAND ARGS when enabled. Run through exec_command with workdir $TMP/kb-control-ND9ZZs/trials/e94c8ae914; request at least 6000 max_output_tokens so the adapter's output is not additionally truncated. The trial permits at most 16 adapter calls and 128 KiB of visible output; the initial guide counts. Use evidence to answer accurately and concisely, with source file paths and inclusive line ranges. Preserve unresolved conflicts and unknowns; do not infer a real-world negative just because evidence is missing. Return ONLY a JSON object in your final message with keys answer (string), citations (array of {source,start,end}), limitations (string). Do not write the answer to disk.\n\nQuestion: List every currently open launch blocker for Mariner and its owner. Exclude resolved items and other projects.",
+      "prompt_sha256": "d5512f1b014b8424a28cb14175b68350a37210c7fbfdccc4e1b922870e3d0b5d"
+    },
+    {
+      "id": "e6aa0938ac",
+      "task": "T07",
+      "arm": "files",
+      "directory": "$TMP/kb-control-ND9ZZs/trials/e6aa0938ac",
+      "question": "What is the firm renewal date for the Helix supplier contract? Explain whether the records settle it.",
+      "guide_sha256": "f856939eac3e771e49fcd50c6f02dabdc355f4f61c6215e15052274f566ec38a",
+      "guide_bytes": 962,
+      "prompt": "You are solving one saved-knowledge question. Your only permitted evidence tools are calls to the provided recording adapter. Do not use memory, external research, other agents, other files, parent directories, experiment artifacts, wrapper/config source, or prior context. Do not edit any files. First load the guide with: bun $TMP/kb-control-ND9ZZs/trials/e6aa0938ac/tool.mjs guide. Then use the guide's operations via this same adapter (one operation per invocation). Examples of syntax only: tool.mjs files [name-fragment]; tool.mjs search REGEX [context-lines]; tool.mjs read PATH [start] [end]; tool.mjs kb COMMAND ARGS when enabled. Run through exec_command with workdir $TMP/kb-control-ND9ZZs/trials/e6aa0938ac; request at least 6000 max_output_tokens so the adapter's output is not additionally truncated. The trial permits at most 16 adapter calls and 128 KiB of visible output; the initial guide counts. Use evidence to answer accurately and concisely, with source file paths and inclusive line ranges. Preserve unresolved conflicts and unknowns; do not infer a real-world negative just because evidence is missing. Return ONLY a JSON object in your final message with keys answer (string), citations (array of {source,start,end}), limitations (string). Do not write the answer to disk.\n\nQuestion: What is the firm renewal date for the Helix supplier contract? Explain whether the records settle it.",
+      "prompt_sha256": "7ee9245c9baebcd82f8b9f3ab167df1745741181ef03720af58d696fb2712b02"
+    },
+    {
+      "id": "0a0ccb759f",
+      "task": "T04",
+      "arm": "files",
+      "directory": "$TMP/kb-control-ND9ZZs/trials/0a0ccb759f",
+      "question": "If Plover EU telemetry export is suspended, who should we contact and what must happen before resuming?",
+      "guide_sha256": "f856939eac3e771e49fcd50c6f02dabdc355f4f61c6215e15052274f566ec38a",
+      "guide_bytes": 962,
+      "prompt": "You are solving one saved-knowledge question. Your only permitted evidence tools are calls to the provided recording adapter. Do not use memory, external research, other agents, other files, parent directories, experiment artifacts, wrapper/config source, or prior context. Do not edit any files. First load the guide with: bun $TMP/kb-control-ND9ZZs/trials/0a0ccb759f/tool.mjs guide. Then use the guide's operations via this same adapter (one operation per invocation). Examples of syntax only: tool.mjs files [name-fragment]; tool.mjs search REGEX [context-lines]; tool.mjs read PATH [start] [end]; tool.mjs kb COMMAND ARGS when enabled. Run through exec_command with workdir $TMP/kb-control-ND9ZZs/trials/0a0ccb759f; request at least 6000 max_output_tokens so the adapter's output is not additionally truncated. The trial permits at most 16 adapter calls and 128 KiB of visible output; the initial guide counts. Use evidence to answer accurately and concisely, with source file paths and inclusive line ranges. Preserve unresolved conflicts and unknowns; do not infer a real-world negative just because evidence is missing. Return ONLY a JSON object in your final message with keys answer (string), citations (array of {source,start,end}), limitations (string). Do not write the answer to disk.\n\nQuestion: If Plover EU telemetry export is suspended, who should we contact and what must happen before resuming?",
+      "prompt_sha256": "9e91ae3124c2e2a607404f4a48cdc26b18d8a0da609d55e68af8399c547bb949"
+    },
+    {
+      "id": "21a57471cd",
+      "task": "T03",
+      "arm": "kb",
+      "directory": "$TMP/kb-control-ND9ZZs/trials/21a57471cd",
+      "question": "Is the Larch pilot still on November 12? Give the current plan, when it changed, and why.",
+      "guide_sha256": "e107651b2179fb59d5f233586fcbb67c3cdbd5f003c459fd7344c8493c0c5c89",
+      "guide_bytes": 9786,
+      "prompt": "You are solving one saved-knowledge question. Your only permitted evidence tools are calls to the provided recording adapter. Do not use memory, external research, other agents, other files, parent directories, experiment artifacts, wrapper/config source, or prior context. Do not edit any files. First load the guide with: bun $TMP/kb-control-ND9ZZs/trials/21a57471cd/tool.mjs guide. Then use the guide's operations via this same adapter (one operation per invocation). Examples of syntax only: tool.mjs files [name-fragment]; tool.mjs search REGEX [context-lines]; tool.mjs read PATH [start] [end]; tool.mjs kb COMMAND ARGS when enabled. Run through exec_command with workdir $TMP/kb-control-ND9ZZs/trials/21a57471cd; request at least 6000 max_output_tokens so the adapter's output is not additionally truncated. The trial permits at most 16 adapter calls and 128 KiB of visible output; the initial guide counts. Use evidence to answer accurately and concisely, with source file paths and inclusive line ranges. Preserve unresolved conflicts and unknowns; do not infer a real-world negative just because evidence is missing. Return ONLY a JSON object in your final message with keys answer (string), citations (array of {source,start,end}), limitations (string). Do not write the answer to disk.\n\nQuestion: Is the Larch pilot still on November 12? Give the current plan, when it changed, and why.",
+      "prompt_sha256": "c574d158a544182e3fa8f26f3d17b3d138e2cd6d7220cbc1d679dc5ef919f1de"
+    },
+    {
+      "id": "b79e7a1764",
+      "task": "T01",
+      "arm": "kb",
+      "directory": "$TMP/kb-control-ND9ZZs/trials/b79e7a1764",
+      "question": "For Nacre production delivery failures, what are the maximum retry count and initial retry delay?",
+      "guide_sha256": "e107651b2179fb59d5f233586fcbb67c3cdbd5f003c459fd7344c8493c0c5c89",
+      "guide_bytes": 9786,
+      "prompt": "You are solving one saved-knowledge question. Your only permitted evidence tools are calls to the provided recording adapter. Do not use memory, external research, other agents, other files, parent directories, experiment artifacts, wrapper/config source, or prior context. Do not edit any files. First load the guide with: bun $TMP/kb-control-ND9ZZs/trials/b79e7a1764/tool.mjs guide. Then use the guide's operations via this same adapter (one operation per invocation). Examples of syntax only: tool.mjs files [name-fragment]; tool.mjs search REGEX [context-lines]; tool.mjs read PATH [start] [end]; tool.mjs kb COMMAND ARGS when enabled. Run through exec_command with workdir $TMP/kb-control-ND9ZZs/trials/b79e7a1764; request at least 6000 max_output_tokens so the adapter's output is not additionally truncated. The trial permits at most 16 adapter calls and 128 KiB of visible output; the initial guide counts. Use evidence to answer accurately and concisely, with source file paths and inclusive line ranges. Preserve unresolved conflicts and unknowns; do not infer a real-world negative just because evidence is missing. Return ONLY a JSON object in your final message with keys answer (string), citations (array of {source,start,end}), limitations (string). Do not write the answer to disk.\n\nQuestion: For Nacre production delivery failures, what are the maximum retry count and initial retry delay?",
+      "prompt_sha256": "4c4d628bfeff8494f9fd58c06f1dc6a4930df88b57367df556692bbb32fbeb57"
+    },
+    {
+      "id": "a310162de7",
+      "task": "T06",
+      "arm": "files",
+      "directory": "$TMP/kb-control-ND9ZZs/trials/a310162de7",
+      "question": "In the Meridian handover notes, what rollback checkpoint is approved, and who can authorize rollback?",
+      "guide_sha256": "f856939eac3e771e49fcd50c6f02dabdc355f4f61c6215e15052274f566ec38a",
+      "guide_bytes": 962,
+      "prompt": "You are solving one saved-knowledge question. Your only permitted evidence tools are calls to the provided recording adapter. Do not use memory, external research, other agents, other files, parent directories, experiment artifacts, wrapper/config source, or prior context. Do not edit any files. First load the guide with: bun $TMP/kb-control-ND9ZZs/trials/a310162de7/tool.mjs guide. Then use the guide's operations via this same adapter (one operation per invocation). Examples of syntax only: tool.mjs files [name-fragment]; tool.mjs search REGEX [context-lines]; tool.mjs read PATH [start] [end]; tool.mjs kb COMMAND ARGS when enabled. Run through exec_command with workdir $TMP/kb-control-ND9ZZs/trials/a310162de7; request at least 6000 max_output_tokens so the adapter's output is not additionally truncated. The trial permits at most 16 adapter calls and 128 KiB of visible output; the initial guide counts. Use evidence to answer accurately and concisely, with source file paths and inclusive line ranges. Preserve unresolved conflicts and unknowns; do not infer a real-world negative just because evidence is missing. Return ONLY a JSON object in your final message with keys answer (string), citations (array of {source,start,end}), limitations (string). Do not write the answer to disk.\n\nQuestion: In the Meridian handover notes, what rollback checkpoint is approved, and who can authorize rollback?",
+      "prompt_sha256": "6b3dae0eaae1f5e472a87d0e231c14806d794ecde56162406173daa7e7b5aeca"
+    },
+    {
+      "id": "924b3664d4",
+      "task": "T08",
+      "arm": "files",
+      "directory": "$TMP/kb-control-ND9ZZs/trials/924b3664d4",
+      "question": "Who signed the external penetration-test engagement for Cinder, and what is the approved fee? Use only the stored knowledge.",
+      "guide_sha256": "f856939eac3e771e49fcd50c6f02dabdc355f4f61c6215e15052274f566ec38a",
+      "guide_bytes": 962,
+      "prompt": "You are solving one saved-knowledge question. Your only permitted evidence tools are calls to the provided recording adapter. Do not use memory, external research, other agents, other files, parent directories, experiment artifacts, wrapper/config source, or prior context. Do not edit any files. First load the guide with: bun $TMP/kb-control-ND9ZZs/trials/924b3664d4/tool.mjs guide. Then use the guide's operations via this same adapter (one operation per invocation). Examples of syntax only: tool.mjs files [name-fragment]; tool.mjs search REGEX [context-lines]; tool.mjs read PATH [start] [end]; tool.mjs kb COMMAND ARGS when enabled. Run through exec_command with workdir $TMP/kb-control-ND9ZZs/trials/924b3664d4; request at least 6000 max_output_tokens so the adapter's output is not additionally truncated. The trial permits at most 16 adapter calls and 128 KiB of visible output; the initial guide counts. Use evidence to answer accurately and concisely, with source file paths and inclusive line ranges. Preserve unresolved conflicts and unknowns; do not infer a real-world negative just because evidence is missing. Return ONLY a JSON object in your final message with keys answer (string), citations (array of {source,start,end}), limitations (string). Do not write the answer to disk.\n\nQuestion: Who signed the external penetration-test engagement for Cinder, and what is the approved fee? Use only the stored knowledge.",
+      "prompt_sha256": "eea218e8d4730022a8df3b30e17a75ca29be8ab6010da003ec58a03eed174c96"
+    },
+    {
+      "id": "9ceb9ce739",
+      "task": "T06",
+      "arm": "kb",
+      "directory": "$TMP/kb-control-ND9ZZs/trials/9ceb9ce739",
+      "question": "In the Meridian handover notes, what rollback checkpoint is approved, and who can authorize rollback?",
+      "guide_sha256": "e107651b2179fb59d5f233586fcbb67c3cdbd5f003c459fd7344c8493c0c5c89",
+      "guide_bytes": 9786,
+      "prompt": "You are solving one saved-knowledge question. Your only permitted evidence tools are calls to the provided recording adapter. Do not use memory, external research, other agents, other files, parent directories, experiment artifacts, wrapper/config source, or prior context. Do not edit any files. First load the guide with: bun $TMP/kb-control-ND9ZZs/trials/9ceb9ce739/tool.mjs guide. Then use the guide's operations via this same adapter (one operation per invocation). Examples of syntax only: tool.mjs files [name-fragment]; tool.mjs search REGEX [context-lines]; tool.mjs read PATH [start] [end]; tool.mjs kb COMMAND ARGS when enabled. Run through exec_command with workdir $TMP/kb-control-ND9ZZs/trials/9ceb9ce739; request at least 6000 max_output_tokens so the adapter's output is not additionally truncated. The trial permits at most 16 adapter calls and 128 KiB of visible output; the initial guide counts. Use evidence to answer accurately and concisely, with source file paths and inclusive line ranges. Preserve unresolved conflicts and unknowns; do not infer a real-world negative just because evidence is missing. Return ONLY a JSON object in your final message with keys answer (string), citations (array of {source,start,end}), limitations (string). Do not write the answer to disk.\n\nQuestion: In the Meridian handover notes, what rollback checkpoint is approved, and who can authorize rollback?",
+      "prompt_sha256": "eab4faf9f31aced4629ebdec5d8b86642bf66e84614884177458a8d9cce30dff"
+    }
+  ],
+  "protocol_sha256": "e5ca7d6bf32b24df98b99a32f5a1a931334249e31dbb213aab5f6a09fcbaa2c9",
+  "prepare_sha256": "95b44cc10cd58381fbeb455285602cbfe5e68f8dc9f6b5c685c0db271e1ca599",
+  "tool_sha256": "13de950c90b42ad2ddb7f763a2802f974fd6cb2a70ed6c95f51b98e78f222f51",
+  "model": null,
+  "model_version": null,
+  "harness": "Codex collaboration, fresh context, same inherited serving model",
+  "tokens": null,
+  "cost": null,
+  "answer_scoring_note": "T04 evidence has four facets (including role mapping); answer requirements have three substantive outputs: contact person and two prerequisites. T05 blocker-owner pair is one requirement. T08 abstention is assessed separately, not scored as empty-set recall."
+}
