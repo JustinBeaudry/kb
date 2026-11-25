@@ -41,9 +41,10 @@ export default defineCommand({
       process.exit(1);
     }
 
-    // Accept the exact source form that map and chunks report (wiki/<page>.md).
-    // Only one leading "wiki/" is stripped; the remainder must still be a bare filename.
-    const pageArg = /^wiki\/[^/]+$/.test(args.page) ? args.page.slice("wiki/".length) : args.page;
+    // Accept the exact source form that map and chunks report (wiki/<page>.md,
+    // including nested wiki/<dir>/<page>.md). One leading "wiki/" is stripped;
+    // traversal and real-path containment are still enforced below.
+    const pageArg = /^wiki\/[^/]/.test(args.page) ? args.page.slice("wiki/".length) : args.page;
     try {
       assertSafeFilename(pageArg);
     } catch (err) {

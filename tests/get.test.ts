@@ -47,7 +47,16 @@ describe("get command", () => {
     expect(parseEnvelope(stdout).chunks[0]!.source).toBe("wiki/auth.md");
   });
 
-  it.each(["raw/secret.md", "wiki/../raw/secret.md", "wiki/sub/auth.md", "wiki/", "./wiki/auth.md"])(
+  it("accepts a nested wiki/<dir>/<page>.md path that map reports", async () => {
+    const vault = makeVault();
+    mkdirSync(join(vault, "wiki", "sub"), { recursive: true });
+    writeFileSync(join(vault, "wiki", "sub", "nested.md"), "# Nested\n\nInner page.\n");
+    const { stdout, exitCode } = await run(vault, "wiki/sub/nested.md");
+    expect(exitCode).toBe(0);
+    expect(parseEnvelope(stdout).chunks[0]!.source).toBe("wiki/sub/nested.md");
+  });
+
+  it.each(["raw/secret.md", "wiki/../raw/secret.md", "wiki/sub/../../raw/secret.md", "wiki/", "wiki//etc/passwd"])(
     "still rejects %s",
     async (page) => {
       const vault = makeVault();
