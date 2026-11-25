@@ -154,6 +154,9 @@ func (h *IdentityHandler) GetStatus(ctx context.Context, _ GetStatusRequestObjec
 		if s.MaxRevisionBytes > 0 {
 			out.MaxRevisionBytes = &s.MaxRevisionBytes
 		}
+		if d := s.Dreaming; d != nil {
+			out.Dreaming = &DreamingStatus{State: DreamingStatusState(d.State), PendingJobs: d.PendingJobs, ReasonCodes: stringsAPI(d.ReasonCodes), DailyCapMicroUsd: int(d.DailyCapMicroUSD), CommittedMicroUsd: int(d.CommittedMicroUSD), UnreconciledReservations: d.UnreconciledReservations}
+		}
 		return out, nil
 	}
 	// Compositions without the graph-backed status service report request grants.

@@ -102,4 +102,6 @@ type Status struct {
 	AuthorizedProjectIDs   []string
 	AuthorizedCapabilities []string
 	CapabilityGaps         []string
+	// Dreaming is reported only to the owner; nil means not reported.
+	Dreaming *DreamingStatus
 }
