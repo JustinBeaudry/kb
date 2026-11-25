@@ -111,3 +111,7 @@ Not in the tested form. With the full guide, the KB arm behaved as a file-search
 - Run ≥5 repeats per cell (120+ trials) before reading anything into B vs C. Add a 4th arm (full guide, no KB commands) to complete the 2×2.
 - Hold the solver fixed across scale tiers (Haiku at 120 and 1,000 pages) to separate scale from model.
 - Pre-register a secondary "substantive success" score (facts, entity and behavior correct, ignoring uncited extra remarks) next to the strict score, with human calibration on a sample.
+
+## Path redaction
+
+Before publishing, absolute local paths in `frozen-manifest.json` and `measurements.json` were replaced with `$RUN_ROOT`, `$REPO` and `$HOME`. No other content changed. `freeze.json` keeps its original `manifest_sha256` (c9a8fc68…), which is the hash of the unredacted manifest kept outside the repository. The redacted manifest committed here hashes to `77d058fee5c73d66eb74c68b6ffdf933cadc925ae1363e234dfdd4e42162ac75`.
