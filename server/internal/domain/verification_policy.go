@@ -1,5 +1,13 @@
 package domain
 
+import (
+	"bytes"
+	"fmt"
+	"regexp"
+	"slices"
+	"strings"
+)
+
 // RevisionState keeps immutable submitted JSON separate from authoritative state.
 type RevisionState struct {
 	Claim  ClaimRevision
@@ -24,4 +32,304 @@ type ExcerptLineage struct {
 	Start, End                                                       int64
 	ExcerptArtifactID, ExcerptDigest, ExcerptGeneration              string
 	SourceOrigin                                                     Origin
+}
+
+// EvidencePolicyVersion names the deterministic rule set used by automatic
+// verification. A rule change must bump it so recorded outcomes stay auditable.
+const EvidencePolicyVersion = "evidence-policy.v1"
+
+// Verification methods distinguish how a supported outcome was reached. An
+// owner judgment is never relabeled as an empirical check.
+const (
+	MethodOwnerAdjudicated = "owner_adjudicated"
+	MethodEvidencePolicy   = "evidence_policy"
+	MethodLessonPolicy     = "lesson_policy"
+)
+
+// Claim kinds with mechanically checkable semantics. Every other kind (causal
+// explanations, general lessons, deployment behavior) needs owner adjudication.
+const (
+	KindOwnerPreference   = "owner_preference"
+	KindDependencyVersion = "dependency_version"
+	KindAPIContract       = "api_contract"
+	KindTestOutcome       = "test_outcome"
+	KindLesson            = "lesson"
+)
+
+// ReasonCode explains why an outcome is not supported. Codes are stable API.
+type ReasonCode string
+
+const (
+	ReasonNoEvidence                  ReasonCode = "no_evidence"
+	ReasonOwnerNotAuthenticated       ReasonCode = "owner_not_authenticated"
+	ReasonPreferenceNotExact          ReasonCode = "preference_not_exact"
+	ReasonSourceNotObserved           ReasonCode = "source_not_independently_observed"
+	ReasonSourceMismatch              ReasonCode = "source_mismatch"
+	ReasonRevisionUnbound             ReasonCode = "revision_unbound"
+	ReasonRevisionMismatch            ReasonCode = "revision_mismatch"
+	ReasonClaimNotStructured          ReasonCode = "claim_not_structured"
+	ReasonVersionNotDeclared          ReasonCode = "version_not_declared"
+	ReasonVersionRangeNotInstalled    ReasonCode = "version_range_not_installed"
+	ReasonVersionMismatch             ReasonCode = "version_mismatch"
+	ReasonContractNotDeclared         ReasonCode = "contract_not_declared"
+	ReasonUnattestedExecution         ReasonCode = "unattested_execution"
+	ReasonEnvironmentUnbound          ReasonCode = "environment_unbound"
+	ReasonEnvironmentMismatch         ReasonCode = "environment_mismatch"
+	ReasonWorkspaceStateMismatch      ReasonCode = "workspace_state_mismatch"
+	ReasonFailureDoesNotProveCause    ReasonCode = "failure_does_not_prove_cause"
+	ReasonStatementExceedsObservation ReasonCode = "statement_exceeds_observation"
+	ReasonConflictingEvidence         ReasonCode = "conflicting_evidence"
+	ReasonRequiresOwnerAdjudication   ReasonCode = "requires_owner_adjudication"
+	ReasonApplicabilityMissing        ReasonCode = "applicability_missing"
+	ReasonOvergeneralized             ReasonCode = "overgeneralized_applicability"
+	ReasonSupportNotVerified          ReasonCode = "support_not_verified"
+	ReasonDisputedSupport             ReasonCode = "disputed_support"
+	ReasonRestrictedSourceContent     ReasonCode = "restricted_source_content"
+	ReasonPossibleSecret              ReasonCode = "possible_secret"
+)
+
+// ExecutionAttestation is written by a qualified collector outside agent write
+// authority. It binds the actual invocation, result and workspace state.
+type ExecutionAttestation struct {
+	ID, ArtifactID, ArtifactDigest, CollectorID string
+	Command                                     string
+	ExitCode                                    int
+	WorkspaceRevision, DirtyDigest, Environment string
+}
+
+// SourceSnapshot is an independent read of an approved repository at an exact
+// observed revision. Origin is always gateway-derived.
+type SourceSnapshot struct {
+	Bytes                     []byte
+	Digest, Locator, Revision string
+	RepositoryID, Path        string
+	Origin                    Origin
+}
+
+// EvidenceObservation is one authenticated view of evidence for policy checks.
+// SourceKey identifies the underlying source: copies and excerpts derived from
+// the same source share it and therefore count once.
+type EvidenceObservation struct {
+	Origin    Origin
+	SourceKey string
+	Revision  string
+	Content   []byte
+	Execution *ExecutionAttestation
+	Mismatch  bool
+}
+
+// PolicyDecision is the deterministic result of the evidence policy.
+type PolicyDecision struct {
+	PolicyVersion   string
+	Outcome         VerificationOutcome
+	Method          string
+	Reasons         []ReasonCode
+	DistinctOrigins []string
+}
+
+// DistinctEvidenceOrigins collapses repeated derived sources to one origin.
+func DistinctEvidenceOrigins(obs []EvidenceObservation) []string {
+	seen := map[string]bool{}
+	out := []string{}
+	for _, o := range obs {
+		key := o.SourceKey
+		if key == "" {
+			key = string(o.Origin.Trust) + ":" + o.Origin.AttestationID
+		}
+		if !seen[key] {
+			seen[key] = true
+			out = append(out, key)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+// ExecutionStatement renders the only statement an attested run supports.
+func ExecutionStatement(a ExecutionAttestation) string {
+	return fmt.Sprintf("command %q exited with status %d", a.Command, a.ExitCode)
+}
+
+// EvaluateEvidencePolicy applies versioned deterministic rules. It never runs
+// commands and never consults model output; unsupported claims keep reasons.
+func EvaluateEvidencePolicy(c ClaimRevision, obs []EvidenceObservation) PolicyDecision {
+	d := PolicyDecision{PolicyVersion: EvidencePolicyVersion, Method: MethodEvidencePolicy, DistinctOrigins: DistinctEvidenceOrigins(obs)}
+	reasons := policyReasons(c, obs)
+	if len(reasons) == 0 {
+		d.Outcome = VerificationSupported
+		return d
+	}
+	d.Reasons = reasons
+	d.Outcome = VerificationUnsupported
+	if len(reasons) == 1 && reasons[0] == ReasonRequiresOwnerAdjudication {
+		d.Outcome = VerificationAmbiguous
+	}
+	return d
+}
+
+func policyReasons(c ClaimRevision, obs []EvidenceObservation) []ReasonCode {
+	if len(obs) == 0 {
+		return []ReasonCode{ReasonNoEvidence}
+	}
+	for _, o := range obs {
+		if o.Mismatch {
+			return []ReasonCode{ReasonSourceMismatch}
+		}
+	}
+	switch c.Kind {
+	case KindOwnerPreference:
+		return checkEach(obs, TrustOwnerAuthenticated, ReasonOwnerNotAuthenticated, func(o EvidenceObservation) []ReasonCode {
+			if strings.TrimSpace(string(o.Content)) != strings.TrimSpace(c.Text) {
+				return []ReasonCode{ReasonPreferenceNotExact}
+			}
+			return nil
+		})
+	case KindDependencyVersion:
+		return checkEach(obs, TrustGatewayObserved, ReasonSourceNotObserved, func(o EvidenceObservation) []ReasonCode {
+			return checkDeclaredVersion(c, o)
+		})
+	case KindAPIContract:
+		return checkEach(obs, TrustGatewayObserved, ReasonSourceNotObserved, func(o EvidenceObservation) []ReasonCode {
+			if r := checkRevision(c, o.Revision); r != nil {
+				return r
+			}
+			if strings.TrimSpace(c.Text) == "" || !bytes.Contains(o.Content, []byte(c.Text)) {
+				return []ReasonCode{ReasonContractNotDeclared}
+			}
+			return nil
+		})
+	case KindTestOutcome:
+		return checkEach(obs, TrustCollectorAttested, ReasonUnattestedExecution, func(o EvidenceObservation) []ReasonCode {
+			return checkExecution(c, o)
+		})
+	}
+	for _, o := range obs {
+		if o.Execution != nil && o.Origin.Trust == TrustCollectorAttested && o.Execution.ExitCode != 0 {
+			return []ReasonCode{ReasonFailureDoesNotProveCause}
+		}
+	}
+	return []ReasonCode{ReasonRequiresOwnerAdjudication}
+}
+
+// checkEach requires at least one observation with the required trust. Every
+// trusted observation must agree; lower-trust copies never vote.
+func checkEach(obs []EvidenceObservation, trust OriginTrust, missing ReasonCode, rule func(EvidenceObservation) []ReasonCode) []ReasonCode {
+	supported, trusted := false, false
+	var failed []ReasonCode
+	for _, o := range obs {
+		if o.Origin.Trust != trust || (trust == TrustCollectorAttested && o.Execution == nil) {
+			continue
+		}
+		trusted = true
+		if r := rule(o); len(r) > 0 {
+			for _, code := range r {
+				if !slices.Contains(failed, code) {
+					failed = append(failed, code)
+				}
+			}
+		} else {
+			supported = true
+		}
+	}
+	switch {
+	case !trusted:
+		return []ReasonCode{missing}
+	case supported && len(failed) > 0:
+		return []ReasonCode{ReasonConflictingEvidence}
+	}
+	return failed
+}
+
+func checkRevision(c ClaimRevision, observed string) []ReasonCode {
+	if c.Applicability.RepositoryRevision == "" {
+		return []ReasonCode{ReasonRevisionUnbound}
+	}
+	if c.Applicability.RepositoryRevision != observed {
+		return []ReasonCode{ReasonRevisionMismatch}
+	}
+	return nil
+}
+
+func checkExecution(c ClaimRevision, o EvidenceObservation) []ReasonCode {
+	a := *o.Execution
+	if c.Applicability.Environment == "" {
+		return []ReasonCode{ReasonEnvironmentUnbound}
+	}
+	if c.Applicability.Environment != a.Environment {
+		return []ReasonCode{ReasonEnvironmentMismatch}
+	}
+	if r := checkRevision(c, a.WorkspaceRevision); r != nil {
+		return r
+	}
+	if c.Applicability.DirtyDigest != a.DirtyDigest {
+		return []ReasonCode{ReasonWorkspaceStateMismatch}
+	}
+	if strings.TrimSpace(c.Text) != ExecutionStatement(a) {
+		if a.ExitCode != 0 {
+			return []ReasonCode{ReasonFailureDoesNotProveCause}
+		}
+		return []ReasonCode{ReasonStatementExceedsObservation}
+	}
+	return nil
+}
+
+var (
+	exactVersion   = regexp.MustCompile(`^[=v]?\d+(\.\d+){0,3}(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$`)
+	declaredQuoted = `"%s"\s*:\s*"([^"]*)"`
+	declaredPlain  = `(?m)^\s*(?:require\s+)?%s\s+(\S+)`
+)
+
+// DeclaredVersion extracts the declared specifier for name from a manifest or
+// lockfile snapshot (JSON-style or go.mod-style). ok is false when absent.
+func DeclaredVersion(content []byte, name string) (string, bool) {
+	q := regexp.QuoteMeta(name)
+	for _, pattern := range []string{declaredQuoted, declaredPlain} {
+		if m := regexp.MustCompile(fmt.Sprintf(pattern, q)).FindSubmatch(content); m != nil {
+			return string(m[1]), true
+		}
+	}
+	return "", false
+}
+
+func normalizeVersion(v string) string { return strings.TrimLeft(v, "=v") }
+
+func checkDeclaredVersion(c ClaimRevision, o EvidenceObservation) []ReasonCode {
+	if len(c.Applicability.Versions) != 1 {
+		return []ReasonCode{ReasonClaimNotStructured}
+	}
+	if r := checkRevision(c, o.Revision); r != nil {
+		return r
+	}
+	for name, claimed := range c.Applicability.Versions {
+		declared, ok := DeclaredVersion(o.Content, name)
+		if !ok {
+			return []ReasonCode{ReasonVersionNotDeclared}
+		}
+		if !exactVersion.MatchString(declared) {
+			return []ReasonCode{ReasonVersionRangeNotInstalled}
+		}
+		if normalizeVersion(declared) != normalizeVersion(claimed) {
+			return []ReasonCode{ReasonVersionMismatch}
+		}
+	}
+	return nil
+}
+
+// GitLocatorPrefix marks evidence that names an approved repository snapshot.
+const GitLocatorPrefix = "git:"
+
+// GitLocator renders the canonical locator for a repository snapshot.
+func GitLocator(repoID, path string) string { return GitLocatorPrefix + repoID + ":" + path }
+
+// ParseGitLocator splits "git:<repo>:<path>". Paths may contain colons.
+func ParseGitLocator(locator string) (string, string, bool) {
+	rest, ok := strings.CutPrefix(locator, GitLocatorPrefix)
+	if !ok {
+		return "", "", false
+	}
+	repo, path, ok := strings.Cut(rest, ":")
+	if !ok || repo == "" || path == "" {
+		return "", "", false
+	}
+	return repo, path, true
 }
