@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { validBearer } from "../capture/credentials";
-import { operations, type OrientInput, type SearchInput, type FetchEvidenceQuery } from "../generated/memory-api";
+import type { Result } from "../capture/types";
+import { operations, type ArtifactInput, type CandidateInput, type CompleteArtifactInput, type ExportInput, type OrientInput, type SearchInput, type FetchEvidenceQuery } from "../generated/memory-api";
 import { parseRemoteEnvelope, parseRemoteStatus, type RemoteEnvelope, type RemoteStatus } from "../lib/remote-envelope";
 import type { FetchInput, MemoryGateway, RemoteError, RemoteResult, RetrievalInput } from "../services/remote.service";
+import type { CandidateSubmission, EvidenceStage, ExportedClaim, ExportPage, ExportScope, GatewayError, TransferGateway, TransferPolicy } from "../services/transfer.service";
 
 export function canonicalOrigin(value: string): string | null {
   try {
@@ -131,5 +133,81 @@ export class HTTPMemoryGateway implements MemoryGateway {
     if (!result.ok) return result;
     const value = parseRemoteStatus(result.value);
     return value ? { ok: true, value } : fail("unavailable");
+  }
+}
+
+/** F4/F5 transfer client. Evidence staging uses a collector credential
+ * (artifacts:write) and candidates/policy/export use an agent credential; the
+ * two are never interchanged. Generated wire types stay inside this file. */
+export class HTTPTransferGateway implements TransferGateway {
+  private readonly origin: string;
+  constructor(origin: string, private readonly agentToken: string, private readonly evidenceToken: string | undefined, private readonly send: typeof fetch = fetch) {
+    const normalized = canonicalOrigin(origin);
+    if (!normalized || !validBearer(agentToken) || (evidenceToken !== undefined && !validBearer(evidenceToken))) throw Error("invalid configuration");
+    this.origin = normalized;
+  }
+  private async call(token: string, method: "GET" | "POST", path: string, body: unknown, success: number, limit: number): Promise<Result<Record<string, unknown>, GatewayError>> {
+    try {
+      const response = await this.send(this.origin + path, {
+        method,
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "X-Request-Id": randomUUID() },
+        body: body === undefined ? undefined : JSON.stringify(body),
+        redirect: "error", signal: AbortSignal.timeout(30_000),
+      });
+      if (response.status === success) {
+        const value = await readJSON(response, limit);
+        return value && typeof value === "object" && !Array.isArray(value) && "schema_version" in value && value.schema_version === "3" ? { ok: true, value: { ...value } } : fail("unavailable");
+      }
+      let code: string | undefined;
+      try { code = problem(await readJSON(response, 65536)); } catch { /* never forward remote text */ }
+      if (response.status === 401) return fail("unauthorized");
+      if (response.status === 403) return fail("forbidden");
+      if (response.status === 409) return fail(code === "conflict" ? "conflict" : "stale");
+      if (response.status === 410 || code === "deleted") return fail("deleted");
+      if (response.status === 400 || response.status === 413) return fail("invalid_input");
+      if (code === "incomplete") return fail("incomplete");
+      return fail("unavailable");
+    } catch { return fail("unavailable"); }
+  }
+  async policy(projectId: string): Promise<Result<TransferPolicy, GatewayError>> {
+    const result = await this.call(this.agentToken, "GET", operations.getPolicy.path.replace("{project}", encodeURIComponent(projectId)), undefined, 200, 65536);
+    if (!result.ok) return result;
+    const p = result.value.policy;
+    const list = (v: unknown): v is string[] => Array.isArray(v) && v.length <= 256 && v.every((s) => typeof s === "string");
+    if (!p || typeof p !== "object" || !("revision" in p) || typeof p.revision !== "string" || !p.revision || !("paused" in p) || typeof p.paused !== "boolean" || !("excluded_paths" in p) || !list(p.excluded_paths) || !("excluded_fields" in p) || !list(p.excluded_fields)) return fail("unavailable");
+    return { ok: true, value: { revision: p.revision, paused: p.paused, excluded_paths: p.excluded_paths, excluded_fields: p.excluded_fields } };
+  }
+  async stageEvidence(input: EvidenceStage): Promise<Result<{ artifact_id: string }, GatewayError>> {
+    if (!this.evidenceToken) return fail("credential_unavailable");
+    const wire: ArtifactInput = { scope: input.scope, digest: input.digest, bytes: input.bytes, policy_revision: input.policy_revision, source_locator: input.source_locator, source_path: input.source_path, content_base64: Buffer.from(input.content).toString("base64") };
+    const staged = await this.call(this.evidenceToken, "POST", operations.stageArtifact.path, wire, 201, 65536);
+    if (!staged.ok) return staged;
+    const a = staged.value.artifact;
+    if (!a || typeof a !== "object" || !("id" in a) || typeof a.id !== "string" || !a.id || !("digest" in a) || a.digest !== input.digest) return fail("unavailable");
+    const complete: CompleteArtifactInput = { digest: input.digest };
+    const done = await this.call(this.evidenceToken, "POST", operations.completeArtifact.path.replace("{id}", encodeURIComponent(a.id)), complete, 200, 65536);
+    if (!done.ok) return done;
+    const r = done.value.receipt;
+    if (!r || typeof r !== "object" || !("id" in r) || r.id !== a.id || !("state" in r) || r.state !== "ready") return fail("unavailable");
+    return { ok: true, value: { artifact_id: a.id } };
+  }
+  async submitCandidate(input: CandidateSubmission): Promise<Result<{ claim_id: string; revision: string; claim_status: string }, GatewayError>> {
+    const wire: CandidateInput = { claim_id: input.claim_id, text: input.text, kind: input.kind, scope: input.scope, evidence: input.evidence, depends_on: input.depends_on, applicability: input.applicability };
+    const result = await this.call(this.agentToken, "POST", operations.submitCandidate.path, wire, 201, 262144);
+    if (!result.ok) return result;
+    const c = result.value.claim;
+    if (!c || typeof c !== "object" || !("claim_id" in c) || typeof c.claim_id !== "string" || !("revision" in c) || typeof c.revision !== "string" || !("claim_status" in c) || typeof c.claim_status !== "string") return fail("unavailable");
+    return { ok: true, value: { claim_id: c.claim_id, revision: c.revision, claim_status: c.claim_status } };
+  }
+  async exportPage(input: { scope: ExportScope; continuation?: string }): Promise<Result<ExportPage, GatewayError>> {
+    const wire: ExportInput = input;
+    const result = await this.call(this.agentToken, "POST", operations.exportMemory.path, wire, 200, 4 * 1024 * 1024);
+    if (!result.ok) return result;
+    const { claims, omitted, completeness, continuation } = result.value;
+    if (!Array.isArray(claims) || typeof omitted !== "number" || (completeness !== "complete" && completeness !== "partial" && completeness !== "withheld") || (continuation !== undefined && typeof continuation !== "string")) return fail("unavailable");
+    // SAFETY: TransferService validates every claim field, status, and trust
+    // value before writing anything; only the page envelope is checked here.
+    const page: ExportPage = { claims: claims as ExportedClaim[], omitted, completeness, ...(continuation !== undefined ? { continuation } : {}) };
+    return { ok: true, value: page };
   }
 }

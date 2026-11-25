@@ -281,7 +281,7 @@ export type ClientInput = {
   id: OpaqueID;
   role: "collector" | "agent" | "verifier";
   project_ids: OpaqueID[];
-  capabilities: ("status:read" | "retrieval:read" | "evidence:read" | "candidate:write" | "checkpoint:write" | "events:append" | "artifacts:write" | "verification:write" | "policy:read")[];
+  capabilities: ("status:read" | "retrieval:read" | "evidence:read" | "candidate:write" | "checkpoint:write" | "events:append" | "artifacts:write" | "verification:write" | "policy:read" | "memory:export")[];
 };
 
 export type Client = {
@@ -309,9 +309,11 @@ export type DeletionInput = {
   idempotency_key: OpaqueID;
 };
 
+/** Read-only, resumable export page. Every page re-authorizes the caller and every record against current grants, epochs, and deletion tombstones. */
 export type ExportInput = {
   scope: Scope;
-  idempotency_key: OpaqueID;
+  /** Opaque authenticated resume cursor from the previous page. Bound to the requesting client and scope. */
+  continuation?: string;
 };
 
 export type JobResult = {
@@ -406,6 +408,18 @@ export type Passage = {
   start_byte: number;
   end_byte: number;
   source_bytes: number;
+};
+
+export type ExportResult = {
+  schema_version: "3";
+  scope: Scope;
+  /** Authorized claim revisions with stored status and evidence provenance. Status and origin are reported, never upgraded; an importer must resubmit them as candidates. */
+  claims: ClaimRevision[];
+  /** Records on this page withheld because they are unauthorized, deleted, or their evidence is unavailable. Never identifies them. */
+  omitted: number;
+  completeness: Completeness;
+  /** Present when more pages remain. */
+  continuation?: string;
 };
 
 export type FetchEvidenceQuery = {

@@ -162,7 +162,7 @@ func TestStatusHTTPUsesAuthenticatedStatusService(t *testing.T) {
 	}{{"current", nil, 200}, {"revoked", domain.ErrUnauthorized, 401}, {"withdrawn", domain.ErrForbidden, 403}} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := &statusHandlerService{err: tc.err}
-			server, e := NewServer(fixtureIdentity{}, nil, nil, nil, nil, nil, s, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+			server, e := NewServer(fixtureIdentity{}, nil, nil, nil, nil, nil, s, nil, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 			require.NoError(t, e)
 			req := httptest.NewRequest("GET", "/v1/status", nil)
 			req.Header.Set("Authorization", "Bearer fixture-secret")

@@ -41,7 +41,7 @@ func TestRespondDecisionHTTP(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var seen domain.DecisionReply
-			e, err := NewServer(captureIdentity{}, nil, nil, nil, nil, nil, nil, slog.New(slog.NewJSONHandler(io.Discard, nil)), WithDecisions(decisionHandlerService{err: tc.err, seen: &seen}))
+			e, err := NewServer(captureIdentity{}, nil, nil, nil, nil, nil, nil, nil, slog.New(slog.NewJSONHandler(io.Discard, nil)), WithDecisions(decisionHandlerService{err: tc.err, seen: &seen}))
 			require.NoError(t, err)
 			req := httptest.NewRequest("POST", "/v1/decisions/dec-1:respond", strings.NewReader(tc.body))
 			req.Header.Set("Authorization", "Bearer fixture")
@@ -62,7 +62,7 @@ func TestRespondDecisionHTTP(t *testing.T) {
 		})
 	}
 	t.Run("route absent without decision service", func(t *testing.T) {
-		e, err := NewServer(captureIdentity{}, nil, nil, nil, nil, nil, nil, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+		e, err := NewServer(captureIdentity{}, nil, nil, nil, nil, nil, nil, nil, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 		require.NoError(t, err)
 		req := httptest.NewRequest("POST", "/v1/decisions/dec-1:respond", strings.NewReader(body))
 		req.Header.Set("Authorization", "Bearer fixture")

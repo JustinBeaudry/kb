@@ -19,7 +19,7 @@ func (dreamingStatusService) Status(context.Context, domain.Principal) (domain.S
 }
 
 func TestStatusHTTPReportsDreamingState(t *testing.T) {
-	server, err := NewServer(fixtureIdentity{}, nil, nil, nil, nil, nil, dreamingStatusService{}, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+	server, err := NewServer(fixtureIdentity{}, nil, nil, nil, nil, nil, dreamingStatusService{}, nil, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 	require.NoError(t, err)
 	req := httptest.NewRequest("GET", "/v1/status", nil)
 	req.Header.Set("Authorization", "Bearer fixture-secret")

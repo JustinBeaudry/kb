@@ -118,6 +118,8 @@ func TestEnrollmentRejectsAuthorityAndEmptyScope(t *testing.T) {
 		{"owner bearer", domain.RoleOwner, []string{"demo"}, []string{"clients:manage"}},
 		{"agent administration", domain.RoleAgent, []string{"demo"}, []string{"clients:manage"}},
 		{"collector verifier", domain.RoleCollector, []string{"demo"}, []string{"verification:write"}},
+		{"collector export", domain.RoleCollector, []string{"demo"}, []string{"memory:export"}},
+		{"verifier export", domain.RoleVerifier, []string{"demo"}, []string{"memory:export"}},
 		{"blank project", domain.RoleAgent, []string{" "}, []string{"status:read"}},
 		{"missing project", domain.RoleAgent, nil, []string{"status:read"}},
 		{"missing capabilities", domain.RoleAgent, []string{"demo"}, nil},
@@ -138,6 +140,17 @@ func TestEnrollmentRejectsAuthorityAndEmptyScope(t *testing.T) {
 	require.NoError(t, Authorize(p, "verification:write", []string{"demo"}))
 	assert.NotContains(t, c.String(), c.Bearer)
 	assert.NotContains(t, c.GoString(), c.Bearer)
+}
+
+func TestAgentMayBeGrantedExplicitExport(t *testing.T) {
+	s, f := newIdentityFixture()
+	setupFixture(t, s)
+	owner := domain.Principal{OwnerID: f.owner.ID, Role: domain.RoleOwner}
+
+	c, err := s.Enroll(t.Context(), owner, EnrollInput{Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"retrieval:read", "memory:export"}})
+
+	require.NoError(t, err)
+	assert.Contains(t, c.Principal.Capabilities, "memory:export")
 }
 func TestAuthenticationAndOwnerFailuresAreClosed(t *testing.T) {
 	s, f := newIdentityFixture()
