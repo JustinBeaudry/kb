@@ -1,0 +1,833 @@
+[
+  {
+    "opaque_id": "08336f1f",
+    "question": "Is the Larch pilot still on November 12? Give the current plan, when it changed, and why.",
+    "category": "temporal-update",
+    "gold_facts": [
+      "The Larch pilot is scheduled for November 26, 2026.",
+      "The October 23, 2026 decision superseded the November 12 target.",
+      "The change allows completion of certificate renewal."
+    ],
+    "abstention_rule": null,
+    "answer": "No. The Larch pilot is no longer on November 12, 2026. The current approved schedule is November 26, 2026. The November 12 target was superseded by an October 23, 2026 decision, which the Larch Pilot page records as allowing completion of certificate renewal. The public launch date is undecided. The archive page records November 12 as the original target from an October 5 decision. Today is 2026-11-25, so the pilot is currently scheduled for tomorrow.",
+    "raw_final_message_if_unparsed": null,
+    "limitations": "The kb recall output for 'Larch' was truncated (about 16 KB, continuation not fetched), so I did not check the remaining matches for any later schedule change after the October 23 decision. The larch-release.md page's 'updated' field is 2026-10-24, and I found no record dated after it. The October 23 decision is described only as summarized in these two pages, not as a separate dated record, and the 'changed' date rests on that summary. The archive's line numbers were inferred from overlapping chunk ranges, so they may be off by one. The adapter was used for 5 of 16 calls; no files were edited.",
+    "cited_spans": [
+      {
+        "source": "wiki/larch-release.md",
+        "start": 11,
+        "end": 14,
+        "text": "11:## Approved schedule\n12:The Larch pilot is scheduled for November 26, 2026.\n13:The October 23, 2026 decision superseded the November 12 target.\n14:The change allows completion of certificate renewal."
+      },
+      {
+        "source": "wiki/larch-release.md",
+        "start": 16,
+        "end": 18,
+        "text": "16:## Public launch\n17:The public launch date is undecided.\n18:See [[larch-archive|Larch Archive]]."
+      },
+      {
+        "source": "wiki/larch-archive.md",
+        "start": 11,
+        "end": 13,
+        "text": "11:## October 5 decision\n12:The original Larch pilot target was November 12, 2026.\n13:This historical target was superseded by the October 23 decision in [[larch-release|Larch Pilot]]."
+      }
+    ]
+  },
+  {
+    "opaque_id": "30f50456",
+    "question": "If Plover EU telemetry export is suspended, who should we contact and what must happen before resuming?",
+    "category": "cross-page",
+    "gold_facts": [
+      "When Plover EU telemetry export is suspended, contact the release custodian.",
+      "The release custodian is Asha Venn.",
+      "Before resuming Plover EU telemetry export, reconcile the export offsets.",
+      "Obtain incident lead approval before resuming."
+    ],
+    "abstention_rule": null,
+    "answer": "Contact the Plover release custodian. The base page says to contact the release custodian for an EU telemetry export suspension, and the duty roster lists Asha Venn in that role. Before resuming Plover EU telemetry export, reconcile the export offsets and obtain incident lead approval. The roster lists Koen Li as the incident lead on rotation. Do not use the US path, which is owned by Ren Sol. The Plover-Sandbox and Plover-Legacy pages have different contacts and resumption steps, and I did not apply them.",
+    "raw_final_message_if_unparsed": null,
+    "limitations": "The duty roster was last updated 2026-10-24, about a month before today (2026-11-25), so the named people may be out of date; confirm current assignments before contacting them. The runbook's resumption steps are brief and do not describe how to reconcile offsets or what approval to record. The search for other Plover EU resumption claims was truncated, so I cannot rule out a newer or conflicting page. The US-path reference (Ren Sol) is outside the question and was not checked further.",
+    "cited_spans": [
+      {
+        "source": "wiki/plover-export.md",
+        "start": 11,
+        "end": 14,
+        "text": "11:## EU suspension\n12:When Plover EU telemetry export is suspended, contact the release custodian.\n13:Current assignments are in [[duty-roster|Duty Roster]].\n14:Resumption follows [[export-runbook|Export Runbook]]."
+      },
+      {
+        "source": "wiki/export-runbook.md",
+        "start": 11,
+        "end": 13,
+        "text": "11:## EU resumption\n12:Before resuming Plover EU telemetry export, reconcile the export offsets.\n13:Obtain incident lead approval before resuming."
+      },
+      {
+        "source": "wiki/duty-roster.md",
+        "start": 11,
+        "end": 13,
+        "text": "11:## Active assignments\n12:The release custodian is Asha Venn.\n13:The incident lead on rotation is Koen Li."
+      }
+    ]
+  },
+  {
+    "opaque_id": "39bc0521",
+    "question": "For Nacre production delivery failures, what are the maximum retry count and initial retry delay?",
+    "category": "scoped-exact",
+    "gold_facts": [
+      "Nacre production delivery failures are retried at most 7 times.",
+      "The initial retry delay is 90 seconds."
+    ],
+    "abstention_rule": null,
+    "answer": "For Nacre production delivery failures, the maximum retry count is 7 and the initial retry delay is 90 seconds. The only plain \"Nacre\" production policy in the vault gives both values. Nacre-Sandbox (2 retries, 15 s) and Nacre-Legacy (3 retries, 30 s) have their own policies and are not the Nacre production values. Nacre-Lab, a disposable demo, uses 2 retries and a 5-second delay.",
+    "raw_final_message_if_unparsed": null,
+    "limitations": "The Nacre policy section in wiki/queue-dispatch.md has no explicit scope statement, so the reading that it covers Nacre production rests on its heading and wording. The second sentence says only \"the initial retry delay\", so the 90-second value is read as the Nacre value from its section heading. A search for plain Nacre references returned only this section. A broader search across all dispatch pages was truncated, so other pages were not fully checked, though the narrower search found no other plain Nacre policy. Only the search, read and guide operations were used; no other sources were checked.",
+    "cited_spans": [
+      {
+        "source": "wiki/queue-dispatch.md",
+        "start": 11,
+        "end": 13,
+        "text": "11:## Nacre delivery retry policy\n12:Nacre production delivery failures are retried at most 7 times.\n13:The initial retry delay is 90 seconds."
+      },
+      {
+        "source": "wiki/queue-dispatch.md",
+        "start": 15,
+        "end": 16,
+        "text": "15:## Nacre-Lab\n16:Nacre-Lab is a disposable demo; it uses 2 retries and a 5-second delay."
+      },
+      {
+        "source": "wiki/nacre-sandbox-dispatch.md",
+        "start": 11,
+        "end": 16,
+        "text": "11:## Nacre-Sandbox delivery retry policy\n12:Nacre-Sandbox production delivery failures are retried at most 2 times.\n13:The initial Nacre-Sandbox retry delay is 15 seconds.\n14:\n15:## Scope\n16:This policy applies only to Nacre-Sandbox. See [[nacre-sandbox-ledger|Nacre-Sandbox Event Ledger]]."
+      }
+    ]
+  },
+  {
+    "opaque_id": "3cf5f944",
+    "question": "What is the firm renewal date for the Helix supplier contract? Explain whether the records settle it.",
+    "category": "conflict",
+    "gold_facts": [
+      "The October 20 purchasing note gives the Helix supplier renewal date as December 3, 2026.",
+      "The October 20 legal note gives the Helix supplier renewal date as December 10, 2026.",
+      "Neither note supersedes the other; the renewal date is unresolved."
+    ],
+    "abstention_rule": null,
+    "answer": "No firm renewal date is settled for the Helix supplier contract. The Helix Supplier Renewal page records two conflicting dates from October 20 notes: purchasing gives December 3, 2026, and legal gives December 10, 2026. The page states neither note supersedes the other and that the renewal date is unresolved. The Helix-Sandbox (February 5, 2027, confirmed) and Helix-Legacy (unresolved: March 12, 2027 vs. October 19, 2026) renewal pages are separate entities and do not settle the Helix contract date.",
+    "raw_final_message_if_unparsed": null,
+    "limitations": "Records are not reconciled. The helix-renewal page's updated date is 2026-10-24, and the source notes it cites (the October 20 purchasing and legal notes) were not available in the corpus, so their provenance could not be checked. Search for supplier renewal notes was broad and truncated, so a later resolving record could exist outside the results I saw. The Helix Labs training subscription date (December 1, 2026) is explicitly unrelated and was excluded.",
+    "cited_spans": [
+      {
+        "source": "wiki/helix-renewal.md",
+        "start": 11,
+        "end": 14,
+        "text": "11:## Unresolved renewal date\n12:The October 20 purchasing note gives the Helix supplier renewal date as December 3, 2026.\n13:The October 20 legal note gives the Helix supplier renewal date as December 10, 2026.\n14:Neither note supersedes the other; the renewal date is unresolved."
+      },
+      {
+        "source": "wiki/helix-sandbox-renewal.md",
+        "start": 11,
+        "end": 12,
+        "text": "11:## Confirmed renewal date\n12:The Helix-Sandbox supplier renewal date is February 5, 2027, confirmed by legal and purchasing."
+      },
+      {
+        "source": "wiki/helix-legacy-renewal.md",
+        "start": 11,
+        "end": 14,
+        "text": "11:## Unresolved renewal date\n12:The Helix-Legacy purchasing note gives the Helix-Legacy supplier renewal date as March 12, 2027.\n13:The Helix-Legacy legal note gives the Helix-Legacy supplier renewal date as October 19, 2026.\n14:Neither Helix-Legacy note supersedes the other."
+      },
+      {
+        "source": "wiki/helix-labs.md",
+        "start": 11,
+        "end": 12,
+        "text": "11:## Renewal\n12:The Helix Labs internal training subscription renews December 1, 2026. This is unrelated to the Helix supplier contract."
+      }
+    ]
+  },
+  {
+    "opaque_id": "48afd9a3",
+    "question": "In the Meridian handover notes, what rollback checkpoint is approved, and who can authorize rollback?",
+    "category": "long-document",
+    "gold_facts": [
+      "The approved Meridian rollback checkpoint is r57.",
+      "Only Tomas Bell can authorize a Meridian rollback."
+    ],
+    "abstention_rule": null,
+    "answer": "The approved Meridian rollback checkpoint is r57. Only Tomas Bell can authorize a Meridian rollback. A vendor email claiming old checkpoint r41 is acceptable is recorded as not approved by the team.",
+    "raw_final_message_if_unparsed": null,
+    "limitations": "The Meridian handover page is long, with about 1000 'Historical exercise' lines that state no active approval; I found the approval section only by targeted search and read lines 1005-1030. Searches for supersession or revocation of the Meridian rollback approval found none. Other Meridian-prefixed pages (meridian-legacy-handover, meridian-sandbox-handover) name different checkpoints and approvers, and I did not use them, since the question asks about the plain Meridian handover notes. Adapter calls used: 9 of 16.",
+    "cited_spans": [
+      {
+        "source": "wiki/meridian-handover.md",
+        "start": 1013,
+        "end": 1015,
+        "text": "1013:## Approved rollback\n1014:The approved Meridian rollback checkpoint is r57.\n1015:Only Tomas Bell can authorize a Meridian rollback."
+      },
+      {
+        "source": "wiki/meridian-handover.md",
+        "start": 1017,
+        "end": 1018,
+        "text": "1017:## Non-authoritative vendor quote\n1018:A vendor email claims old checkpoint r41 is acceptable; the team has not approved that claim."
+      }
+    ]
+  },
+  {
+    "opaque_id": "4bbbbb64",
+    "question": "List every currently open launch blocker for Mariner and its owner. Exclude resolved items and other projects.",
+    "category": "exhaustive-list",
+    "gold_facts": [
+      "Mariner launch blocker: certificate rotation. Status OPEN. Owner: Leda Fox.",
+      "Mariner launch blocker: restore drill. Status OPEN. Owner: Mika Sen.",
+      "Mariner launch blocker: access review. Status OPEN. Owner: Dev Shah.",
+      "Mariner launch blocker: supplier contract. Status OPEN. Owner: Oona Reed."
+    ],
+    "abstention_rule": null,
+    "answer": "Four Mariner launch blockers are OPEN. Each is listed below with its owner:\n1. Certificate rotation, owner Leda Fox (wiki/mariner-certificates.md, 12-12)\n2. Access review, owner Dev Shah (wiki/mariner-access.md, 12-12)\n3. Supplier contract, owner Oona Reed (wiki/mariner-contract.md, 12-12)\n4. Restore drill, owner Mika Sen (wiki/mariner-restore.md, 12-12)\n\nExcluded: launch copy for Mariner is CLOSED (owner Pax Vale; wiki/mariner-copy.md, 12-12). Mariner-Legacy, Mariner-Sandbox and Mariner-Lab entries were excluded as other projects.",
+    "raw_final_message_if_unparsed": null,
+    "limitations": "Evidence came from the KB map, a broad recall (truncated, so not fully read), and two regex searches over the wiki. The search for 'Mariner.*(OPEN|blocker|Blocker)' found no other Mariner-only blocker lines. wiki/mariner-overview.md was referenced by the blocker pages but was not read, so any additional blockers recorded only there are unverified. I did not read the full pages beyond the blocker lines, so there may be context on those blockers that was not checked. Adapter calls used: 5 of 16.",
+    "cited_spans": [
+      {
+        "source": "wiki/mariner-certificates.md",
+        "start": 12,
+        "end": 12,
+        "text": "12:Mariner launch blocker: certificate rotation. Status OPEN. Owner: Leda Fox."
+      },
+      {
+        "source": "wiki/mariner-access.md",
+        "start": 12,
+        "end": 12,
+        "text": "12:Mariner launch blocker: access review. Status OPEN. Owner: Dev Shah."
+      },
+      {
+        "source": "wiki/mariner-contract.md",
+        "start": 12,
+        "end": 12,
+        "text": "12:Mariner launch blocker: supplier contract. Status OPEN. Owner: Oona Reed."
+      },
+      {
+        "source": "wiki/mariner-restore.md",
+        "start": 12,
+        "end": 12,
+        "text": "12:Mariner launch blocker: restore drill. Status OPEN. Owner: Mika Sen."
+      },
+      {
+        "source": "wiki/mariner-copy.md",
+        "start": 12,
+        "end": 12,
+        "text": "12:Mariner launch blocker: launch copy. Status CLOSED. Owner: Pax Vale."
+      }
+    ]
+  },
+  {
+    "opaque_id": "5af19e7f",
+    "question": "What is the firm renewal date for the Helix supplier contract? Explain whether the records settle it.",
+    "category": "conflict",
+    "gold_facts": [
+      "The October 20 purchasing note gives the Helix supplier renewal date as December 3, 2026.",
+      "The October 20 legal note gives the Helix supplier renewal date as December 10, 2026.",
+      "Neither note supersedes the other; the renewal date is unresolved."
+    ],
+    "abstention_rule": null,
+    "answer": "The records do not settle a firm renewal date for the Helix supplier contract. The Helix Supplier Renewal page records two conflicting notes from October 20: the purchasing note gives December 3, 2026, and the legal note gives December 10, 2026. The page states that neither note supersedes the other and that the renewal date is unresolved. The date needs a decision from purchasing and legal before it can be treated as firm. Helix Labs' December 1, 2026 date is an unrelated internal training subscription, not the supplier contract. The Helix-Sandbox and Helix-Legacy supplier renewal pages each have a confirmed date, but they are different contracts and do not apply here.",
+    "raw_final_message_if_unparsed": null,
+    "limitations": "Four adapter calls were used: guide, a broad search, a read of wiki/helix-renewal.md lines 1-80, and a narrower search for the two candidate dates and 'Helix supplier'. The broad search output was truncated, so I could not review every Helix page. The narrower search surfaced no other Helix supplier-date note that resolves the conflict, but that is not proof that none exists. I did not read the underlying October 20 purchasing and legal notes, which the page cites but does not link to.",
+    "cited_spans": [
+      {
+        "source": "wiki/helix-renewal.md",
+        "start": 11,
+        "end": 14,
+        "text": "11:## Unresolved renewal date\n12:The October 20 purchasing note gives the Helix supplier renewal date as December 3, 2026.\n13:The October 20 legal note gives the Helix supplier renewal date as December 10, 2026.\n14:Neither note supersedes the other; the renewal date is unresolved."
+      },
+      {
+        "source": "wiki/helix-labs.md",
+        "start": 11,
+        "end": 12,
+        "text": "11:## Renewal\n12:The Helix Labs internal training subscription renews December 1, 2026. This is unrelated to the Helix supplier contract."
+      }
+    ]
+  },
+  {
+    "opaque_id": "5ccb6a38",
+    "question": "In the Meridian handover notes, what rollback checkpoint is approved, and who can authorize rollback?",
+    "category": "long-document",
+    "gold_facts": [
+      "The approved Meridian rollback checkpoint is r57.",
+      "Only Tomas Bell can authorize a Meridian rollback."
+    ],
+    "abstention_rule": null,
+    "answer": "The approved Meridian rollback checkpoint is r57, and only Tomas Bell can authorize a Meridian rollback. A vendor email claiming old checkpoint r41 is acceptable is recorded as non-authoritative and not approved by the team.",
+    "raw_final_message_if_unparsed": null,
+    "limitations": "I read the page header (lines 1-12) and the approval section, but did not read lines 13-1007, which are repeated 'Historical exercise' lines that say they record no active approval. Those were not checked line by line, so I can't rule out a conflicting note in that span. The search results were truncated, so I did not survey every handover page; the answer relies on the Meridian page alone. The page's frontmatter shows updated 2026-10-24, and I did not check whether that date affects currency.",
+    "cited_spans": [
+      {
+        "source": "wiki/meridian-handover.md",
+        "start": 1013,
+        "end": 1015,
+        "text": "1013:## Approved rollback\n1014:The approved Meridian rollback checkpoint is r57.\n1015:Only Tomas Bell can authorize a Meridian rollback."
+      },
+      {
+        "source": "wiki/meridian-handover.md",
+        "start": 1017,
+        "end": 1018,
+        "text": "1017:## Non-authoritative vendor quote\n1018:A vendor email claims old checkpoint r41 is acceptable; the team has not approved that claim."
+      }
+    ]
+  },
+  {
+    "opaque_id": "63bfb179",
+    "question": "Is the Larch pilot still on November 12? Give the current plan, when it changed, and why.",
+    "category": "temporal-update",
+    "gold_facts": [
+      "The Larch pilot is scheduled for November 26, 2026.",
+      "The October 23, 2026 decision superseded the November 12 target.",
+      "The change allows completion of certificate renewal."
+    ],
+    "abstention_rule": null,
+    "answer": "No. The Larch Pilot is no longer on November 12, 2026. The current approved schedule is November 26, 2026. The October 23, 2026 decision superseded the November 12 target, and the stated reason is to allow completion of certificate renewal. The public launch date is undecided. The archive page says the original target was November 12, 2026, under a section headed 'October 5 decision', and that this target was superseded by the October 23 decision.",
+    "raw_final_message_if_unparsed": null,
+    "limitations": "Only the Larch Pilot page (wiki/larch-release.md, updated 2026-10-24) and the Larch Archive page were read. No later change after October 24 was found, but I did not search for one beyond the 'larch' term search. The archive's heading ties the original November 12 target to an 'October 5 decision', but the body does not say what the October 5 decision itself decided. Larch-Sandbox (November 23 target, changed March 9, 2027) and Larch-Legacy (December 3 target) are separate entities and were not used. Search output was truncated, so a page mentioning the Larch pilot outside the names I saw could have been missed.",
+    "cited_spans": [
+      {
+        "source": "wiki/larch-release.md",
+        "start": 11,
+        "end": 14,
+        "text": "11:## Approved schedule\n12:The Larch pilot is scheduled for November 26, 2026.\n13:The October 23, 2026 decision superseded the November 12 target.\n14:The change allows completion of certificate renewal."
+      },
+      {
+        "source": "wiki/larch-archive.md",
+        "start": 11,
+        "end": 13,
+        "text": "11:## October 5 decision\n12:The original Larch pilot target was November 12, 2026.\n13:This historical target was superseded by the October 23 decision in [[larch-release|Larch Pilot]]."
+      }
+    ]
+  },
+  {
+    "opaque_id": "65681368",
+    "question": "For Nacre production delivery failures, what are the maximum retry count and initial retry delay?",
+    "category": "scoped-exact",
+    "gold_facts": [
+      "Nacre production delivery failures are retried at most 7 times.",
+      "The initial retry delay is 90 seconds."
+    ],
+    "abstention_rule": null,
+    "answer": "For plain Nacre production delivery failures: the maximum retry count is 7, and the initial retry delay is 90 seconds. Both values come from the 'Nacre delivery retry policy' section, which covers Nacre production delivery failures. The section's second sentence says 'The initial retry delay' without repeating the name, but it sits under the Nacre heading.",
+    "raw_final_message_if_unparsed": null,
+    "limitations": "Only one plain-Nacre retry policy was found (a search for 'Nacre (production|delivery|retry|initial)' returned only this section). Nacre-Legacy (3 retries, 30 s; wiki/nacre-legacy-dispatch.md:6-14), Nacre-Sandbox (2 retries, 15 s) and Nacre-Lab (2 retries, 5 s; wiki/queue-dispatch.md:15-16) are different entities and were excluded. The Nacre-Lab entry is a demo and out of scope. The corpus has no 'effective date' or 'superseded' marker on the Nacre section, so I did not check for later revisions beyond the 'updated: 2026-10-24' front matter. The KB search tool was truncated for broad queries, so a page using different wording could exist unseen, though the targeted searches found no conflict.",
+    "cited_spans": [
+      {
+        "source": "wiki/queue-dispatch.md",
+        "start": 11,
+        "end": 13,
+        "text": "11:## Nacre delivery retry policy\n12:Nacre production delivery failures are retried at most 7 times.\n13:The initial retry delay is 90 seconds."
+      }
+    ]
+  },
+  {
+    "opaque_id": "6bdae495",
+    "question": "What is the firm renewal date for the Helix supplier contract? Explain whether the records settle it.",
+    "category": "conflict",
+    "gold_facts": [
+      "The October 20 purchasing note gives the Helix supplier renewal date as December 3, 2026.",
+      "The October 20 legal note gives the Helix supplier renewal date as December 10, 2026.",
+      "Neither note supersedes the other; the renewal date is unresolved."
+    ],
+    "abstention_rule": null,
+    "answer": "No firm renewal date is settled by the records. The Helix Supplier Renewal page records two conflicting dates: the October 20 purchasing note gives December 3, 2026, and the October 20 legal note gives December 10, 2026. The page states that neither note supersedes the other and that the renewal date is unresolved. The Helix Labs December 1, 2026 renewal is an unrelated internal training subscription. The Helix-Sandbox (February 5, 2027) and Helix-Legacy renewal entries are different suppliers and do not answer this question.",
+    "raw_final_message_if_unparsed": null,
+    "limitations": "Evidence came from the adapter's guide, a corpus-wide search for Helix, a file lookup, a read of wiki/helix-renewal.md, and one follow-up search for the two candidate dates and 'Helix supplier'. That follow-up found no other Helix supplier renewal note. The first broad search output was truncated, so I did not review every Helix-related page; the conclusion rests on the dedicated renewal page and the follow-up search. The underlying purchasing and legal notes themselves are not in the corpus, so their reasoning and dates could not be checked beyond the summary on that page.",
+    "cited_spans": [
+      {
+        "source": "wiki/helix-renewal.md",
+        "start": 11,
+        "end": 14,
+        "text": "11:## Unresolved renewal date\n12:The October 20 purchasing note gives the Helix supplier renewal date as December 3, 2026.\n13:The October 20 legal note gives the Helix supplier renewal date as December 10, 2026.\n14:Neither note supersedes the other; the renewal date is unresolved."
+      },
+      {
+        "source": "wiki/helix-labs.md",
+        "start": 11,
+        "end": 12,
+        "text": "11:## Renewal\n12:The Helix Labs internal training subscription renews December 1, 2026. This is unrelated to the Helix supplier contract."
+      }
+    ]
+  },
+  {
+    "opaque_id": "6c59cdb3",
+    "question": "List every currently open launch blocker for Mariner and its owner. Exclude resolved items and other projects.",
+    "category": "exhaustive-list",
+    "gold_facts": [
+      "Mariner launch blocker: certificate rotation. Status OPEN. Owner: Leda Fox.",
+      "Mariner launch blocker: restore drill. Status OPEN. Owner: Mika Sen.",
+      "Mariner launch blocker: access review. Status OPEN. Owner: Dev Shah.",
+      "Mariner launch blocker: supplier contract. Status OPEN. Owner: Oona Reed."
+    ],
+    "abstention_rule": null,
+    "answer": "Four Mariner launch blockers are currently OPEN: (1) certificate rotation, owner Leda Fox; (2) restore drill, owner Mika Sen; (3) access review, owner Dev Shah; (4) supplier contract, owner Oona Reed. The launch copy blocker (owner Pax Vale) is CLOSED and excluded. The Mariner overview says only OPEN records block launch. Mariner-Legacy, Mariner-Sandbox and Mariner-Lab blockers were excluded as other projects.",
+    "raw_final_message_if_unparsed": null,
+    "limitations": "Each blocker is a single record line in its own page; I did not read the full text of the certificates, restore, access, or contract pages, only the search-matched line 12 in each. The overview page lists the same five items as current launch work and says only OPEN records block launch. The broad 'launch blocker' search output was truncated, so I relied on the targeted Mariner searches, which returned the same five Mariner records. No conflicts found among the Mariner pages.",
+    "cited_spans": [
+      {
+        "source": "wiki/mariner-certificates.md",
+        "start": 12,
+        "end": 12,
+        "text": "12:Mariner launch blocker: certificate rotation. Status OPEN. Owner: Leda Fox."
+      },
+      {
+        "source": "wiki/mariner-restore.md",
+        "start": 12,
+        "end": 12,
+        "text": "12:Mariner launch blocker: restore drill. Status OPEN. Owner: Mika Sen."
+      },
+      {
+        "source": "wiki/mariner-access.md",
+        "start": 12,
+        "end": 12,
+        "text": "12:Mariner launch blocker: access review. Status OPEN. Owner: Dev Shah."
+      },
+      {
+        "source": "wiki/mariner-contract.md",
+        "start": 12,
+        "end": 12,
+        "text": "12:Mariner launch blocker: supplier contract. Status OPEN. Owner: Oona Reed."
+      },
+      {
+        "source": "wiki/mariner-overview.md",
+        "start": 11,
+        "end": 13,
+        "text": "11:## Launch readiness\n12:Current launch work is tracked in [[mariner-certificates|Certificates]], [[mariner-restore|Restore Drill]], [[mariner-access|Access Review]], [[mariner-contract|Supplier Contract]] and [[mariner-copy|Launch Copy]].\n13:Only status OPEN records block launch."
+      },
+      {
+        "source": "wiki/mariner-copy.md",
+        "start": 12,
+        "end": 12,
+        "text": "12:Mariner launch blocker: launch copy. Status CLOSED. Owner: Pax Vale."
+      }
+    ]
+  },
+  {
+    "opaque_id": "802573cc",
+    "question": "How long do we keep the history used to investigate missing parcels in the Corundum service, and who is responsible for that rule?",
+    "category": "paraphrase",
+    "gold_facts": [
+      "Corundum delivery audit events are retained for 63 days.",
+      "The policy steward is Iona Park."
+    ],
+    "abstention_rule": null,
+    "answer": "The sources conflict, and the question's \"Corundum service\" does not map cleanly to one page. Three ledger pages set a retention period for the history that supports investigating missing parcels:\n- Plain \"Corundum\" (wiki/event-ledger.md): delivery audit events are kept 63 days. The policy steward is Iona Park.\n- Corundum-Sandbox (wiki/corundum-sandbox-ledger.md): kept 30 days. The policy steward is Nico Shaw.\n- Corundum-Legacy (wiki/corundum-legacy-ledger.md): kept 45 days. The policy steward is Ola Shaw.\nThe Corundum-Sandbox and Corundum-Legacy service pages (wiki/corundum-sandbox-service.md, wiki/corundum-legacy-service.md) name service owners, not this retention rule. I could not determine which variant the user means, so I have not chosen one. Which Corundum variant is in scope, and which steward is authoritative for it, needs confirmation.",
+    "raw_final_message_if_unparsed": null,
+    "limitations": "The search output was truncated, so I did not review every page. I read the three Corundum ledger pages in full and did not read the Corundum service pages' full text, beyond the search snippets. The index lists no page named plain 'Corundum Service'. The steward or policy owner is not confirmed for any variant. Pages are dated 2026-10 and show no supersession, and I did not verify whether any is outdated. Only the KB adapter was used; I did not check the raw sources or session records. Adapter calls used: 6 of 16.",
+    "cited_spans": [
+      {
+        "source": "wiki/event-ledger.md",
+        "start": 11,
+        "end": 14,
+        "text": "11:## Corundum audit history\n12:Corundum delivery audit events are retained for 63 days.\n13:The policy steward is Iona Park.\n14:These events support investigation of missing parcels."
+      },
+      {
+        "source": "wiki/corundum-sandbox-ledger.md",
+        "start": 11,
+        "end": 14,
+        "text": "11:## Corundum-Sandbox audit history\n12:Corundum-Sandbox delivery audit events are retained for 30 days.\n13:The Corundum-Sandbox policy steward is Nico Shaw.\n14:These events support investigation of missing parcels."
+      },
+      {
+        "source": "wiki/corundum-legacy-ledger.md",
+        "start": 11,
+        "end": 14,
+        "text": "11:## Corundum-Legacy audit history\n12:Corundum-Legacy delivery audit events are retained for 45 days.\n13:The Corundum-Legacy policy steward is Ola Shaw.\n14:These events support investigation of missing parcels."
+      }
+    ]
+  },
+  {
+    "opaque_id": "8671b82b",
+    "question": "List every currently open launch blocker for Mariner and its owner. Exclude resolved items and other projects.",
+    "category": "exhaustive-list",
+    "gold_facts": [
+      "Mariner launch blocker: certificate rotation. Status OPEN. Owner: Leda Fox.",
+      "Mariner launch blocker: restore drill. Status OPEN. Owner: Mika Sen.",
+      "Mariner launch blocker: access review. Status OPEN. Owner: Dev Shah.",
+      "Mariner launch blocker: supplier contract. Status OPEN. Owner: Oona Reed."
+    ],
+    "abstention_rule": null,
+    "answer": "Four open launch blockers for Mariner (the core Mariner launch, per wiki/mariner-overview.md lines 11-13, which says only OPEN records block launch):\n1. Certificate rotation: OPEN, owner Leda Fox.\n2. Restore drill: OPEN, owner Mika Sen.\n3. Access review: OPEN, owner Dev Shah.\n4. Supplier contract: OPEN, owner Oona Reed.\n\nExcluded: Launch copy (owner Pax Vale) is CLOSED. Mariner-Legacy, Mariner-Sandbox and Mariner-Lab have their own blocker lists, which are other projects, so I left them out.",
+    "raw_final_message_if_unparsed": null,
+    "limitations": "Based only on the adapter's guide, search, files and read operations (10 of 16 calls used). I did not run the kb query commands, so I did not check for later updates in log.md or other pages beyond the Mariner pages found by file-name search. The overview's 'Only status OPEN records block launch' statement is taken from the page as written. The overview's updated date is 2026-10-24, and the current date is 2026-11-25, so these statuses may be stale. Search output was truncated, so an unrelated page elsewhere could mention a Mariner blocker that I did not see; the Mariner-named pages are the only ones I checked.",
+    "cited_spans": [
+      {
+        "source": "wiki/mariner-overview.md",
+        "start": 11,
+        "end": 13,
+        "text": "11:## Launch readiness\n12:Current launch work is tracked in [[mariner-certificates|Certificates]], [[mariner-restore|Restore Drill]], [[mariner-access|Access Review]], [[mariner-contract|Supplier Contract]] and [[mariner-copy|Launch Copy]].\n13:Only status OPEN records block launch."
+      },
+      {
+        "source": "wiki/mariner-certificates.md",
+        "start": 12,
+        "end": 12,
+        "text": "12:Mariner launch blocker: certificate rotation. Status OPEN. Owner: Leda Fox."
+      },
+      {
+        "source": "wiki/mariner-restore.md",
+        "start": 12,
+        "end": 12,
+        "text": "12:Mariner launch blocker: restore drill. Status OPEN. Owner: Mika Sen."
+      },
+      {
+        "source": "wiki/mariner-access.md",
+        "start": 12,
+        "end": 12,
+        "text": "12:Mariner launch blocker: access review. Status OPEN. Owner: Dev Shah."
+      },
+      {
+        "source": "wiki/mariner-contract.md",
+        "start": 12,
+        "end": 12,
+        "text": "12:Mariner launch blocker: supplier contract. Status OPEN. Owner: Oona Reed."
+      },
+      {
+        "source": "wiki/mariner-copy.md",
+        "start": 12,
+        "end": 12,
+        "text": "12:Mariner launch blocker: launch copy. Status CLOSED. Owner: Pax Vale."
+      }
+    ]
+  },
+  {
+    "opaque_id": "89b8ff96",
+    "question": "Who signed the external penetration-test engagement for Cinder, and what is the approved fee? Use only the stored knowledge.",
+    "category": "absent",
+    "gold_facts": [],
+    "abstention_rule": "Neither a signatory nor approved fee is recorded. Do not substitute the service owner, invent a fee, or claim an engagement did not happen.",
+    "answer": "The stored knowledge does not record who signed an external penetration-test engagement for Cinder, or an approved fee for one. The plain Cinder service page (wiki/cinder-service.md) contains only operational notes (internal inventory sync twice daily, service owner Neri Vale) and has no security-review section. Two related entities are not the same as Cinder: Cinder-Sandbox has an engagement signed by Hana Ines with an approved fee of $27000, and Cinder-Legacy's service page states that no penetration-test engagement record is stored. Neither applies to Cinder itself, so I have not attributed either to Cinder.",
+    "raw_final_message_if_unparsed": null,
+    "limitations": "Searches for penetration-test, pentest, and Cinder-plus-signed/fee terms over the wiki found no Cinder-specific engagement record. Results were truncated for broad queries, so I did not review every page's full security section. The absence is only in the retrieved evidence and does not prove no engagement exists. Cinder-Sandbox's signer and fee are reported only as a different entity and are not an answer for Cinder.",
+    "cited_spans": [
+      {
+        "source": "wiki/cinder-service.md",
+        "start": 9,
+        "end": 16,
+        "text": "9:# Cinder Service\n10:\n11:## Operations\n12:Cinder runs internal inventory sync twice each day. Its service owner is Neri Vale.\n13:\n14:## Scope\n15:This page contains operational notes only.\n16:"
+      },
+      {
+        "source": "wiki/cinder-sandbox-service.md",
+        "start": 14,
+        "end": 15,
+        "text": "14:## Security review\n15:The Cinder-Sandbox external penetration-test engagement was signed by Hana Ines; the approved fee is $27000."
+      },
+      {
+        "source": "wiki/cinder-legacy-service.md",
+        "start": 14,
+        "end": 15,
+        "text": "14:## Security review\n15:No Cinder-Legacy penetration-test engagement record is stored on this page."
+      }
+    ]
+  },
+  {
+    "opaque_id": "8b3f9ec6",
+    "question": "In the Meridian handover notes, what rollback checkpoint is approved, and who can authorize rollback?",
+    "category": "long-document",
+    "gold_facts": [
+      "The approved Meridian rollback checkpoint is r57.",
+      "Only Tomas Bell can authorize a Meridian rollback."
+    ],
+    "abstention_rule": null,
+    "answer": "The approved Meridian rollback checkpoint is r57, and only Tomas Bell can authorize a Meridian rollback. The same note labels a vendor email's claim that old checkpoint r41 is acceptable as non-authoritative, and says the team has not approved it.",
+    "raw_final_message_if_unparsed": null,
+    "limitations": "Answer is from wiki/meridian-handover.md only. The approval section sits at the end of a file padded with about 1000 'Historical exercise' lines that record no approval, so I read the section directly rather than the whole file. I did not read the sibling notes wiki/meridian-sandbox-handover.md or wiki/meridian-legacy-handover.md; the legacy note's approval (r87, Ezra Ines, lines 73-75) differs, so the answer applies to the plain Meridian handover only. No conflicting or superseding note was found within meridian-handover.md. Adapter calls used: 7 of 16.",
+    "cited_spans": [
+      {
+        "source": "wiki/meridian-handover.md",
+        "start": 1013,
+        "end": 1015,
+        "text": "1013:## Approved rollback\n1014:The approved Meridian rollback checkpoint is r57.\n1015:Only Tomas Bell can authorize a Meridian rollback."
+      },
+      {
+        "source": "wiki/meridian-handover.md",
+        "start": 1017,
+        "end": 1018,
+        "text": "1017:## Non-authoritative vendor quote\n1018:A vendor email claims old checkpoint r41 is acceptable; the team has not approved that claim."
+      }
+    ]
+  },
+  {
+    "opaque_id": "923953d0",
+    "question": "Is the Larch pilot still on November 12? Give the current plan, when it changed, and why.",
+    "category": "temporal-update",
+    "gold_facts": [
+      "The Larch pilot is scheduled for November 26, 2026.",
+      "The October 23, 2026 decision superseded the November 12 target.",
+      "The change allows completion of certificate renewal."
+    ],
+    "abstention_rule": null,
+    "answer": "No. The Larch pilot is no longer scheduled for November 12, 2026. The current approved schedule is November 26, 2026. The October 23, 2026 decision superseded the November 12 target. The stated reason is that the change allows completion of certificate renewal. The public launch date is undecided.",
+    "raw_final_message_if_unparsed": null,
+    "limitations": "The current plan comes from wiki/larch-release.md, last updated 2026-10-24. The archive page records the original November 12 target and says it was superseded by the October 23 decision; its section heading says 'October 5 decision', which does not match the October 23 date given in the body, so the exact date of the change rests on the body text. Search was limited to the term 'larch' and its output was truncated, so I did not check for other Larch pilot records (for example, sandbox or legacy variants, which are separate entities with their own dates). I found no record of a change after October 24, 2026, but that is an absence in a limited search, not proof none exists. Today is 2026-11-25, so the recorded November 26 date is one day away.",
+    "cited_spans": [
+      {
+        "source": "wiki/larch-release.md",
+        "start": 11,
+        "end": 14,
+        "text": "11:## Approved schedule\n12:The Larch pilot is scheduled for November 26, 2026.\n13:The October 23, 2026 decision superseded the November 12 target.\n14:The change allows completion of certificate renewal."
+      },
+      {
+        "source": "wiki/larch-release.md",
+        "start": 16,
+        "end": 17,
+        "text": "16:## Public launch\n17:The public launch date is undecided."
+      },
+      {
+        "source": "wiki/larch-archive.md",
+        "start": 11,
+        "end": 13,
+        "text": "11:## October 5 decision\n12:The original Larch pilot target was November 12, 2026.\n13:This historical target was superseded by the October 23 decision in [[larch-release|Larch Pilot]]."
+      }
+    ]
+  },
+  {
+    "opaque_id": "a32aa206",
+    "question": "If Plover EU telemetry export is suspended, who should we contact and what must happen before resuming?",
+    "category": "cross-page",
+    "gold_facts": [
+      "When Plover EU telemetry export is suspended, contact the release custodian.",
+      "The release custodian is Asha Venn.",
+      "Before resuming Plover EU telemetry export, reconcile the export offsets.",
+      "Obtain incident lead approval before resuming."
+    ],
+    "abstention_rule": null,
+    "answer": "Contact the Plover release custodian. The duty roster names Asha Venn as the active release custodian (Eli Park is retired). Before resuming Plover EU telemetry export, reconcile the export offsets and obtain incident lead approval. The roster names Koen Li as the incident lead on rotation.",
+    "raw_final_message_if_unparsed": null,
+    "limitations": "The duty roster was last updated 2026-10-24, about a month before today (2026-11-25), so the named people may have changed; confirm current assignments before acting. The runbook says the US restart path does not use the EU procedure, and the US suspension contact (Ren Sol) does not apply to EU. The Plover-Sandbox and Plover-Legacy pages describe different products with different custodians, retention, and procedures, and were not used. The Plover-Sandbox export page adds a credential-rotation step, but that applies to Plover-Sandbox only, and no Plover (non-sandbox) page in the corpus mentions it. The search output was truncated, so there may be other Plover pages I did not see. The corpus does not say who approves when the incident lead is unavailable.",
+    "cited_spans": [
+      {
+        "source": "wiki/plover-export.md",
+        "start": 11,
+        "end": 14,
+        "text": "11:## EU suspension\n12:When Plover EU telemetry export is suspended, contact the release custodian.\n13:Current assignments are in [[duty-roster|Duty Roster]].\n14:Resumption follows [[export-runbook|Export Runbook]]."
+      },
+      {
+        "source": "wiki/duty-roster.md",
+        "start": 11,
+        "end": 13,
+        "text": "11:## Active assignments\n12:The release custodian is Asha Venn.\n13:The incident lead on rotation is Koen Li."
+      },
+      {
+        "source": "wiki/duty-roster.md",
+        "start": 15,
+        "end": 16,
+        "text": "15:## Retired assignments\n16:Eli Park was release custodian before October 1 and is no longer on call."
+      },
+      {
+        "source": "wiki/export-runbook.md",
+        "start": 11,
+        "end": 13,
+        "text": "11:## EU resumption\n12:Before resuming Plover EU telemetry export, reconcile the export offsets.\n13:Obtain incident lead approval before resuming."
+      }
+    ]
+  },
+  {
+    "opaque_id": "b76e0050",
+    "question": "Who signed the external penetration-test engagement for Cinder, and what is the approved fee? Use only the stored knowledge.",
+    "category": "absent",
+    "gold_facts": [],
+    "abstention_rule": "Neither a signatory nor approved fee is recorded. Do not substitute the service owner, invent a fee, or claim an engagement did not happen.",
+    "answer": "The stored knowledge records the external penetration-test engagement for Cinder-Sandbox (not plain \"Cinder\") as signed by Hana Ines, with an approved fee of $27000. The base Cinder Service page and the Cinder-Legacy service page have no penetration-test engagement record.",
+    "raw_final_message_if_unparsed": null,
+    "limitations": "The question says \"Cinder\", but the only pentest engagement found is for Cinder-Sandbox, so I am answering for that service. The record is a single sentence with no date, scope, or engagement reference, and I did not verify whether it is current. The Cinder Service page states only operational notes and has no security-review section. The Cinder-Legacy page explicitly says no pentest record is stored. Search was limited to the adapter's keyword searches and the pages I read; I did not read every Cinder-related page in full.",
+    "cited_spans": [
+      {
+        "source": "wiki/cinder-sandbox-service.md",
+        "start": 14,
+        "end": 15,
+        "text": "14:## Security review\n15:The Cinder-Sandbox external penetration-test engagement was signed by Hana Ines; the approved fee is $27000."
+      },
+      {
+        "source": "wiki/cinder-legacy-service.md",
+        "start": 14,
+        "end": 15,
+        "text": "14:## Security review\n15:No Cinder-Legacy penetration-test engagement record is stored on this page."
+      },
+      {
+        "source": "wiki/cinder-service.md",
+        "start": 9,
+        "end": 15,
+        "text": "9:# Cinder Service\n10:\n11:## Operations\n12:Cinder runs internal inventory sync twice each day. Its service owner is Neri Vale.\n13:\n14:## Scope\n15:This page contains operational notes only."
+      }
+    ]
+  },
+  {
+    "opaque_id": "c4692d4c",
+    "question": "How long do we keep the history used to investigate missing parcels in the Corundum service, and who is responsible for that rule?",
+    "category": "paraphrase",
+    "gold_facts": [
+      "Corundum delivery audit events are retained for 63 days.",
+      "The policy steward is Iona Park."
+    ],
+    "abstention_rule": null,
+    "answer": "The unqualified Corundum rule in the Event Ledger page says Corundum delivery audit events, which support investigation of missing parcels, are retained for 63 days. The policy steward is Iona Park. Two qualified variants give different answers: Corundum-Sandbox audit events are retained for 30 days with steward Nico Shaw, and Corundum-Legacy audit events are retained for 45 days with steward Ola Shaw. The corpus does not say which of these the question means by 'the Corundum service', and it does not say which variant is current. Raw-event retention is separate from the analytics aggregates (weekly trend totals), which are kept longer and do not extend raw event retention.",
+    "raw_final_message_if_unparsed": null,
+    "limitations": "Three pages conflict (63, 30 and 45 days) and I found no page that states which is authoritative or current. All three pages were last updated 2026-10-24. The answer relies on the unqualified page for the plain 'Corundum' reading. I did not use kb map/get/recall, so I did not check for other pages or a superseding policy. Only search and read were used: 1 guide, 1 search, and 3 reads, with the 16-call budget not exceeded.",
+    "cited_spans": [
+      {
+        "source": "wiki/event-ledger.md",
+        "start": 11,
+        "end": 14,
+        "text": "11:## Corundum audit history\n12:Corundum delivery audit events are retained for 63 days.\n13:The policy steward is Iona Park.\n14:These events support investigation of missing parcels."
+      },
+      {
+        "source": "wiki/corundum-sandbox-ledger.md",
+        "start": 11,
+        "end": 14,
+        "text": "11:## Corundum-Sandbox audit history\n12:Corundum-Sandbox delivery audit events are retained for 30 days.\n13:The Corundum-Sandbox policy steward is Nico Shaw.\n14:These events support investigation of missing parcels."
+      },
+      {
+        "source": "wiki/corundum-legacy-ledger.md",
+        "start": 11,
+        "end": 14,
+        "text": "11:## Corundum-Legacy audit history\n12:Corundum-Legacy delivery audit events are retained for 45 days.\n13:The Corundum-Legacy policy steward is Ola Shaw.\n14:These events support investigation of missing parcels."
+      }
+    ]
+  },
+  {
+    "opaque_id": "cf32b013",
+    "question": "If Plover EU telemetry export is suspended, who should we contact and what must happen before resuming?",
+    "category": "cross-page",
+    "gold_facts": [
+      "When Plover EU telemetry export is suspended, contact the release custodian.",
+      "The release custodian is Asha Venn.",
+      "Before resuming Plover EU telemetry export, reconcile the export offsets.",
+      "Obtain incident lead approval before resuming."
+    ],
+    "abstention_rule": null,
+    "answer": "Contact the release custodian, listed in the Duty Roster as Asha Venn. Before resuming Plover EU telemetry export, reconcile the export offsets and obtain incident lead approval; the roster lists Koen Li as the incident lead on rotation. The Plover page itself names no pre-resume steps and points to the Export Runbook for resumption. The US export path is owned by a different team (contact Ren Sol), which does not apply to EU suspension.",
+    "raw_final_message_if_unparsed": null,
+    "limitations": "The Duty Roster was last updated 2026-10-24, about a month before today (2026-11-25), so the named custodian and incident lead may be out of date; the roster names no later rotation. The Plover page and the runbook both use generic roles, and the runbook's approval step names only an incident lead, not a specific person. The Plover page's US-suspension section names Ren Sol, but it does not apply to EU suspension. Searches were truncated and did not check every page, so no other Plover-specific EU requirements (such as a consent-ledger or credential step seen on other products' pages) were confirmed as absent. Pages for the other products' EU procedures were not read and were not used for this answer.",
+    "cited_spans": [
+      {
+        "source": "wiki/plover-export.md",
+        "start": 11,
+        "end": 14,
+        "text": "11:## EU suspension\n12:When Plover EU telemetry export is suspended, contact the release custodian.\n13:Current assignments are in [[duty-roster|Duty Roster]].\n14:Resumption follows [[export-runbook|Export Runbook]]."
+      },
+      {
+        "source": "wiki/export-runbook.md",
+        "start": 11,
+        "end": 13,
+        "text": "11:## EU resumption\n12:Before resuming Plover EU telemetry export, reconcile the export offsets.\n13:Obtain incident lead approval before resuming."
+      },
+      {
+        "source": "wiki/duty-roster.md",
+        "start": 11,
+        "end": 13,
+        "text": "11:## Active assignments\n12:The release custodian is Asha Venn.\n13:The incident lead on rotation is Koen Li."
+      }
+    ]
+  },
+  {
+    "opaque_id": "df9a57f1",
+    "question": "Who signed the external penetration-test engagement for Cinder, and what is the approved fee? Use only the stored knowledge.",
+    "category": "absent",
+    "gold_facts": [],
+    "abstention_rule": "Neither a signatory nor approved fee is recorded. Do not substitute the service owner, invent a fee, or claim an engagement did not happen.",
+    "answer": "The stored knowledge has no external penetration-test engagement for plain \"Cinder\". The only signer and fee on record belong to the related entity Cinder-Sandbox: it was signed by Hana Ines, with an approved fee of $27000. Whether that is the engagement you mean is unresolved. Cinder-Legacy has no record, and the plain Cinder service page has no security section.",
+    "raw_final_message_if_unparsed": null,
+    "limitations": "I searched for penetration-test terms across the vault and read the pages for the three Cinder entities: Cinder, Cinder-Sandbox and Cinder-Legacy. Search output was truncated, so I did not check every page, but the file list for 'cinder' showed no other service page. The vault does not say whether Cinder-Sandbox is the same system as Cinder, so the Hana Ines / $27000 answer may not apply to Cinder. The other Cinder pages (launch, renewal, ledger, roster, etc.) were not read, so a pen-test record placed there would not be seen. Absence on the Cinder page is only absence within the stored knowledge.",
+    "cited_spans": [
+      {
+        "source": "wiki/cinder-sandbox-service.md",
+        "start": 14,
+        "end": 15,
+        "text": "14:## Security review\n15:The Cinder-Sandbox external penetration-test engagement was signed by Hana Ines; the approved fee is $27000."
+      },
+      {
+        "source": "wiki/cinder-service.md",
+        "start": 9,
+        "end": 15,
+        "text": "9:# Cinder Service\n10:\n11:## Operations\n12:Cinder runs internal inventory sync twice each day. Its service owner is Neri Vale.\n13:\n14:## Scope\n15:This page contains operational notes only."
+      },
+      {
+        "source": "wiki/cinder-legacy-service.md",
+        "start": 14,
+        "end": 15,
+        "text": "14:## Security review\n15:No Cinder-Legacy penetration-test engagement record is stored on this page."
+      }
+    ]
+  },
+  {
+    "opaque_id": "e4aadd3f",
+    "question": "For Nacre production delivery failures, what are the maximum retry count and initial retry delay?",
+    "category": "scoped-exact",
+    "gold_facts": [
+      "Nacre production delivery failures are retried at most 7 times.",
+      "The initial retry delay is 90 seconds."
+    ],
+    "abstention_rule": null,
+    "answer": "For plain Nacre production delivery failures, the maximum retry count is 7 and the initial retry delay is 90 seconds. The 'Nacre delivery retry policy' section in the Queue Dispatch page states both values. Two more-specific pages give different values for their own variants: Nacre-Sandbox is 2 retries with a 15-second delay, and Nacre-Legacy is 3 retries with a 30-second delay. Nacre-Lab, mentioned on the Queue Dispatch page, is 2 retries with a 5-second delay, but it is described as a disposable demo, not production.",
+    "raw_final_message_if_unparsed": null,
+    "limitations": "The answer assumes plain 'Nacre' refers to the general policy on the Queue Dispatch page, since that page has no scope qualifier. The Sandbox and Legacy pages scope their policies explicitly. All three pages carry the same updated date (2026-10-24), and none is marked historical, so no recency conflict was found. I did not read the Nacre event ledger pages or search for other retry settings (such as a later override), so an override elsewhere in the corpus cannot be ruled out. Search was limited to one regex, so absence of other Nacre policy pages is not proven.",
+    "cited_spans": [
+      {
+        "source": "wiki/queue-dispatch.md",
+        "start": 11,
+        "end": 13,
+        "text": "11:## Nacre delivery retry policy\n12:Nacre production delivery failures are retried at most 7 times.\n13:The initial retry delay is 90 seconds."
+      },
+      {
+        "source": "wiki/queue-dispatch.md",
+        "start": 15,
+        "end": 16,
+        "text": "15:## Nacre-Lab\n16:Nacre-Lab is a disposable demo; it uses 2 retries and a 5-second delay."
+      },
+      {
+        "source": "wiki/nacre-sandbox-dispatch.md",
+        "start": 11,
+        "end": 16,
+        "text": "11:## Nacre-Sandbox delivery retry policy\n12:Nacre-Sandbox production delivery failures are retried at most 2 times.\n13:The initial Nacre-Sandbox retry delay is 15 seconds.\n14:\n15:## Scope\n16:This policy applies only to Nacre-Sandbox. See [[nacre-sandbox-ledger|Nacre-Sandbox Event Ledger]]."
+      },
+      {
+        "source": "wiki/nacre-legacy-dispatch.md",
+        "start": 11,
+        "end": 16,
+        "text": "11:## Nacre-Legacy delivery retry policy\n12:Nacre-Legacy production delivery failures are retried at most 3 times.\n13:The initial Nacre-Legacy retry delay is 30 seconds.\n14:\n15:## Scope\n16:This policy applies only to Nacre-Legacy. See [[nacre-legacy-ledger|Nacre-Legacy Event Ledger]]."
+      }
+    ]
+  },
+  {
+    "opaque_id": "f2ea65d3",
+    "question": "How long do we keep the history used to investigate missing parcels in the Corundum service, and who is responsible for that rule?",
+    "category": "paraphrase",
+    "gold_facts": [
+      "Corundum delivery audit events are retained for 63 days.",
+      "The policy steward is Iona Park."
+    ],
+    "abstention_rule": null,
+    "answer": "The corpus gives three different retention periods for Corundum delivery audit events (the history used to investigate missing parcels), and it does not say which one applies to the unqualified \"Corundum service\". The only unqualified Corundum entry is the generic Event Ledger page: 63 days, with Iona Park named as the policy steward. Corundum-Sandbox's ledger says 30 days (steward Nico Shaw), and Corundum-Legacy's says 45 days (steward Ola Shaw). Each ledger page states that its events support investigation of missing parcels. No plain Corundum Service page was found, so the owner of the retention rule for the unqualified service is unresolved. The Sandbox and Legacy service pages name service owners (Mae Pryce and Nico Pryce), not retention policy owners.",
+    "raw_final_message_if_unparsed": null,
+    "limitations": "Conflict is unresolved: 63 days (generic Event Ledger, steward Iona Park) vs 30 days (Corundum-Sandbox, steward Nico Shaw) vs 45 days (Corundum-Legacy, steward Ola Shaw). The generic page is the only one that names plain 'Corundum' and may be the intended answer, but the corpus does not confirm that. Search output was truncated at several points, so a plain Corundum service page or another Corundum variant could exist in the unseen output; this was not verified. Analytics aggregate retention (18 months or 24 months) is a separate rule that does not extend raw event retention. Evidence was limited to the adapter's guide, search, and read operations within the call budget.",
+    "cited_spans": [
+      {
+        "source": "wiki/event-ledger.md",
+        "start": 11,
+        "end": 14,
+        "text": "11:## Corundum audit history\n12:Corundum delivery audit events are retained for 63 days.\n13:The policy steward is Iona Park.\n14:These events support investigation of missing parcels."
+      },
+      {
+        "source": "wiki/corundum-sandbox-ledger.md",
+        "start": 11,
+        "end": 14,
+        "text": "11:## Corundum-Sandbox audit history\n12:Corundum-Sandbox delivery audit events are retained for 30 days.\n13:The Corundum-Sandbox policy steward is Nico Shaw.\n14:These events support investigation of missing parcels."
+      },
+      {
+        "source": "wiki/corundum-legacy-ledger.md",
+        "start": 11,
+        "end": 14,
+        "text": "11:## Corundum-Legacy audit history\n12:Corundum-Legacy delivery audit events are retained for 45 days.\n13:The Corundum-Legacy policy steward is Ola Shaw.\n14:These events support investigation of missing parcels."
+      },
+      {
+        "source": "wiki/corundum-sandbox-service.md",
+        "start": 11,
+        "end": 12,
+        "text": "11:## Operations\n12:Corundum-Sandbox runs internal inventory sync nightly. Its service owner is Mae Pryce."
+      },
+      {
+        "source": "wiki/corundum-legacy-service.md",
+        "start": 11,
+        "end": 12,
+        "text": "11:## Operations\n12:Corundum-Legacy runs internal inventory sync weekly. Its service owner is Nico Pryce."
+      }
+    ]
+  }
+]

@@ -1,0 +1,12 @@
+{
+  "trial": "9662f775ae",
+  "task": "T4",
+  "arm": "none",
+  "final": "{\"answer\": \"Unknown. I could not determine the p95 latency SLO for atlas-api from any available source.\", \"evidence\": [], \"trust_notes\": \"No memory or tools are available in this trial, and no earlier session records were provided. I have no verified, unverified, superseded, or conflicting material to weigh, so I did not infer a value from general knowledge or typical API targets.\", \"limitations\": \"I cannot read the atlas-api repository, its docs, runbooks, or monitoring configuration, and I have no record of earlier sessions. The SLO should be confirmed in the project's SLO/SLA documentation, service config, or observability dashboards.\"}",
+  "parsed": {
+    "answer": "Unknown. I could not determine the p95 latency SLO for atlas-api from any available source.",
+    "evidence": [],
+    "trust_notes": "No memory or tools are available in this trial, and no earlier session records were provided. I have no verified, unverified, superseded, or conflicting material to weigh, so I did not infer a value from general knowledge or typical API targets.",
+    "limitations": "I cannot read the atlas-api repository, its docs, runbooks, or monitoring configuration, and I have no record of earlier sessions. The SLO should be confirmed in the project's SLO/SLA documentation, service config, or observability dashboards."
+  }
+}

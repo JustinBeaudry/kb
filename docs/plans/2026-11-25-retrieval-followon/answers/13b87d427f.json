@@ -1,0 +1,90 @@
+{
+  "id": "13b87d427f",
+  "started": "2026-11-25T16:56:34.887Z",
+  "ended": "2026-11-25T16:56:46.294Z",
+  "wall_ms": 11407,
+  "exit_code": 0,
+  "timed_out": false,
+  "result_subtype": "success",
+  "is_error": false,
+  "model": "claude-haiku-5-5",
+  "tools_offered": [
+    "Bash"
+  ],
+  "num_turns": 6,
+  "usage": {
+    "input_tokens": 8,
+    "cache_creation_input_tokens": 5669,
+    "cache_read_input_tokens": 23138,
+    "output_tokens": 1962,
+    "output_tokens_details": {
+      "thinking_tokens": 462
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 5669,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 782,
+        "cache_read_input_tokens": 7245,
+        "cache_creation_input_tokens": 2561,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 2561
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 8,
+      "outputTokens": 1962,
+      "cacheReadInputTokens": 23138,
+      "cacheCreationInputTokens": 5669,
+      "webSearchRequests": 0,
+      "costUSD": 0.00234698,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 462,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 5669,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "cost_usd": 0.00234698,
+  "permission_denials": [],
+  "final_text": "```json\n{\"answer\": \"The unqualified Corundum rule in the Event Ledger page says Corundum delivery audit events, which support investigation of missing parcels, are retained for 63 days. The policy steward is Iona Park. Two qualified variants give different answers: Corundum-Sandbox audit events are retained for 30 days with steward Nico Shaw, and Corundum-Legacy audit events are retained for 45 days with steward Ola Shaw. The corpus does not say which of these the question means by 'the Corundum service', and it does not say which variant is current. Raw-event retention is separate from the analytics aggregates (weekly trend totals), which are kept longer and do not extend raw event retention.\", \"citations\": [{\"source\": \"wiki/event-ledger.md\", \"start\": 11, \"end\": 14}, {\"source\": \"wiki/corundum-sandbox-ledger.md\", \"start\": 11, \"end\": 14}, {\"source\": \"wiki/corundum-legacy-ledger.md\", \"start\": 11, \"end\": 14}], \"limitations\": \"Three pages conflict (63, 30 and 45 days) and I found no page that states which is authoritative or current. All three pages were last updated 2026-10-24. The answer relies on the unqualified page for the plain 'Corundum' reading. I did not use kb map/get/recall, so I did not check for other pages or a superseding policy. Only search and read were used: 1 guide, 1 search, and 3 reads, with the 16-call budget not exceeded.\"}\n```",
+  "parsed_ok": true,
+  "answer": "The unqualified Corundum rule in the Event Ledger page says Corundum delivery audit events, which support investigation of missing parcels, are retained for 63 days. The policy steward is Iona Park. Two qualified variants give different answers: Corundum-Sandbox audit events are retained for 30 days with steward Nico Shaw, and Corundum-Legacy audit events are retained for 45 days with steward Ola Shaw. The corpus does not say which of these the question means by 'the Corundum service', and it does not say which variant is current. Raw-event retention is separate from the analytics aggregates (weekly trend totals), which are kept longer and do not extend raw event retention.",
+  "citations": [
+    {
+      "source": "wiki/event-ledger.md",
+      "start": 11,
+      "end": 14
+    },
+    {
+      "source": "wiki/corundum-sandbox-ledger.md",
+      "start": 11,
+      "end": 14
+    },
+    {
+      "source": "wiki/corundum-legacy-ledger.md",
+      "start": 11,
+      "end": 14
+    }
+  ],
+  "limitations": "Three pages conflict (63, 30 and 45 days) and I found no page that states which is authoritative or current. All three pages were last updated 2026-10-24. The answer relies on the unqualified page for the plain 'Corundum' reading. I did not use kb map/get/recall, so I did not check for other pages or a superseding policy. Only search and read were used: 1 guide, 1 search, and 3 reads, with the 16-call budget not exceeded."
+}

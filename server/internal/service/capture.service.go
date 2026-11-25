@@ -102,7 +102,19 @@ func (s *CaptureService) policy(ctx context.Context, tx Tx, a domain.Artifact) e
 	if p.SpoolLimitBytes < a.Bytes {
 		return domain.ErrBudget
 	}
-	return validateSource(p, a.SourcePath)
+	return validateEvidenceSource(p, a)
+}
+
+// validateEvidenceSource applies the exclusion policy to every path an artifact
+// can be read from: its declared source path and any Git locator path.
+func validateEvidenceSource(p domain.Policy, a domain.Artifact) error {
+	if err := validateSource(p, a.SourcePath); err != nil {
+		return err
+	}
+	if _, path, ok := domain.ParseGitLocator(a.SourceLocator); ok {
+		return validateSource(p, path)
+	}
+	return nil
 }
 func (s *CaptureService) Stage(ctx context.Context, p domain.Principal, m ArtifactInput, body io.Reader) (domain.Artifact, error) {
 	if m.DerivationID != "" {

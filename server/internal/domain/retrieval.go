@@ -27,6 +27,7 @@ type EvidenceChunk struct {
 	ClaimStatus              ClaimStatus
 	OriginTrust              OriginTrust
 	VerificationOutcome      *VerificationOutcome
+	VerificationMethod       string
 	Evidence                 []EvidenceRef
 	Warnings                 []string
 }

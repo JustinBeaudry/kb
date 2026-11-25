@@ -1,0 +1,21 @@
+{
+  "answer": "If Plover EU telemetry export is suspended, contact the release custodian. The current duty roster names Asha Venn as release custodian. Eli Park held that role before October 1 and is no longer on call, so don't contact him. Two things must happen before the export resumes: the export offsets must be reconciled, and the incident lead must approve. The incident lead on rotation is Koen Li. This EU procedure is separate from routine US restarts.",
+  "citations": [
+    {
+      "source": "wiki/plover-export.md",
+      "start": 11,
+      "end": 13
+    },
+    {
+      "source": "wiki/duty-roster.md",
+      "start": 11,
+      "end": 16
+    },
+    {
+      "source": "wiki/export-runbook.md",
+      "start": 11,
+      "end": 16
+    }
+  ],
+  "limitations": "Names come from the duty roster, last updated 2026-10-24. The sources give no contact details, no order for the two steps beyond both happening before resumption, and no instructions for reconciling the offsets. The plover-export.md frontmatter (lines 1-8) was not read in full."
+}

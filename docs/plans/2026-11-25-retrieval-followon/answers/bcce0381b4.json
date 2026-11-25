@@ -1,0 +1,100 @@
+{
+  "id": "bcce0381b4",
+  "started": "2026-11-25T16:57:16.176Z",
+  "ended": "2026-11-25T16:57:37.265Z",
+  "wall_ms": 21089,
+  "exit_code": 0,
+  "timed_out": false,
+  "result_subtype": "success",
+  "is_error": false,
+  "model": "claude-haiku-5-5",
+  "tools_offered": [
+    "Bash"
+  ],
+  "num_turns": 10,
+  "usage": {
+    "input_tokens": 12,
+    "cache_creation_input_tokens": 28345,
+    "cache_read_input_tokens": 93630,
+    "output_tokens": 3432,
+    "output_tokens_details": {
+      "thinking_tokens": 1001
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 28345,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 898,
+        "cache_read_input_tokens": 32041,
+        "cache_creation_input_tokens": 441,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 441
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 12,
+      "outputTokens": 3432,
+      "cacheReadInputTokens": 93630,
+      "cacheCreationInputTokens": 28345,
+      "webSearchRequests": 0,
+      "costUSD": 0.0083225,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 1001,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 28345,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "cost_usd": 0.0083225,
+  "permission_denials": [],
+  "final_text": "{\"answer\": \"The corpus gives three different retention periods for Corundum delivery audit events (the history used to investigate missing parcels), and it does not say which one applies to the unqualified \\\"Corundum service\\\". The only unqualified Corundum entry is the generic Event Ledger page: 63 days, with Iona Park named as the policy steward. Corundum-Sandbox's ledger says 30 days (steward Nico Shaw), and Corundum-Legacy's says 45 days (steward Ola Shaw). Each ledger page states that its events support investigation of missing parcels. No plain Corundum Service page was found, so the owner of the retention rule for the unqualified service is unresolved. The Sandbox and Legacy service pages name service owners (Mae Pryce and Nico Pryce), not retention policy owners.\", \"citations\": [{\"source\": \"wiki/event-ledger.md\", \"start\": 11, \"end\": 14}, {\"source\": \"wiki/corundum-sandbox-ledger.md\", \"start\": 11, \"end\": 14}, {\"source\": \"wiki/corundum-legacy-ledger.md\", \"start\": 11, \"end\": 14}, {\"source\": \"wiki/corundum-sandbox-service.md\", \"start\": 11, \"end\": 12}, {\"source\": \"wiki/corundum-legacy-service.md\", \"start\": 11, \"end\": 12}], \"limitations\": \"Conflict is unresolved: 63 days (generic Event Ledger, steward Iona Park) vs 30 days (Corundum-Sandbox, steward Nico Shaw) vs 45 days (Corundum-Legacy, steward Ola Shaw). The generic page is the only one that names plain 'Corundum' and may be the intended answer, but the corpus does not confirm that. Search output was truncated at several points, so a plain Corundum service page or another Corundum variant could exist in the unseen output; this was not verified. Analytics aggregate retention (18 months or 24 months) is a separate rule that does not extend raw event retention. Evidence was limited to the adapter's guide, search, and read operations within the call budget.\"}",
+  "parsed_ok": true,
+  "answer": "The corpus gives three different retention periods for Corundum delivery audit events (the history used to investigate missing parcels), and it does not say which one applies to the unqualified \"Corundum service\". The only unqualified Corundum entry is the generic Event Ledger page: 63 days, with Iona Park named as the policy steward. Corundum-Sandbox's ledger says 30 days (steward Nico Shaw), and Corundum-Legacy's says 45 days (steward Ola Shaw). Each ledger page states that its events support investigation of missing parcels. No plain Corundum Service page was found, so the owner of the retention rule for the unqualified service is unresolved. The Sandbox and Legacy service pages name service owners (Mae Pryce and Nico Pryce), not retention policy owners.",
+  "citations": [
+    {
+      "source": "wiki/event-ledger.md",
+      "start": 11,
+      "end": 14
+    },
+    {
+      "source": "wiki/corundum-sandbox-ledger.md",
+      "start": 11,
+      "end": 14
+    },
+    {
+      "source": "wiki/corundum-legacy-ledger.md",
+      "start": 11,
+      "end": 14
+    },
+    {
+      "source": "wiki/corundum-sandbox-service.md",
+      "start": 11,
+      "end": 12
+    },
+    {
+      "source": "wiki/corundum-legacy-service.md",
+      "start": 11,
+      "end": 12
+    }
+  ],
+  "limitations": "Conflict is unresolved: 63 days (generic Event Ledger, steward Iona Park) vs 30 days (Corundum-Sandbox, steward Nico Shaw) vs 45 days (Corundum-Legacy, steward Ola Shaw). The generic page is the only one that names plain 'Corundum' and may be the intended answer, but the corpus does not confirm that. Search output was truncated at several points, so a plain Corundum service page or another Corundum variant could exist in the unseen output; this was not verified. Analytics aggregate retention (18 months or 24 months) is a separate rule that does not extend raw event retention. Evidence was limited to the adapter's guide, search, and read operations within the call budget."
+}

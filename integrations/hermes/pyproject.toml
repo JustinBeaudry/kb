@@ -1,0 +1,54 @@
+[project]
+name = "kb-memory-hermes"
+version = "0.1.0"
+description = "Thin Hermes Agent memory provider over the kb authoritative graph memory API"
+readme = "README.md"
+license = "MIT"
+# Hermes Agent 0.21.2 requires >=3.11,<3.14; the kb Python floor is 3.12.
+requires-python = ">=3.12,<3.14"
+# Exact pins equal to Hermes Agent 0.21.2's own pins, so installing this
+# provider into the Hermes environment never changes Hermes' dependencies.
+dependencies = [
+  "httpx==0.28.1",
+  "pydantic==2.13.4",
+]
+
+[project.entry-points."hermes_agent.memory_providers"]
+kb_memory = "kb_memory:register"
+
+[dependency-groups]
+dev = [
+  "mypy>=1.13",
+  "pytest>=8.3",
+  "pytest-cov>=6.0",
+  "pytest-mock>=3.14",
+  "ruff>=0.8",
+]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/kb_memory"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "N", "SIM", "RUF", "PT", "ANN"]
+ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "ANN401"]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+mypy_path = "src"
+files = ["src", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=kb_memory --cov-report=term-missing --cov-fail-under=80"

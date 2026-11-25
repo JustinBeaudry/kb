@@ -706,6 +706,15 @@
           "ambiguous"
         ]
       },
+      "VerificationMethod": {
+        "type": "string",
+        "description": "How a supported verification was reached. An owner judgment is never relabeled as an empirical check.",
+        "enum": [
+          "owner_adjudicated",
+          "evidence_policy",
+          "lesson_policy"
+        ]
+      },
       "Completeness": {
         "type": "string",
         "enum": [
@@ -1425,6 +1434,9 @@
           },
           "verification_outcome": {
             "$ref": "#/components/schemas/VerificationOutcome"
+          },
+          "verification_method": {
+            "$ref": "#/components/schemas/VerificationMethod"
           },
           "evidence": {
             "type": "array",
