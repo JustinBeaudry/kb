@@ -191,3 +191,44 @@ func TestDreamWithoutRouteStaysPendingOnRealGraph(t *testing.T) {
 		return err
 	}))
 }
+
+func TestChangedProjectsPagesPastLimitOnRealGraph(t *testing.T) {
+	store, _, _ := jobsGraph(t)
+	memory := repository.NewMemoryRepository(store)
+	findings := repository.NewFindingsRepository(store)
+	projects := []string{"proj-a", "proj-b", "proj-c", "proj-d", "proj-e"}
+	require.NoError(t, store.Within(t.Context(), func(ctx context.Context, tx domain.Tx) error {
+		for i, p := range projects {
+			c := domain.ClaimRevision{ClaimID: "claim-" + p, Revision: "rev-" + p, Text: "Observation " + p, Kind: "observation", Scope: domain.Scope{ProjectID: p, TaskID: "task"}, Status: domain.ClaimCandidate, SubmittedBy: "agent"}
+			if err := memory.PutCandidate(ctx, tx, c); err != nil {
+				return err
+			}
+			if i == 0 {
+				// Duplicate revisions in one project must not break paging.
+				c.ClaimID, c.Revision = "claim-"+p+"-2", "rev-"+p+"-2"
+				if err := memory.PutCandidate(ctx, tx, c); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}))
+	var got []string
+	after := ""
+
+	require.NoError(t, store.Within(t.Context(), func(ctx context.Context, tx domain.Tx) error {
+		for {
+			page, err := findings.ChangedProjects(ctx, tx, time.Time{}, after, 2)
+			if err != nil {
+				return err
+			}
+			got = append(got, page...)
+			if len(page) < 2 {
+				return nil
+			}
+			after = page[len(page)-1]
+		}
+	}))
+
+	assert.Equal(t, projects, got)
+}

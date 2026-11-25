@@ -123,8 +123,10 @@ func (r *FindingsRepository) PutCursor(ctx context.Context, tx domain.Tx, projec
 
 // ChangedProjects finds projects with claim revisions ingested since the
 // given time; the zero time selects every project with claims (hourly scan).
-func (r *FindingsRepository) ChangedProjects(ctx context.Context, tx domain.Tx, since time.Time, limit int) ([]string, error) {
-	rows, err := r.query(ctx, tx, `MATCH (c:ClaimRevision) WHERE coalesce(c.ingestedAt,0)>=$since AND c.projectID IS NOT NULL AND coalesce(c.clientID,'')<>$dream RETURN DISTINCT c.projectID ORDER BY c.projectID LIMIT $limit`, map[string]any{"since": unixOrZero(since), "limit": limit, "dream": domain.DreamClientID})
+// Results are ordered by project ID and start strictly after the keyset
+// cursor `after` ("" for the first page).
+func (r *FindingsRepository) ChangedProjects(ctx context.Context, tx domain.Tx, since time.Time, after string, limit int) ([]string, error) {
+	rows, err := r.query(ctx, tx, `MATCH (c:ClaimRevision) WHERE coalesce(c.ingestedAt,0)>=$since AND c.projectID IS NOT NULL AND c.projectID>$after AND coalesce(c.clientID,'')<>$dream RETURN DISTINCT c.projectID ORDER BY c.projectID LIMIT $limit`, map[string]any{"since": unixOrZero(since), "after": after, "limit": limit, "dream": domain.DreamClientID})
 	if err != nil {
 		return nil, err
 	}

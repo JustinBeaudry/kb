@@ -3,6 +3,7 @@ package service_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -76,6 +77,8 @@ type fakeDreamRepo struct {
 	changed      []string
 	pendingJobs  int
 	pendingCodes []string
+	// everyProject serves the same inputs, rescoped, to whichever project asks.
+	everyProject bool
 }
 
 func newFakeDreamRepo(routes ...string) *fakeDreamRepo {
@@ -88,8 +91,14 @@ func (f *fakeDreamRepo) add(in service.DreamInput) {
 func (f *fakeDreamRepo) Policy(context.Context, service.Tx, string) (domain.Policy, error) {
 	return f.policy, nil
 }
-func (f *fakeDreamRepo) Inputs(context.Context, service.Tx, string, int) ([]service.DreamInput, error) {
-	return slices.Clone(f.inputs), nil
+func (f *fakeDreamRepo) Inputs(_ context.Context, _ service.Tx, project string, _ int) ([]service.DreamInput, error) {
+	out := slices.Clone(f.inputs)
+	if f.everyProject {
+		for i := range out {
+			out[i].Scope.ProjectID = project
+		}
+	}
+	return out, nil
 }
 func (f *fakeDreamRepo) Revisions(_ context.Context, _ service.Tx, ids []string) ([]service.DreamInput, error) {
 	if f.onRevisions != nil {
@@ -111,8 +120,16 @@ func (f *fakeDreamRepo) PutCursor(_ context.Context, _ service.Tx, project, dige
 	f.cursor[project] = digest
 	return nil
 }
-func (f *fakeDreamRepo) ChangedProjects(context.Context, service.Tx, time.Time, int) ([]string, error) {
-	return f.changed, nil
+func (f *fakeDreamRepo) ChangedProjects(_ context.Context, _ service.Tx, _ time.Time, after string, limit int) ([]string, error) {
+	sorted := slices.Clone(f.changed)
+	slices.Sort(sorted)
+	var out []string
+	for _, p := range sorted {
+		if p > after && len(out) < limit {
+			out = append(out, p)
+		}
+	}
+	return out, nil
 }
 func (f *fakeDreamRepo) FindingByDigest(_ context.Context, _ service.Tx, digest string) (domain.Finding, bool, error) {
 	for _, x := range f.findings {
@@ -606,6 +623,27 @@ func TestScheduleEnqueuesChangedProjectsOnly(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, enqueued)
 	assert.Equal(t, service.DreamJobKind, h.enqueued.jobs[0].Kind)
+}
+
+func TestScheduleReachesEveryChangedProject(t *testing.T) {
+	repo := newFakeDreamRepo("primary")
+	observedInputs(repo)
+	repo.everyProject = true
+	for i := range 250 {
+		repo.changed = append(repo.changed, fmt.Sprintf("project-%03d", i))
+	}
+	h := newDreamHarness(t, []domain.ModelRoute{pricedRoute}, 1_000_000, repo)
+
+	enqueued, err := h.service.Schedule(context.Background(), time.Time{})
+
+	require.NoError(t, err)
+	assert.Equal(t, 250, enqueued)
+	seen := map[string]bool{}
+	for _, j := range h.enqueued.jobs {
+		seen[j.Scope.ProjectID] = true
+	}
+	assert.True(t, seen["project-249"], "projects past the first page are scheduled")
+	assert.Len(t, seen, 250)
 }
 
 func TestReservationCoversGatewayInputBound(t *testing.T) {

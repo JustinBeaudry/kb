@@ -40,7 +40,9 @@ type DreamRepository interface {
 	Revisions(context.Context, Tx, []string) ([]DreamInput, error)
 	Cursor(context.Context, Tx, string) (string, error)
 	PutCursor(context.Context, Tx, string, string) error
-	ChangedProjects(context.Context, Tx, time.Time, int) ([]string, error)
+	// ChangedProjects returns up to limit project IDs ordered ascending and
+	// strictly after the given cursor; "" starts from the beginning.
+	ChangedProjects(context.Context, Tx, time.Time, string, int) ([]string, error)
 	FindingByDigest(context.Context, Tx, string) (domain.Finding, bool, error)
 	PutFinding(context.Context, Tx, domain.Finding) error
 	AddToNotice(context.Context, Tx, domain.Notice) error
@@ -382,17 +384,40 @@ func (s *DreamingService) notice(project string, f domain.Finding, now time.Time
 	return domain.Notice{ID: "digest-" + domain.BudgetDay(due) + "-" + hex.EncodeToString(h[:8]), Urgency: domain.FindingDaily, ProjectID: project, FindingIDs: []string{f.ID}, State: domain.NoticePending, DueAt: due}
 }
 
+// changedProjects pages through every changed project, so a scan never
+// completes while later projects remain unseen.
+func (s *DreamingService) changedProjects(ctx context.Context, since time.Time) ([]string, error) {
+	var projects []string
+	after := ""
+	for {
+		var page []string
+		err := s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
+			var err error
+			page, err = s.repo.ChangedProjects(ctx, tx, since, after, dreamScanLimit)
+			return err
+		})
+		if err != nil {
+			return nil, err
+		}
+		projects = append(projects, page...)
+		if len(page) < dreamScanLimit {
+			return projects, nil
+		}
+		next := page[len(page)-1]
+		if next <= after {
+			// A repository that ignores the cursor would loop forever.
+			return nil, domain.ErrUnavailable
+		}
+		after = next
+	}
+}
+
 // Schedule enqueues one dream job per project whose inputs changed since the
 // given time (new events, task boundaries and compaction all surface as new
 // claim revisions). Unchanged input digests are skipped; identical jobs are
 // deduplicated by the jobs key.
 func (s *DreamingService) Schedule(ctx context.Context, since time.Time) (int, error) {
-	var projects []string
-	err := s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
-		var err error
-		projects, err = s.repo.ChangedProjects(ctx, tx, since, dreamScanLimit)
-		return err
-	})
+	projects, err := s.changedProjects(ctx, since)
 	if err != nil {
 		return 0, err
 	}
