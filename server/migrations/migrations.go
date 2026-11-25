@@ -25,3 +25,10 @@ var Verification string
 
 //go:embed 009_lifecycle.cypher
 var Lifecycle string
+
+// SupersedeBackfill retires verified project revisions that predate automatic
+// supersession, keeping the newest published revision of each claim verified.
+// It is idempotent and reruns on every schema initialization.
+//
+//go:embed 011_supersede_backfill.cypher
+var SupersedeBackfill string
