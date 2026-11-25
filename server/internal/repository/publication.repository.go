@@ -71,6 +71,20 @@ func (r *PublicationRepository) PutTarget(ctx context.Context, tx domain.Tx, c d
 	}
 	return nil
 }
+func (r *PublicationRepository) SupersedePrevious(ctx context.Context, tx domain.Tx, project, claim, current string) error {
+	if domain.ValidateIDs(project, claim, current) != nil {
+		return domain.ErrInvalidInput
+	}
+	rows, err := r.query(ctx, tx, `MATCH (:Claim {id:$claim})-[:HEAD]->(head:ClaimRevision {id:$current}) RETURN head.id`, map[string]any{"claim": claim, "current": current})
+	if err != nil {
+		return err
+	}
+	if len(rows) != 1 {
+		return domain.ErrConflict
+	}
+	_, err = r.query(ctx, tx, `MATCH (c:ClaimRevision {claimID:$claim}) WHERE c.id<>$current AND c.projectID=$project AND coalesce(c.taskID,'')='' AND c.status='verified' SET c.status='superseded'`, map[string]any{"project": project, "claim": claim, "current": current})
+	return err
+}
 func (r *PublicationRepository) PutPublication(ctx context.Context, tx domain.Tx, p domain.Publication) error {
 	if p.SharingScope != "project" || len(p.SupportRevisions) < 1 || len(p.SupportRevisions) > 1000 {
 		return domain.ErrInvalidInput

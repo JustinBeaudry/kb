@@ -362,7 +362,9 @@ func (r *RetrievalRepository) supportClosure(ctx context.Context, tx domain.Tx, 
 			return true
 		}
 		dep, ok := supports[id]
-		if !ok || dep.deleted || !dep.valid || dep.status != domain.ClaimVerified || len(dep.claim.DependsOn) > domain.MaxSupportReferences {
+		// A superseded support revision stays valid evidence for publications the
+		// owner already pinned to it; only invalidation or deletion withdraws them.
+		if !ok || dep.deleted || !dep.valid || (dep.status != domain.ClaimVerified && dep.status != domain.ClaimSuperseded) || len(dep.claim.DependsOn) > domain.MaxSupportReferences {
 			return false
 		}
 		visiting[id] = true
