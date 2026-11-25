@@ -1,0 +1,13 @@
+{
+  "frozen_at": "2026-11-25T16:58:44+00:00",
+  "model": "haiku (claude-haiku-5-5)",
+  "harness": "claude -p 2.1.332",
+  "files": {
+    "protocol.md": "b7860d09000460db539be89a46a6075f57006b423cc8df500d0c194befeda5f2",
+    "corpus.mjs": "828991576ed4f71fcf78cba214ad12ca31adb249f2fe1bd701ba793c99dd7618",
+    "seed.mjs": "34909082f123d2f017878bd337244bad69096153815fe0fa521eed5191c3c4d2",
+    "prepare.mjs": "c75a2d68cc3768b6348668097b1050c2c35efd8a46a5563aea51b1bb3599b12f",
+    "tool.mjs": "7ef413c23738448b06e5745f4fa79ade80ffb0cfaa0f9314312cfad562681c86",
+    "run.mjs": "235b64c6ff867b50919282e6e14d3e6e01faef0a6314fef771fe88c760cb02a5"
+  }
+}

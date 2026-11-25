@@ -1,0 +1,15 @@
+{
+  "trial": "eb2cfc5749",
+  "task": "T5",
+  "arm": "local",
+  "final": "{\"answer\": \"Mira Okafor, the Atlas release owner, must approve an Atlas production deploy. The migration lock timeout is 45 seconds, since Atlas database migrations take an advisory lock with that timeout.\", \"evidence\": [\"wiki/atlas-deploy-approval.md (page atlas-deploy-approval, lines 13-17, status: verified, project: atlas-api): \\\"Atlas production deploys require approval from Mira Okafor, the Atlas release owner.\\\"\", \"wiki/atlas-migration-lock.md (page atlas-migration-lock, lines 13-17, status: verified, project: atlas-api): \\\"Atlas database migrations take an advisory lock; the migration lock timeout is 45 seconds.\\\"\"], \"trust_notes\": \"Both records are status: verified, owner-reviewed, tagged project/atlas-api, and last updated 2026-11-20. Each full page has a single Record section with no superseded or conflicting section, and no conflicting record turned up in the searches. The answer combines the two records; the memory does not state whether a migration-bearing deploy needs any extra approval beyond the standard production deploy approval.\", \"limitations\": \"The records do not say whether the 45-second timeout applies to every migration or only certain ones, or what happens when it is exceeded. The deploy-approval record does not describe a separate approval path for deploys that include migrations. The 'map' search returned nothing, so I relied on recall and direct page reads. I did not check any source outside the KB.\"}",
+  "parsed": {
+    "answer": "Mira Okafor, the Atlas release owner, must approve an Atlas production deploy. The migration lock timeout is 45 seconds, since Atlas database migrations take an advisory lock with that timeout.",
+    "evidence": [
+      "wiki/atlas-deploy-approval.md (page atlas-deploy-approval, lines 13-17, status: verified, project: atlas-api): \"Atlas production deploys require approval from Mira Okafor, the Atlas release owner.\"",
+      "wiki/atlas-migration-lock.md (page atlas-migration-lock, lines 13-17, status: verified, project: atlas-api): \"Atlas database migrations take an advisory lock; the migration lock timeout is 45 seconds.\""
+    ],
+    "trust_notes": "Both records are status: verified, owner-reviewed, tagged project/atlas-api, and last updated 2026-11-20. Each full page has a single Record section with no superseded or conflicting section, and no conflicting record turned up in the searches. The answer combines the two records; the memory does not state whether a migration-bearing deploy needs any extra approval beyond the standard production deploy approval.",
+    "limitations": "The records do not say whether the 45-second timeout applies to every migration or only certain ones, or what happens when it is exceeded. The deploy-approval record does not describe a separate approval path for deploys that include migrations. The 'map' search returned nothing, so I relied on recall and direct page reads. I did not check any source outside the KB."
+  }
+}
