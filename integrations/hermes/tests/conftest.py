@@ -72,6 +72,7 @@ class FakeGateway:
 
     orient_results: list[MemoryResult | MemoryApiError] = field(default_factory=list)
     search_results: list[MemoryResult | MemoryApiError] = field(default_factory=list)
+    fetch_results: list[MemoryResult | MemoryApiError] = field(default_factory=list)
     calls: list[tuple[Any, ...]] = field(default_factory=list)
     candidates: list[CandidateDraft] = field(default_factory=list)
     unexpected: list[str] = field(default_factory=list)
@@ -105,7 +106,7 @@ class FakeGateway:
 
     def fetch(self, record_id: str, locator: str, budget_bytes: int) -> MemoryResult:
         self.calls.append(("fetch", record_id, locator, budget_bytes))
-        return result_of()
+        return self._next(self.fetch_results, result_of())
 
     def submit_candidate(self, draft: CandidateDraft) -> CandidateReceipt:
         self.calls.append(("submit_candidate", draft))

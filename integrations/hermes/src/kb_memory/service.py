@@ -139,6 +139,10 @@ class CaptureElection:
         except (OSError, ValueError):
             return
 
+    def release_all(self) -> None:
+        for session_id in list(self._held):
+            self.release(session_id)
+
 
 class ConversationMemoryService:
     def __init__(
@@ -217,7 +221,7 @@ class ConversationMemoryService:
         self, record_id: str, locator: str, session_id: str, budget_bytes: int
     ) -> MemoryResult:
         return self._bounded(
-            "", budget_bytes, lambda: self._gateway.fetch(record_id, locator, budget_bytes)
+            session_id, budget_bytes, lambda: self._gateway.fetch(record_id, locator, budget_bytes)
         )
 
     def queue_prefetch(self, query: str, session_id: str) -> None:
@@ -228,7 +232,11 @@ class ConversationMemoryService:
     def prefetch(self, query: str, session_id: str) -> str:
         with self._lock:
             cached = self._prefetched.pop(session_id, None)
-        result = cached[1] if cached else self.recall(query, session_id)
+        # A queued result is reused only for the same prompt; never inject stale recall.
+        if cached is not None and cached[0] == query:
+            result = cached[1]
+        else:
+            result = self.recall(query, session_id)
         return self.render(result, self._budget)
 
     # -- presentation ----------------------------------------------------------
@@ -360,6 +368,9 @@ class ConversationMemoryService:
                     },
                 )
             depends_on = tuple(dict.fromkeys([*depends_on, *(c.revision for c in echoed)]))
+            # Recalled support becomes a dependency; only task-scoped new evidence is sent,
+            # since the server rejects evidence whose artifact scope differs from the claim's.
+            evidence = tuple(new)
         scope = self.task_scope(session_id)
         draft = CandidateDraft(
             claim_id="hermes-" + _digest(["candidate", scope.task_id, text, kind])[:40],
@@ -440,5 +451,16 @@ class ConversationMemoryService:
         with self._lock:
             self._recalled.pop(session_id, None)
             self._prefetched.pop(session_id, None)
+        self.release_capture(session_id)
+
+    def release_capture(self, session_id: str) -> None:
+        """Give up capture ownership so another process may capture this session."""
         if self._election is not None:
             self._election.release(session_id)
+
+    def close(self) -> None:
+        with self._lock:
+            self._recalled.clear()
+            self._prefetched.clear()
+        if self._election is not None:
+            self._election.release_all()

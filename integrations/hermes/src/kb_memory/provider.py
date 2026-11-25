@@ -320,8 +320,12 @@ class KbMemoryProvider(_Base):
         rewound: bool = False,
         **kwargs: Any,  # noqa: ANN401
     ) -> None:
-        if self._service and reset and self._session:
-            self._service.end_session(self._session)
+        if self._service and self._session:
+            if reset:
+                self._service.end_session(self._session)
+            elif self._session != new_session_id:
+                # Switching away must not keep another process from capturing it.
+                self._service.release_capture(self._session)
         self._session = new_session_id
 
     def on_session_end(self, messages: list[dict[str, Any]]) -> None:
@@ -329,7 +333,8 @@ class KbMemoryProvider(_Base):
             self._service.end_session(self._session)
 
     def shutdown(self) -> None:
-        self.on_session_end([])
+        if self._service:
+            self._service.close()
 
     def get_config_schema(self) -> list[dict[str, Any]]:
         # Every field is env-only (Hermes 0.21.2 save_config contract); the bearer

@@ -8,7 +8,13 @@ from pathlib import Path
 import pytest
 
 from kb_memory.models import ErrorCode, Scope
-from kb_memory.provider import SYSTEM_PROMPT, TOOL_ORIENT, TOOL_SEARCH, TOOL_SUBMIT
+from kb_memory.provider import (
+    SYSTEM_PROMPT,
+    TOOL_FETCH,
+    TOOL_ORIENT,
+    TOOL_SEARCH,
+    TOOL_SUBMIT,
+)
 
 from .conftest import (
     DISPUTED,
@@ -276,5 +282,99 @@ def test_released_session_can_be_captured_by_next_owner(
     first.provider.on_session_end([])
 
     second.provider.sync_turn("three", "four", session_id="session-1")
+
+    assert len(second.capture.batches) == 1
+
+
+def test_echo_with_recalled_and_new_evidence_submits_only_new_evidence(
+    env: dict[str, str], tmp_path: Path
+) -> None:
+    h = make_provider(env, tmp_path)
+    h.provider.prefetch("webhook retries", session_id="session-1")
+    recalled = {
+        "artifact_id": "artifact-billing-notes",
+        "digest": "d" * 64,
+        "locator": "billing/notes.md#bytes=0-64",
+        "source_revision": "source-v1",
+    }
+    new = {
+        "artifact_id": "artifact-new-test",
+        "digest": "f" * 64,
+        "locator": "t#1",
+        "source_revision": "s9",
+    }
+
+    args = {"text": VERIFIED.text, "evidence": [recalled, new]}
+
+    result = json.loads(h.provider.handle_tool_call(TOOL_SUBMIT, args))
+
+    assert result["submitted"] is True
+    assert [e.artifact_id for e in h.gateway.candidates[0].evidence] == ["artifact-new-test"]
+    assert h.gateway.candidates[0].depends_on == (VERIFIED.revision,)
+
+
+def test_fetched_passage_counts_as_recalled_for_echo_detection(
+    env: dict[str, str], tmp_path: Path
+) -> None:
+    h = make_provider(env, tmp_path, gateway=FakeGateway(fetch_results=[result_of(VERIFIED)]))
+    h.provider.handle_tool_call(
+        TOOL_FETCH, {"record_id": "artifact-billing-notes", "locator": "billing/notes.md"}
+    )
+
+    result = json.loads(h.provider.handle_tool_call(TOOL_SUBMIT, {"text": VERIFIED.text}))
+
+    assert result["reason"] == "echo_of_recalled_memory"
+    assert h.gateway.candidates == []
+
+
+def test_prefetch_for_a_different_query_ignores_stale_queued_result(
+    env: dict[str, str], tmp_path: Path
+) -> None:
+    gateway = FakeGateway(orient_results=[result_of(DISPUTED), result_of(VERIFIED)])
+    h = make_provider(env, tmp_path, gateway=gateway)
+    h.provider.queue_prefetch("old prompt", session_id="session-1")
+
+    text = h.provider.prefetch("new prompt", session_id="session-1")
+
+    assert [c[2] for c in gateway.calls if c[0] == "orient"] == ["old prompt", "new prompt"]
+    assert VERIFIED.text in text
+    assert DISPUTED.text not in text
+
+
+def test_prefetch_reuses_queued_result_for_the_same_query(
+    env: dict[str, str], tmp_path: Path
+) -> None:
+    h = make_provider(env, tmp_path)
+    h.provider.queue_prefetch("webhook retries", session_id="session-1")
+
+    h.provider.prefetch("webhook retries", session_id="session-1")
+
+    assert [c[0] for c in h.gateway.calls] == ["orient"]
+
+
+def test_session_switch_releases_capture_of_previous_session(
+    env: dict[str, str], tmp_path: Path
+) -> None:
+    owner_env = {**env, "KB_MEMORY_CAPTURE_OWNER": "provider"}
+    first = make_provider(owner_env, tmp_path, capture=FakeCapture())
+    second = make_provider(owner_env, tmp_path, capture=FakeCapture())
+    first.provider.sync_turn("one", "two", session_id="session-1")
+    first.provider.on_session_switch("session-2")
+
+    second.provider.sync_turn("three", "four", session_id="session-1")
+
+    assert len(second.capture.batches) == 1
+
+
+def test_shutdown_releases_every_session_this_provider_captured(
+    env: dict[str, str], tmp_path: Path
+) -> None:
+    owner_env = {**env, "KB_MEMORY_CAPTURE_OWNER": "provider"}
+    first = make_provider(owner_env, tmp_path, capture=FakeCapture())
+    second = make_provider(owner_env, tmp_path, capture=FakeCapture())
+    first.provider.sync_turn("one", "two", session_id="session-other")
+    first.provider.shutdown()
+
+    second.provider.sync_turn("three", "four", session_id="session-other")
 
     assert len(second.capture.batches) == 1
