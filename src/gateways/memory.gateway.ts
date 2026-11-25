@@ -32,6 +32,11 @@ function problem(value: unknown): string | undefined {
   if (value !== null && typeof value === "object" && "code" in value && typeof value.code === "string") return value.code;
   return undefined;
 }
+/** Only a schema property pointer is forwarded; any other server text is dropped. */
+function problemField(value: unknown): string | undefined {
+  if (value !== null && typeof value === "object" && "field" in value && typeof value.field === "string" && /^(\/[A-Za-z0-9_]{1,64}){1,8}$/.test(value.field)) return value.field;
+  return undefined;
+}
 // The server authenticates this cursor. Decoding it here only checks that its
 // publicly readable next offset agrees with the returned passage, not its MAC.
 // Retrieval does not carry claim scope on the wire, so the server remains
@@ -77,13 +82,14 @@ export class HTTPMemoryGateway implements MemoryGateway {
       });
       if (response.status >= 300 && response.status < 400) return fail("unavailable");
       if (response.status === 200) return { ok: true, value: await readJSON(response, budget) };
-      let code: string | undefined;
-      try { code = problem(await readJSON(response, 65536)); } catch { /* never forward remote text */ }
+      let code: string | undefined, field: string | undefined;
+      try { const body = await readJSON(response, 65536); code = problem(body); field = problemField(body); } catch { /* never forward remote text */ }
       if (response.status === 401) return fail("unauthorized");
       if (response.status === 403) return fail("forbidden");
       if (response.status === 409) return fail(code === "conflict" ? "conflict" : "stale");
       if (response.status === 410) return fail("deleted");
       if (response.status === 413 && code === "budget") return fail("budget");
+      if (response.status === 400 && field !== undefined) return { ok: false, error: { code: "invalid_input", field } };
       if (response.status === 400 || response.status === 413) return fail("invalid_input");
       if (response.status === 503 && code === "incomplete") return fail("incomplete");
       return fail("unavailable");

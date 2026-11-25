@@ -49,6 +49,22 @@ test("HTTP errors are closed, bounded, never forwarded and redirects never recei
   } finally { server.stop(true); other.stop(true); }
 });
 
+test("invalid input carries only a pattern-checked schema field pointer", async () => {
+  const fields: Array<[unknown, string | undefined]> = [["/applicability", "/applicability"], ["/evidence/0/applicability", "/evidence/0/applicability"], ["/x<script>", undefined], ["applicability", undefined], [42, undefined], ["/" + "a".repeat(65), undefined]];
+  let index = 0;
+  const server = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch() {
+    const [field] = fields[index++]!;
+    return Response.json({ code: "invalid_input", message: "private server text", field }, { status: 400 });
+  } });
+  try {
+    const api = new HTTPMemoryGateway(`http://127.0.0.1:${server.port}`, token);
+    for (const [, expected] of fields) {
+      const result = await api.orient({ scope: { project_id: "p" }, budget_bytes: 4096 });
+      expect(result).toEqual({ ok: false, error: expected === undefined ? { code: "invalid_input" } : { code: "invalid_input", field: expected } });
+    }
+  } finally { server.stop(true); }
+});
+
 test("malformed schema, oversized and malformed UTF-8 responses fail closed", async () => {
   const bodies = [JSON.stringify({ ...empty, chunks: [{}] }), JSON.stringify({ ...empty, schema_version: "2" }), JSON.stringify({ ...empty, extra: "data" }), JSON.stringify({ ...empty, action: "\ud800" }), "x".repeat(5000), new Uint8Array([0xc3, 0x28])];
   let i = 0;

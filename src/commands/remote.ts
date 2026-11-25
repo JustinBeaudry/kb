@@ -51,7 +51,7 @@ async function readCredential(): Promise<string> {
   } finally { await reader.cancel().catch(() => {}); }
 }
 function outcome<T>(result: RemoteResult<T>): result is { ok: true; value: T } {
-  if (!result.ok) { report(result.error); return false; }
+  if (!result.ok) { report(result.error, result.error.field ? `The server rejected request field ${result.error.field}.` : undefined); return false; }
   return true;
 }
 export function createRemoteCommand(dependencies: {
