@@ -1,0 +1,21 @@
+{
+  "trial": "b6b29b22c5",
+  "task": "T8",
+  "arm": "local",
+  "final": "{\"answer\": \"The memory does not record a disaster-recovery RTO target for Birch. I found no record that states one.\", \"evidence\": [\"kb recall \\\"RTO\\\": no results\", \"kb recall \\\"recovery time objective\\\": no results\", \"kb recall \\\"disaster\\\": no results\", \"kb recall \\\"recovery\\\": no results\", \"kb recall \\\"failover\\\": no results\", \"kb recall \\\"backup\\\": no results\", \"kb map \\\"disaster recovery RTO\\\" and \\\"birch-pipeline disaster recovery\\\": no results\", \"kb map \\\"Birch\\\" returned only these project pages, none about disaster recovery: wiki/birch-backfill-window.md, wiki/birch-batch-proposal.md, wiki/birch-dedupe-key.md, wiki/birch-escalation-owner.md, wiki/birch-nightly-batch.md, wiki/birch-raw-retention.md, wiki/birch-schema-signoff.md\"], \"trust_notes\": \"No record on the disaster-recovery RTO was found, so nothing was verified, unverified, or superseded for this question. The Birch pages that surfaced are tagged project/birch-pipeline. Of these, birch-backfill-window, birch-dedupe-key, birch-escalation-owner, birch-nightly-batch, birch-raw-retention and birch-schema-signoff are owner-verified, and birch-batch-proposal is an unverified candidate. None of their matched text concerns recovery, so I did not use them as evidence. I did not read full page bodies beyond the matched chunks.\", \"limitations\": \"Search only covered keyword and map lookups for RTO, recovery, disaster, failover, and backup, which all returned nothing. kb list-topics returned no topics. I did not read every Birch page in full, so an RTO mentioned only in body text of an unmatched section could be missed. The vault may simply not contain this information. The owner would need to confirm the RTO value from the source.\"}",
+  "parsed": {
+    "answer": "The memory does not record a disaster-recovery RTO target for Birch. I found no record that states one.",
+    "evidence": [
+      "kb recall \"RTO\": no results",
+      "kb recall \"recovery time objective\": no results",
+      "kb recall \"disaster\": no results",
+      "kb recall \"recovery\": no results",
+      "kb recall \"failover\": no results",
+      "kb recall \"backup\": no results",
+      "kb map \"disaster recovery RTO\" and \"birch-pipeline disaster recovery\": no results",
+      "kb map \"Birch\" returned only these project pages, none about disaster recovery: wiki/birch-backfill-window.md, wiki/birch-batch-proposal.md, wiki/birch-dedupe-key.md, wiki/birch-escalation-owner.md, wiki/birch-nightly-batch.md, wiki/birch-raw-retention.md, wiki/birch-schema-signoff.md"
+    ],
+    "trust_notes": "No record on the disaster-recovery RTO was found, so nothing was verified, unverified, or superseded for this question. The Birch pages that surfaced are tagged project/birch-pipeline. Of these, birch-backfill-window, birch-dedupe-key, birch-escalation-owner, birch-nightly-batch, birch-raw-retention and birch-schema-signoff are owner-verified, and birch-batch-proposal is an unverified candidate. None of their matched text concerns recovery, so I did not use them as evidence. I did not read full page bodies beyond the matched chunks.",
+    "limitations": "Search only covered keyword and map lookups for RTO, recovery, disaster, failover, and backup, which all returned nothing. kb list-topics returned no topics. I did not read every Birch page in full, so an RTO mentioned only in body text of an unmatched section could be missed. The vault may simply not contain this information. The owner would need to confirm the RTO value from the source."
+  }
+}

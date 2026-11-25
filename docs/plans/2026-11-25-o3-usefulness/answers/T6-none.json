@@ -1,0 +1,12 @@
+{
+  "trial": "bf3d0c60c9",
+  "task": "T6",
+  "arm": "none",
+  "final": "{\"answer\": \"I can't determine what key birch-pipeline uses to deduplicate records, or whether that has changed. No project records or repository files are available to me in this session.\", \"evidence\": [], \"trust_notes\": \"No material was consulted, so nothing was verified, unverified, superseded, or conflicting. I did not infer an answer from the project name or from general deduplication patterns.\", \"limitations\": \"This trial has no memory or tool access and no record of earlier sessions, so I cannot read the birch-pipeline code, docs, or history. To answer, the relevant source files (for example the dedup or ingest module), the config, or the change history would need to be provided.\"}",
+  "parsed": {
+    "answer": "I can't determine what key birch-pipeline uses to deduplicate records, or whether that has changed. No project records or repository files are available to me in this session.",
+    "evidence": [],
+    "trust_notes": "No material was consulted, so nothing was verified, unverified, superseded, or conflicting. I did not infer an answer from the project name or from general deduplication patterns.",
+    "limitations": "This trial has no memory or tool access and no record of earlier sessions, so I cannot read the birch-pipeline code, docs, or history. To answer, the relevant source files (for example the dedup or ingest module), the config, or the change history would need to be provided."
+  }
+}
