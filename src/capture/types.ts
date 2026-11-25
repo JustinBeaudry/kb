@@ -16,7 +16,9 @@ export type CaptureError = {
     | "deleted"
     | "incomplete"
     | "unavailable"
-    | "cancelled";
+    | "cancelled"
+    /** A restored context cannot fit the caller's byte budget. */
+    | "budget";
 };
 export type Json =
   | null
