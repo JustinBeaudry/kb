@@ -14,6 +14,9 @@ Capabilities are reported separately, as the design requires:
 
 - **Capture**: the explicitly registered watcher (`src/capture/watcher.ts`) turns
   new complete records into C1 capture events.
+- **Capture via explicit poll command**: `kb capture poll --profile <name> --endpoint <origin>
+  --adapter codex|claude|generic --source <file> --project <id> --session <id>` polls
+  the one selected file into the C1 spool and prints the PollReport as JSON.
 - **Native hook capture**: the harness itself calls kb when new records arrive.
 - **Automatic restore**: scoped remote context is injected into the harness without
   the agent asking for it.
@@ -26,6 +29,7 @@ Capabilities are reported separately, as the design requires:
 | Capability | Codex | Claude Code | Generic JSONL | Hermes |
 | --- | --- | --- | --- | --- |
 | Capture (registered watcher) | supported | supported | supported | unverified |
+| Capture via explicit poll command | supported | supported | supported | unverified |
 | Native hook capture | unverified | unverified | unsupported (no native hooks) | unverified |
 | Automatic restore | unsupported | unverified | unsupported (no native hooks) | unverified |
 | Client-driven restore | supported | supported | supported | unverified |
@@ -49,7 +53,9 @@ Capabilities are reported separately, as the design requires:
 | Client-driven restore | `tests/capture-resume.test.ts`: `scoped context restore` cases (fake C3 boundary: budget, labeling, remote failure without local fallback); `kb remote orient` in `tests/remote-cli.test.ts` (C3) |
 | Claude automatic restore | `tests/capture-resume.test.ts`: `remote opt-in never falls back to local vault context` and `local hooks preserve previous output without remote profile`. The SessionStart/PostCompact hook dispatches to remote restore only when `KB_REMOTE_PROFILE` is set. The hook was tested failing closed with an invalid endpoint, but a live remote injection has not been demonstrated, so the cell stays **unverified**. |
 | Codex automatic restore | No Codex session-start integration is wired, so this is **unsupported**. It is a visible limitation, not a hook kb pretends to have. Use client-driven restore. |
-| Native hook capture | The watcher is a library with an explicit registration list. No hook or CLI action invokes it yet, so native dispatch is **unverified** for Codex and Claude Code. |
+| Capture via explicit poll command | `tests/capture-poll-command.test.ts`: enqueues new records from the selected file only, refuses without an explicit `--profile` or with a missing/unknown adapter, source, endpoint, project or session before any credential read, and reports a directory source as invalid without reading it. Each adapter is registered by name; the per-adapter decoding evidence is in the rows above. |
+| Codex copied history after rotation | `tests/capture-resume.test.ts`: `deduplicates copied Codex history after rotation`; `tests/capture-adapters.test.ts`: `derives Codex message IDs from content that survives a copy` (session, record timestamp, role and text digest) |
+| Native hook capture | No harness hook invokes the watcher or `kb capture poll`, so native dispatch is **unverified** for Codex and Claude Code. |
 | Hermes | Out of C2 scope; owned by I4. |
 
 ## Behavior the cells depend on
@@ -67,7 +73,10 @@ Capabilities are reported separately, as the design requires:
   never reconstructed.
 - **Delivery.** The cursor advances only past records whose events the C1 sink
   accepted. Stable event IDs (also used as the C1 idempotency key), plus a bounded
-  recent-ID set, suppress repeats. A crash between enqueue and cursor save can
+  recent-ID set, suppress repeats. Claude IDs come from record UUIDs, Codex tool IDs
+  from call IDs, and Codex message IDs from session, record timestamp, role and a
+  text digest, so history copied into a rotated file is not captured twice. Two
+  identical Codex messages with the same timestamp would share one ID. A crash between enqueue and cursor save can
   replay a record. C1/F4 idempotency deduplicates that replay.
 - **Hidden content.** Codex `reasoning`, Claude `thinking`/`redacted_thinking`,
   session instructions, compaction summaries, images and other non-text blocks are
