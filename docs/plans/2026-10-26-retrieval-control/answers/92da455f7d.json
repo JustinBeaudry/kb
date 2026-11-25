@@ -1,0 +1,16 @@
+{
+  "answer": "Corundum keeps its delivery audit events, which are the history used to investigate missing parcels, for 63 days. Iona Park is the policy steward responsible for this rule. A separate rule keeps anonymous weekly trend totals for 18 months, and that rule does not extend how long the raw events are kept. I found no conflicting or newer record.",
+  "citations": [
+    {
+      "source": "wiki/event-ledger.md",
+      "start": 11,
+      "end": 14
+    },
+    {
+      "source": "wiki/event-ledger.md",
+      "start": 16,
+      "end": 17
+    }
+  ],
+  "limitations": "This rests on one page, wiki/event-ledger.md (updated 2026-10-24). The page calls Iona Park the 'policy steward' and does not say whether she is also the approver or the person who carries the rule out. The ops-* pages give other retention periods for other services (for example, ops-043 says Dune keeps sample audit events for 63 days). None of them mention Corundum, so they do not conflict with this answer."
+}

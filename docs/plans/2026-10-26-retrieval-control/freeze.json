@@ -1,0 +1,25 @@
+{
+  "manifest_sha256": "b4d1bd034f13352922bacb6328a794fce88f5dcf8530dd82f8823c89c93df940",
+  "protocol_sha256": "e5ca7d6bf32b24df98b99a32f5a1a931334249e31dbb213aab5f6a09fcbaa2c9",
+  "corpus_sha256": "8f1a8d690168332f67a4b29dfb767b9f2782b3890606b0d92c810c647234f15f",
+  "source_commit": "8b0de6fc61eec60a1ee506ddb810cb51a5e9595c",
+  "solver_trials_started": 0,
+  "scheduled_trial_ids": [
+    "46f33ca7b4",
+    "48c343151d",
+    "188e376b4d",
+    "92da455f7d",
+    "e3da746faa",
+    "2342f92634",
+    "5be75d806f",
+    "7760ae5c93",
+    "e94c8ae914",
+    "e6aa0938ac",
+    "0a0ccb759f",
+    "21a57471cd",
+    "b79e7a1764",
+    "a310162de7",
+    "924b3664d4",
+    "9ceb9ce739"
+  ]
+}

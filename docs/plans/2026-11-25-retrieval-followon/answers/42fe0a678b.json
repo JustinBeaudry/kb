@@ -1,0 +1,90 @@
+{
+  "id": "42fe0a678b",
+  "started": "2026-11-25T16:57:20.748Z",
+  "ended": "2026-11-25T16:57:34.921Z",
+  "wall_ms": 14173,
+  "exit_code": 0,
+  "timed_out": false,
+  "result_subtype": "success",
+  "is_error": false,
+  "model": "claude-haiku-5-5",
+  "tools_offered": [
+    "Bash"
+  ],
+  "num_turns": 7,
+  "usage": {
+    "input_tokens": 10,
+    "cache_creation_input_tokens": 23462,
+    "cache_read_input_tokens": 54874,
+    "output_tokens": 2729,
+    "output_tokens_details": {
+      "thinking_tokens": 973
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 23462,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 1093,
+        "cache_read_input_tokens": 18853,
+        "cache_creation_input_tokens": 8746,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 8746
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 10,
+      "outputTokens": 2729,
+      "cacheReadInputTokens": 54874,
+      "cacheCreationInputTokens": 23462,
+      "webSearchRequests": 0,
+      "costUSD": 0.00660664,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 973,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 23462,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "cost_usd": 0.00660664,
+  "permission_denials": [],
+  "final_text": "```json\n{\"answer\": \"The sources conflict, and the question's \\\"Corundum service\\\" does not map cleanly to one page. Three ledger pages set a retention period for the history that supports investigating missing parcels:\\n- Plain \\\"Corundum\\\" (wiki/event-ledger.md): delivery audit events are kept 63 days. The policy steward is Iona Park.\\n- Corundum-Sandbox (wiki/corundum-sandbox-ledger.md): kept 30 days. The policy steward is Nico Shaw.\\n- Corundum-Legacy (wiki/corundum-legacy-ledger.md): kept 45 days. The policy steward is Ola Shaw.\\nThe Corundum-Sandbox and Corundum-Legacy service pages (wiki/corundum-sandbox-service.md, wiki/corundum-legacy-service.md) name service owners, not this retention rule. I could not determine which variant the user means, so I have not chosen one. Which Corundum variant is in scope, and which steward is authoritative for it, needs confirmation.\", \"citations\": [{\"source\": \"wiki/event-ledger.md\", \"start\": 11, \"end\": 14}, {\"source\": \"wiki/corundum-sandbox-ledger.md\", \"start\": 11, \"end\": 14}, {\"source\": \"wiki/corundum-legacy-ledger.md\", \"start\": 11, \"end\": 14}], \"limitations\": \"The search output was truncated, so I did not review every page. I read the three Corundum ledger pages in full and did not read the Corundum service pages' full text, beyond the search snippets. The index lists no page named plain 'Corundum Service'. The steward or policy owner is not confirmed for any variant. Pages are dated 2026-10 and show no supersession, and I did not verify whether any is outdated. Only the KB adapter was used; I did not check the raw sources or session records. Adapter calls used: 6 of 16.\"}\n```",
+  "parsed_ok": true,
+  "answer": "The sources conflict, and the question's \"Corundum service\" does not map cleanly to one page. Three ledger pages set a retention period for the history that supports investigating missing parcels:\n- Plain \"Corundum\" (wiki/event-ledger.md): delivery audit events are kept 63 days. The policy steward is Iona Park.\n- Corundum-Sandbox (wiki/corundum-sandbox-ledger.md): kept 30 days. The policy steward is Nico Shaw.\n- Corundum-Legacy (wiki/corundum-legacy-ledger.md): kept 45 days. The policy steward is Ola Shaw.\nThe Corundum-Sandbox and Corundum-Legacy service pages (wiki/corundum-sandbox-service.md, wiki/corundum-legacy-service.md) name service owners, not this retention rule. I could not determine which variant the user means, so I have not chosen one. Which Corundum variant is in scope, and which steward is authoritative for it, needs confirmation.",
+  "citations": [
+    {
+      "source": "wiki/event-ledger.md",
+      "start": 11,
+      "end": 14
+    },
+    {
+      "source": "wiki/corundum-sandbox-ledger.md",
+      "start": 11,
+      "end": 14
+    },
+    {
+      "source": "wiki/corundum-legacy-ledger.md",
+      "start": 11,
+      "end": 14
+    }
+  ],
+  "limitations": "The search output was truncated, so I did not review every page. I read the three Corundum ledger pages in full and did not read the Corundum service pages' full text, beyond the search snippets. The index lists no page named plain 'Corundum Service'. The steward or policy owner is not confirmed for any variant. Pages are dated 2026-10 and show no supersession, and I did not verify whether any is outdated. Only the KB adapter was used; I did not check the raw sources or session records. Adapter calls used: 6 of 16."
+}

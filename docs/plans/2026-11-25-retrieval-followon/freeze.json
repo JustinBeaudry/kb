@@ -1,0 +1,86 @@
+{
+  "frozen_at": "2026-11-25",
+  "manifest_sha256": "c9a8fc6863efb8481a78b2aff67f14a77579e0601c3d386a5d2d8a484af534bc",
+  "corpus_sha256": "2c6decf4f28572d3ac5a5c107707370e1b8c543b1ceb921018f550d70e746f9f",
+  "pilot_subset_sha256": "2848915e84ed78ce052847d2a0b44389b15f6dd15c5d62f2ef7233c1b8de7767",
+  "wiki_pages": 1002,
+  "corpus_bytes": 1471658,
+  "source_commit": "909680df327045f4018b4c69e72409e51aa1440d",
+  "guides": {
+    "files": {
+      "sha256": "f856939eac3e771e49fcd50c6f02dabdc355f4f61c6215e15052274f566ec38a",
+      "bytes": 962
+    },
+    "kb-full": {
+      "sha256": "e107651b2179fb59d5f233586fcbb67c3cdbd5f003c459fd7344c8493c0c5c89",
+      "bytes": 9786
+    },
+    "kb-minimal": {
+      "sha256": "2509d1e78ca9fce4d7b5d47bdd6b87336addd3a38031c5e35c14892c4e29965e",
+      "bytes": 975
+    }
+  },
+  "files": {
+    "protocol.md": "c5b082e21f1541438934502de386926d59fb4232a266f596e87797be22074c97",
+    "prepare.mjs": "d626bcf0977c551236056948c5071a70dd0598f7c1d1439e02bd66410660fa2c",
+    "tool.mjs": "13de950c90b42ad2ddb7f763a2802f974fd6cb2a70ed6c95f51b98e78f222f51",
+    "kb-guide-pilot.md": "eebeddf42ce8b68660d7b0db08e8f5d1f5fff7ff8883218d4eb917c4c9ad7402",
+    "run-trials.mjs": "17ae9477b2fb3406375282674647fd34bdf38e0c3adc5b34a500c9289758a243",
+    "measure.mjs": "b9e2bb679073cbfd59f5516a2b3d3e74b37f4ce5a0f2dc0557d9499b500ff755",
+    "assess.mjs": "f6767d1aaaa0f612b7fe8331b5c583ba35b2cacb1ca411abce8f3c18221cadef"
+  },
+  "gold_sha256": "1eff1cd1543816dae4420f96ceb58d75da9fed5733d510c52a37735a4d64f280",
+  "solver_trials_started": 0,
+  "scheduled_trial_ids": [
+    "0ecca8e6fa",
+    "ef7dd77b18",
+    "d67f52a44e",
+    "9c5a7fffc9",
+    "13b87d427f",
+    "edcfc14fde",
+    "899ab20dd9",
+    "4e19488c38",
+    "c14df0cd54",
+    "ccd868de5f",
+    "d3d1d6f77f",
+    "e2e38f90d1",
+    "e2b6ad1255",
+    "6de85dfe39",
+    "6efea2e725",
+    "64d3e7d3e1",
+    "bcce0381b4",
+    "b79294ef49",
+    "372b62ce58",
+    "42fe0a678b",
+    "915fc22453",
+    "4e144ef409",
+    "f1a7c913ab",
+    "bf3f5d8843"
+  ],
+  "schedule": [
+    "0ecca8e6fa T06 files",
+    "ef7dd77b18 T07 files",
+    "d67f52a44e T06 kb-full",
+    "9c5a7fffc9 T08 files",
+    "13b87d427f T02 kb-minimal",
+    "edcfc14fde T05 kb-full",
+    "899ab20dd9 T01 kb-full",
+    "4e19488c38 T07 kb-full",
+    "c14df0cd54 T01 files",
+    "ccd868de5f T08 kb-full",
+    "d3d1d6f77f T03 kb-minimal",
+    "e2e38f90d1 T05 kb-minimal",
+    "e2b6ad1255 T06 kb-minimal",
+    "6de85dfe39 T04 kb-minimal",
+    "6efea2e725 T03 kb-full",
+    "64d3e7d3e1 T03 files",
+    "bcce0381b4 T02 files",
+    "b79294ef49 T08 kb-minimal",
+    "372b62ce58 T04 kb-full",
+    "42fe0a678b T02 kb-full",
+    "915fc22453 T04 files",
+    "4e144ef409 T01 kb-minimal",
+    "f1a7c913ab T07 kb-minimal",
+    "bf3f5d8843 T05 files"
+  ]
+}

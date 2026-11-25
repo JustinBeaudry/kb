@@ -1,0 +1,41 @@
+{
+  "answer": "Mariner has four open launch blockers:\n1. Certificate rotation. Owner: Leda Fox.\n2. Restore drill. Owner: Mika Sen.\n3. Access review. Owner: Dev Shah.\n4. Supplier contract. Owner: Oona Reed.\n\nTwo items are left out. The launch copy blocker (owner Pax Vale) is CLOSED. Badge printing (owner Ren Sol, OPEN) belongs to Mariner-Lab, a demo that is separate from Mariner production.",
+  "citations": [
+    {
+      "source": "wiki/mariner-overview.md",
+      "start": 11,
+      "end": 13
+    },
+    {
+      "source": "wiki/mariner-certificates.md",
+      "start": 12,
+      "end": 12
+    },
+    {
+      "source": "wiki/mariner-restore.md",
+      "start": 12,
+      "end": 12
+    },
+    {
+      "source": "wiki/mariner-access.md",
+      "start": 12,
+      "end": 12
+    },
+    {
+      "source": "wiki/mariner-contract.md",
+      "start": 12,
+      "end": 12
+    },
+    {
+      "source": "wiki/mariner-copy.md",
+      "start": 12,
+      "end": 12
+    },
+    {
+      "source": "wiki/mariner-lab.md",
+      "start": 12,
+      "end": 13
+    }
+  ],
+  "limitations": "Only the status lines of each blocker page were read, as returned by search. They were not opened in full, so a later update elsewhere on those pages would have been missed. A vault-wide search for blocker, owner, status and supersede terms found no conflicting or superseding Mariner records. The blocker pages carry no dates of their own. The overview page was last updated 2026-10-24."
+}

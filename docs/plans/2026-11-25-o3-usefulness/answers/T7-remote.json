@@ -1,0 +1,15 @@
+{
+  "trial": "8dd3ae1c95",
+  "task": "T7",
+  "arm": "remote",
+  "final": "{\"answer\": \"The Birch nightly batch starts at 02:30 UTC.\", \"evidence\": [\"record_id birch-nightly-batch (revision YCV4XCYSBR46E4GEJGPG4LLOPI, claim_status verified, origin_trust submitted): text \\\"The Birch nightly batch starts at 02:30 UTC.\\\"\", \"Cited source passage excerpt:1dbfab77203e8085b70762a389fb925d7b9e07797eae7bcf53bd21bcf5dd559a in artifact 7dc0426d99f9a454ea029906c24922e7077b091cc831bb6608a0ee1f75ffc7d3 (fetched; the passage text is the same 44-byte sentence \\\"The Birch nightly batch starts at 02:30 UTC.\\\", tagged candidate with warning source_evidence_is_not_a_verified_claim)\"], \"trust_notes\": \"The record birch-nightly-batch is marked verified, so I treated the 02:30 UTC time as the current verified answer. Its origin is submitted, not independently confirmed. The fetched source passage is only evidence and is not itself a verified claim; it matches the record text exactly. No superseded, disputed, or conflicting records appeared in the results. Searches for 'Birch nightly batch start time' and 'batch schedule start time' returned no results, so the answer rests on a single record.\", \"limitations\": \"Only one record was found, and the memory does not say which timezone convention or whether the time has changed since the record's revision. The record does not indicate when it was verified. I did not check any source code or config outside the memory service. The memory service also reports a recovery_unavailable capability gap, which I did not investigate.\"}",
+  "parsed": {
+    "answer": "The Birch nightly batch starts at 02:30 UTC.",
+    "evidence": [
+      "record_id birch-nightly-batch (revision YCV4XCYSBR46E4GEJGPG4LLOPI, claim_status verified, origin_trust submitted): text \"The Birch nightly batch starts at 02:30 UTC.\"",
+      "Cited source passage excerpt:1dbfab77203e8085b70762a389fb925d7b9e07797eae7bcf53bd21bcf5dd559a in artifact 7dc0426d99f9a454ea029906c24922e7077b091cc831bb6608a0ee1f75ffc7d3 (fetched; the passage text is the same 44-byte sentence \"The Birch nightly batch starts at 02:30 UTC.\", tagged candidate with warning source_evidence_is_not_a_verified_claim)"
+    ],
+    "trust_notes": "The record birch-nightly-batch is marked verified, so I treated the 02:30 UTC time as the current verified answer. Its origin is submitted, not independently confirmed. The fetched source passage is only evidence and is not itself a verified claim; it matches the record text exactly. No superseded, disputed, or conflicting records appeared in the results. Searches for 'Birch nightly batch start time' and 'batch schedule start time' returned no results, so the answer rests on a single record.",
+    "limitations": "Only one record was found, and the memory does not say which timezone convention or whether the time has changed since the record's revision. The record does not indicate when it was verified. I did not check any source code or config outside the memory service. The memory service also reports a recovery_unavailable capability gap, which I did not investigate."
+  }
+}

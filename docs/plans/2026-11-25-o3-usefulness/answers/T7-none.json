@@ -1,0 +1,12 @@
+{
+  "trial": "1610607ae9",
+  "task": "T7",
+  "arm": "none",
+  "final": "{\"answer\": \"I can't determine the start time of the Birch nightly batch. No project records or tools are available in this session, so I have no source for it.\", \"evidence\": [], \"trust_notes\": \"No records were available to verify, mark as unverified, or treat as superseded or conflicting. I did not infer a time from the project name or from general conventions for nightly batches.\", \"limitations\": \"No memory or tools are available in this trial, and I have no record of earlier sessions. I could not read the birch-pipeline repository, its config, scheduler definitions, or docs. To answer, check the scheduler or cron configuration in the project, or the pipeline's documentation.\"}",
+  "parsed": {
+    "answer": "I can't determine the start time of the Birch nightly batch. No project records or tools are available in this session, so I have no source for it.",
+    "evidence": [],
+    "trust_notes": "No records were available to verify, mark as unverified, or treat as superseded or conflicting. I did not infer a time from the project name or from general conventions for nightly batches.",
+    "limitations": "No memory or tools are available in this trial, and I have no record of earlier sessions. I could not read the birch-pipeline repository, its config, scheduler definitions, or docs. To answer, check the scheduler or cron configuration in the project, or the pipeline's documentation."
+  }
+}
