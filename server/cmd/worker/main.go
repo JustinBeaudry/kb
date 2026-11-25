@@ -199,7 +199,17 @@ func runCapture(parent context.Context, logger *slog.Logger, telemetry ...*platf
 	}, "lifecycle.reconcile": func(ctx context.Context, job domain.Job, lease domain.Lease) error {
 		return lifecycle.ReconcilePolicy(ctx, job, lease, jobs)
 	}}
-	worker := platform.Worker{ID: os.Getenv("KB_WORKER_ID"), InstanceID: mc.InstanceID, Admission: admission, Kinds: []string{"capture.reconcile", "lifecycle.purge", "lifecycle.reconcile"}, Jobs: jobs, RunJob: platform.DispatchJobs(handlers), Logger: logger}
+	var recorder gateway.GenerationRecorder
+	if len(telemetry) > 0 {
+		recorder = telemetry[0]
+	}
+	dreaming, err := composeDreaming(store, jobs, jobsRepo, recorder)
+	if err != nil {
+		return err
+	}
+	handlers[service.DreamJobKind] = dreaming.Process
+	dreams := &dreamScheduler{dreaming: dreaming}
+	worker := platform.Worker{ID: os.Getenv("KB_WORKER_ID"), InstanceID: mc.InstanceID, Admission: admission, Kinds: []string{"capture.reconcile", "lifecycle.purge", "lifecycle.reconcile", service.DreamJobKind}, Jobs: jobs, RunJob: platform.DispatchJobs(handlers), Logger: logger}
 	sweepCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	stopped := make(chan struct{})
@@ -224,6 +234,10 @@ func runCapture(parent context.Context, logger *slog.Logger, telemetry ...*platf
 				}
 				if err == nil {
 					err = capture.Sweep(checkCtx, 100)
+				}
+				if err == nil {
+					// Dream scheduling never blocks capture reconciliation.
+					_ = dreams.tick(checkCtx, time.Now().UTC())
 				}
 				err = platform.FinishOperation(checkCtx, admission, sweepPermit, err)
 				stop()

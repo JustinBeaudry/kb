@@ -114,7 +114,7 @@ func (s *Store) Close(ctx context.Context) error {
 }
 
 func (s *Store) migrate(ctx context.Context) error {
-	for _, statement := range strings.Split(migrations.Identity+"\n"+migrations.Clients+"\n"+migrations.Jobs+"\n"+migrations.Evidence+"\n"+migrations.Memory+"\n"+migrations.Verification+"\n"+migrations.Decisions+"\n"+migrations.Lifecycle+"\n"+migrations.Lessons, ";") {
+	for _, statement := range strings.Split(migrations.Identity+"\n"+migrations.Clients+"\n"+migrations.Jobs+"\n"+migrations.Evidence+"\n"+migrations.Memory+"\n"+migrations.Verification+"\n"+migrations.Decisions+"\n"+migrations.Dreaming+"\n"+migrations.Lifecycle+"\n"+migrations.Lessons, ";") {
 		if strings.TrimSpace(statement) == "" {
 			continue
 		}

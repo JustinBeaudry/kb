@@ -231,6 +231,24 @@ func (r *JobsRepository) Fail(ctx context.Context, tx domain.Tx, lease domain.Le
 	}
 	return nil
 }
+
+// Defer requeues a live lease and refunds the attempt its claim consumed.
+func (r *JobsRepository) Defer(ctx context.Context, tx domain.Tx, lease domain.Lease, due time.Time, reason string, now time.Time) error {
+	p, err := leaseParams(lease, now)
+	if err != nil {
+		return err
+	}
+	p["due"] = due.UnixNano()
+	p["reason"] = reason
+	rows, err := r.query(ctx, tx, liveLease+` SET j.status='queued',j.reasonCode=$reason,j.dueAt=$due,j.attempts=CASE WHEN j.attempts>0 THEN j.attempts-1 ELSE 0 END REMOVE j.workerID,j.expiresAt,j.maxLeaseUntil RETURN j.id`, p)
+	if err != nil {
+		return err
+	}
+	if len(rows) != 1 {
+		return domain.ErrStale
+	}
+	return nil
+}
 func (r *JobsRepository) Cancel(ctx context.Context, tx domain.Tx, id string) error {
 	rows, err := r.query(ctx, tx, `MATCH (j:Job {id:$id}) WHERE j.status IN ['queued','running','cancelled'] SET j.status='cancelled' REMOVE j.workerID,j.expiresAt,j.maxLeaseUntil RETURN j.id`, map[string]any{"id": id})
 	if err != nil {

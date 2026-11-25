@@ -32,6 +32,7 @@ type JobsRepository interface {
 	Heartbeat(context.Context, Tx, domain.Lease, time.Time, time.Time) (domain.Lease, error)
 	Fail(context.Context, Tx, domain.Lease, time.Time, string, domain.JobStatus, time.Time) error
 	Cancel(context.Context, Tx, string) error
+	Defer(context.Context, Tx, domain.Lease, time.Time, string, time.Time) error
 	List(context.Context, Tx, domain.JobStatus, int) ([]domain.Job, error)
 }
 type JobsService struct {
@@ -188,6 +189,27 @@ func (s *JobsService) Fail(ctx context.Context, lease domain.Lease, retryAt time
 			status = domain.JobFailed
 		}
 		return s.repo.Fail(ctx, tx, lease, retryAt.UTC(), reasonCode, status, now)
+	})
+}
+
+// Defer returns a live job to the queue without consuming an attempt. It is
+// for prerequisites the job cannot fix itself (no authorized model route,
+// unknown pricing, no owner cap, exhausted budget); the reason stays visible.
+func (s *JobsService) Defer(ctx context.Context, lease domain.Lease, until time.Time, reasonCode string) error {
+	if !validLease(lease) || until.IsZero() {
+		return domain.ErrInvalidInput
+	}
+	switch reasonCode {
+	case "model_route_unavailable", "model_pricing_unavailable", "model_budget_unconfigured", "model_budget_exhausted":
+	default:
+		return domain.ErrInvalidInput
+	}
+	return s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
+		now := time.Now().UTC()
+		if until.Before(now) {
+			until = now
+		}
+		return s.repo.Defer(ctx, tx, lease, until.UTC(), reasonCode, now)
 	})
 }
 func (s *JobsService) Cancel(ctx context.Context, id string) error {

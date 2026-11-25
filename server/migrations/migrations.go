@@ -26,6 +26,9 @@ var Verification string
 //go:embed 007_decisions.cypher
 var Decisions string
 
+//go:embed 008_dreaming.cypher
+var Dreaming string
+
 //go:embed 009_lifecycle.cypher
 var Lifecycle string
 

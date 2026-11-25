@@ -239,6 +239,30 @@ func (e Completeness) Valid() bool {
 	}
 }
 
+// Defines values for DreamingStatusState.
+const (
+	DreamingStatusStateAvailable       DreamingStatusState = "available"
+	DreamingStatusStateBudgetExhausted DreamingStatusState = "budget_exhausted"
+	DreamingStatusStatePending         DreamingStatusState = "pending"
+	DreamingStatusStateUnconfigured    DreamingStatusState = "unconfigured"
+)
+
+// Valid indicates whether the value is a known member of the DreamingStatusState enum.
+func (e DreamingStatusState) Valid() bool {
+	switch e {
+	case DreamingStatusStateAvailable:
+		return true
+	case DreamingStatusStateBudgetExhausted:
+		return true
+	case DreamingStatusStatePending:
+		return true
+	case DreamingStatusStateUnconfigured:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for EventInputKind.
 const (
 	EventInputKindArtifact   EventInputKind = "artifact"
@@ -890,6 +914,19 @@ type DeletionInput struct {
 	Scope          Scope      `json:"scope"`
 }
 
+// DreamingStatus Owner-only background dreaming state. Absent for other clients. Unknown model spend is never reported as zero: unreconciled reservations remain counted at their worst case in committed_micro_usd.
+type DreamingStatus struct {
+	CommittedMicroUsd        int                 `json:"committed_micro_usd"`
+	DailyCapMicroUsd         int                 `json:"daily_cap_micro_usd"`
+	PendingJobs              int                 `json:"pending_jobs"`
+	ReasonCodes              []string            `json:"reason_codes"`
+	State                    DreamingStatusState `json:"state"`
+	UnreconciledReservations int                 `json:"unreconciled_reservations"`
+}
+
+// DreamingStatusState defines model for DreamingStatus.State.
+type DreamingStatusState string
+
 // EventInput defines model for EventInput.
 type EventInput struct {
 	Completeness Completeness `json:"completeness"`
@@ -1172,6 +1209,9 @@ type StatusResult struct {
 	AuthorizedProjectIds   []OpaqueID                  `json:"authorized_project_ids"`
 	CapabilityGaps         []string                    `json:"capability_gaps"`
 	ConnectionState        StatusResultConnectionState `json:"connection_state"`
+
+	// Dreaming Owner-only background dreaming state. Absent for other clients. Unknown model spend is never reported as zero: unreconciled reservations remain counted at their worst case in committed_micro_usd.
+	Dreaming *DreamingStatus `json:"dreaming,omitempty"`
 
 	// MaxRevisionBytes Enforced upper bound on every claim and checkpoint revision this server issues (currently 64). Clients must not attempt writes when it is absent (older servers) or exceeds their own limit.
 	MaxRevisionBytes *int                      `json:"max_revision_bytes,omitempty"`
