@@ -217,6 +217,11 @@ func serveSupervisor(parent context.Context) error {
 	if err != nil {
 		return err
 	}
+	// Successful scheduled backups leave RPO evidence in provider logs: the gap
+	// since the previous snapshot and the run duration, never identifiers.
+	scheduler.OnComplete(func(e platform.BackupEvidence) {
+		logger.Info("backup_completed", "backup_age_seconds", int64(e.RecoveryPointGap/time.Second), "duration_ms", e.Duration.Milliseconds())
+	})
 	adminExecutor, err := gateway.NewHostAdminProcessExecutor("/usr/local/bin/kb-admin", maintenance)
 	if err != nil {
 		return err

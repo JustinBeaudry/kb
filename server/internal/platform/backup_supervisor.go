@@ -26,6 +26,23 @@ type BackupSupervisor struct {
 	backup      ScheduledBackup
 	maintenance SupervisorMaintenance
 	now         func() time.Time
+	completed   func(BackupEvidence)
+}
+
+// BackupEvidence describes one completed scheduled backup without identifiers.
+// RecoveryPointGap is the time since the previous successful snapshot, which
+// is the effective recovery point objective this backup closed. First marks a
+// backup with no earlier snapshot to measure against.
+type BackupEvidence struct {
+	RecoveryPointGap, Duration time.Duration
+	First                      bool
+}
+
+// OnComplete registers an observer called after each completed scheduled backup.
+func (s *BackupSupervisor) OnComplete(fn func(BackupEvidence)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.completed = fn
 }
 
 func NewBackupSupervisor(store BackupScheduleStore, backup ScheduledBackup, maintenance SupervisorMaintenance, now func() time.Time) (*BackupSupervisor, error) {
@@ -87,6 +104,15 @@ func (s *BackupSupervisor) Tick(ctx context.Context) error {
 		}
 		state.NextAttempt = now.Add(backoff)
 	} else {
+		evidence := BackupEvidence{Duration: result.CompletedAt.Sub(result.StartedAt), First: state.LastSnapshot.IsZero()}
+		if !evidence.First {
+			evidence.RecoveryPointGap = result.StartedAt.Sub(state.LastSnapshot)
+		}
+		defer func() {
+			if s.completed != nil {
+				s.completed(evidence)
+			}
+		}()
 		state.LastSnapshot = result.StartedAt
 		state.Failures = 0
 		state.NextAttempt = result.StartedAt.Add(20 * time.Hour)
