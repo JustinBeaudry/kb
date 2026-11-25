@@ -17,7 +17,19 @@ If none of these are set, decisions remain pending and only the recovery path be
 
 The gateway starts the CLI directly (no shell) with exactly this environment: `PATH=/usr/bin:/bin`, `LANG=C`, `BUZZ_OUTPUT_FORMAT=json`, `BUZZ_RELAY_URL` and `BUZZ_PRIVATE_KEY`. Because an explicit key is always set, the CLI cannot fall back to a desktop-paired identity. `HOME` and every other inherited variable are withheld. The message body goes over stdin (`--content -`). The key never appears in argv. Error text is cut to 256 bytes, and the key and any 64-hex or `nsec` value are redacted from it. Each call has a 30-second timeout and 4 MiB of output.
 
+## Requesting a decision
+
+On the service host, the owner opens a decision with `kb-admin decision-request`, in two steps like the other kb-admin commands:
+
+1. **Preview.** Run `kb-admin decision-request --preview` with `{"CandidateRevision":"…","RequestedAction":"publish"}`. This is read-only. It checks that the revision is the current candidate head and prints confirmation JSON with the current `ExpectedEvidenceDigest`.
+2. **Apply.** Review the preview, then run `kb-admin decision-request` with that JSON unchanged. The service checks the digest again. If the revision or any evidence artifact changed in between, the request fails `stale` and nothing is recorded. Otherwise the decision is saved as `pending` and posted to Buzz once.
+
+Repeating the same request returns the same decision. After a decision expires, the same request opens a new 24-hour decision with a new ID. The old one is marked `expired` and is never posted. A resolved decision is returned as-is.
+
 ## Delivery and replies
+
+`kb-admin decision-sync` is the one entry point for delivery and polling. KB has no built-in scheduler, and a scheduled job is out of scope for this change. The operator runs it by hand or from a host timer they control (for example a systemd timer or cron entry every few minutes). Running it often is safe: delivery and reply handling are idempotent.
+
 
 `kb-admin decision-sync` (input `{"Limit":50}`) does two things:
 
@@ -28,6 +40,8 @@ The gateway starts the CLI directly (no shell) with exactly this environment: `P
    - It is exactly one line, `approve|reject <decision-id> <candidate-revision> <evidence-digest>`, which the post provides ready to copy.
 
    Duplicate event IDs return the earlier receipt and have no further effect. A different event on an already-resolved decision is a conflict.
+
+   The poll cursor is a timestamp, and authors choose their own event timestamps. So the cursor never moves past the host clock. Events dated more than 5 minutes ahead of the host clock are dropped, and a stored cursor that is already in the future is treated as absent. If a valid owner reply fails for a transient reason (graph, transaction or evidence-read error), sync counts it as `Deferred`, reports the error and leaves the cursor where it was, so the next sync polls that reply again. Only permanent rejections (wrong signer, thread or binding, stale, expired, already resolved) let the cursor move past a reply.
 
 Posts contain identifiers only. Claim text and evidence content never go to Buzz. Inspect content on the host with `kb-admin decisions`.
 

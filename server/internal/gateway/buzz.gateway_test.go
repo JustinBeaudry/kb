@@ -253,3 +253,29 @@ func TestExecBuzzRunnerBoundsOutputAndUsesExactEnvironment(t *testing.T) {
 	_, _, _, err = ExecBuzzRunner{}.Run(ctx, script, nil, nil, nil, 16)
 	assert.Error(t, err)
 }
+
+func TestBuzzPollNeverAdvancesCursorPastNow(t *testing.T) {
+	relay := &syntheticRelay{t: t}
+	g, _ := newTestBuzz(t, relay) // gateway clock is unix 1000
+	member, _ := syntheticKey(t, "channel-member")
+	present := signEvent(t, member, NostrEvent{CreatedAt: 990, Kind: 9, Tags: [][]string{{"h", buzzTestChannel}}, Content: "present"})
+	skewed := signEvent(t, member, NostrEvent{CreatedAt: 1000 + 60, Kind: 9, Tags: [][]string{{"h", buzzTestChannel}}, Content: "small clock skew"})
+	future := signEvent(t, member, NostrEvent{CreatedAt: 1000 + 365*24*3600, Kind: 9, Tags: [][]string{{"h", buzzTestChannel}}, Content: "far future"})
+	relay.forgeries = []NostrEvent{present, skewed, future}
+
+	messages, next, err := g.Poll(t.Context(), "900")
+
+	require.NoError(t, err)
+	assert.Equal(t, "1000", next, "a signed future-dated event must not move the cursor beyond now")
+	var ids []string
+	for _, m := range messages {
+		ids = append(ids, m.EventID)
+	}
+	assert.Equal(t, []string{present.ID, skewed.ID}, ids, "implausibly future-dated events are dropped")
+
+	recovered, next, err := g.Poll(t.Context(), "31537000")
+
+	require.NoError(t, err)
+	assert.Equal(t, "1000", next, "a cursor already poisoned into the future is reset")
+	assert.Len(t, recovered, 2)
+}

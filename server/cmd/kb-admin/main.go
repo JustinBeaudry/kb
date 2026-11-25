@@ -50,10 +50,17 @@ Preview is read-only; execution requires exact expected HEAD and digest.
 Never put target text, evidence content or credentials in argv.
 
 kb-admin decisions [--input PATH|-]           {"Limit":50}
+kb-admin decision-request --preview [--input PATH|-]  {"CandidateRevision":"REV","RequestedAction":"publish"}
+kb-admin decision-request [--input PATH|-]    {"CandidateRevision":"REV","RequestedAction":"publish","ExpectedEvidenceDigest":"64_HEX"}
 kb-admin decision-sync [--input PATH|-]       {"Limit":50}
 kb-admin decision-challenge [--input PATH|-]  {"DecisionID":"ID","Action":"approve|reject"}
 kb-admin decision-approve [--input PATH|-]    {"ChallengeID":"ID","DecisionID":"ID","Action":"approve|reject","Signature":"128_HEX"}
 Decisions bind one candidate revision and evidence digest and expire after 24h.
+decision-request --preview is read-only and prints the confirmation JSON with the
+current ExpectedEvidenceDigest; review it, then run decision-request with that JSON.
+Changed evidence fails stale. A repeat request returns the same decision; after
+expiry it opens a fresh 24h decision. decision-sync is the polling entry point;
+run it on a schedule you control (no built-in scheduler).
 decision-sync delivers pending decision posts and ingests owner replies via KB's
 own Buzz identity (KB_BUZZ_BINARY, KB_BUZZ_RELAY_URL, KB_BUZZ_CHANNEL,
 KB_BUZZ_PRIVATE_KEY_FILE); a Buzz outage leaves decisions pending.
@@ -166,7 +173,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	}
 	if err != nil && len(args) > 0 {
 		switch args[0] {
-		case "setup", "enroll", "revoke", "list", "verify", "reject", "invalidate", "recover", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-sync", "decision-challenge", "decision-approve":
+		case "setup", "enroll", "revoke", "list", "verify", "reject", "invalidate", "recover", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-request", "decision-sync", "decision-challenge", "decision-approve":
 			return commandError{command: args[0], cause: err}
 		}
 	}
@@ -188,7 +195,7 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 		return domain.ErrUnavailable
 	}
 	switch command {
-	case "setup", "enroll", "revoke", "list", "verify", "reject", "invalidate", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-sync", "decision-challenge", "decision-approve":
+	case "setup", "enroll", "revoke", "list", "verify", "reject", "invalidate", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-request", "decision-sync", "decision-challenge", "decision-approve":
 	default:
 		return domain.ErrInvalidInput
 	}
@@ -218,7 +225,7 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 	case "journal-init", "journal-check":
 	default:
 		flags.StringVar(&inputPath, "input", "-", "JSON file or stdin")
-		if command == "verify" || command == "reject" || command == "invalidate" || command == "delete" {
+		if command == "verify" || command == "reject" || command == "invalidate" || command == "delete" || command == "decision-request" {
 			flags.BoolVar(&preview, "preview", false, "preview only")
 		}
 	}
@@ -342,7 +349,7 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 		return runLifecycle(ctx, command, preview, lifecycleInput, admin.lifecycle, output)
 	}
 	if decisionCommand(command) {
-		return runDecisions(ctx, command, decisionArgs, admin.decisions, output)
+		return runDecisions(ctx, command, preview, decisionArgs, admin.decisions, output)
 	}
 	switch command {
 	case "setup", "enroll":

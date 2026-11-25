@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,6 +20,21 @@ type fakeHostDecisions struct {
 	deliverErr, ingestErr error
 	token, usedToken      string
 	signature             []byte
+	requested             []domain.Decision
+}
+
+const fakeEvidenceDigest = "1111111111111111111111111111111111111111111111111111111111111111"
+
+func (f *fakeHostDecisions) PrepareHost(_ context.Context, revision, action string) (domain.Decision, error) {
+	return domain.Decision{CandidateRevision: revision, RequestedAction: action, EvidenceDigest: fakeEvidenceDigest, ProjectID: "demo"}, nil
+}
+func (f *fakeHostDecisions) RequestHost(_ context.Context, d domain.Decision) (domain.Decision, error) {
+	if d.EvidenceDigest != fakeEvidenceDigest {
+		return domain.Decision{}, domain.ErrStale
+	}
+	f.requested = append(f.requested, d)
+	d.ID, d.State = "dec-new", domain.DecisionPending
+	return d, nil
 }
 
 func (f *fakeHostDecisions) Pending(context.Context, int) ([]domain.Decision, error) {
@@ -100,4 +116,41 @@ func TestLoadBuzzGatewayRequiresProtectedKeyFile(t *testing.T) {
 	g, err = loadBuzzGateway()
 	require.NoError(t, err)
 	assert.Nil(t, g)
+}
+
+func TestDecisionRequestPreviewThenApply(t *testing.T) {
+	host := &fakeHostDecisions{}
+	factory := func(context.Context, bool) (administration, func(), error) {
+		return administration{decisions: host}, func() {}, nil
+	}
+	var preview bytes.Buffer
+
+	err := runAdmin(t.Context(), []string{"decision-request", "--preview"}, &preview, strings.NewReader(`{"CandidateRevision":"rev-1","RequestedAction":"publish"}`), factory)
+
+	require.NoError(t, err)
+	assert.Contains(t, preview.String(), `"ExpectedEvidenceDigest":"`+fakeEvidenceDigest+`"`)
+	assert.Empty(t, host.requested, "preview must not record a decision")
+
+	for _, tc := range []struct {
+		name, input string
+		wantErr     error
+	}{
+		{"apply requires the previewed digest", `{"CandidateRevision":"rev-1","RequestedAction":"publish"}`, domain.ErrInvalidInput},
+		{"changed evidence is stale", `{"CandidateRevision":"rev-1","RequestedAction":"publish","ExpectedEvidenceDigest":"` + strings.Repeat("2", 64) + `"}`, domain.ErrStale},
+		{"preview fields are required", `{"RequestedAction":"publish","ExpectedEvidenceDigest":"` + fakeEvidenceDigest + `"}`, domain.ErrInvalidInput},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := runAdmin(t.Context(), []string{"decision-request"}, io.Discard, strings.NewReader(tc.input), factory)
+
+			assert.ErrorIs(t, err, tc.wantErr)
+		})
+	}
+
+	var applied bytes.Buffer
+	err = runAdmin(t.Context(), []string{"decision-request"}, &applied, strings.NewReader(`{"CandidateRevision":"rev-1","RequestedAction":"publish","ExpectedEvidenceDigest":"`+fakeEvidenceDigest+`"}`), factory)
+
+	require.NoError(t, err)
+	require.Len(t, host.requested, 1)
+	assert.Equal(t, domain.Decision{CandidateRevision: "rev-1", RequestedAction: "publish", EvidenceDigest: fakeEvidenceDigest}, host.requested[0])
+	assert.Contains(t, applied.String(), `"dec-new"`)
 }

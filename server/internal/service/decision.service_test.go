@@ -41,6 +41,8 @@ type decisionRepoFake struct {
 	challenges map[string]domain.OwnerChallenge
 	grants     map[string]domain.ActionGrant
 	cursor     string
+	// judgmentErr simulates a transient graph failure while recording a judgment.
+	judgmentErr error
 }
 
 func newDecisionRepoFake() *decisionRepoFake {
@@ -92,6 +94,9 @@ func (f *decisionRepoFake) PutReplyReceipt(_ context.Context, _ Tx, r domain.Dec
 	return nil
 }
 func (f *decisionRepoFake) PutJudgment(_ context.Context, _ Tx, j domain.OwnerJudgment) error {
+	if f.judgmentErr != nil {
+		return f.judgmentErr
+	}
 	f.judgments = append(f.judgments, j)
 	return nil
 }
@@ -551,4 +556,123 @@ func TestAckLostDoesNotDuplicatePost(t *testing.T) {
 	deliveredMessages := len(h.buzz.posts)
 	assert.Equal(t, 1, deliveredMessages)
 	assert.Equal(t, h.buzz.posts[0].ThreadID, h.repo.decisions[d.ID].ThreadID)
+}
+
+func TestIngestDoesNotAdvanceCursorPastTransientFailure(t *testing.T) {
+	h := newDecisionHarness(t)
+	d := h.request(t)
+	reply := h.ownerMessage(d, "approve "+d.ID+" "+d.CandidateRevision+" "+d.EvidenceDigest, "evt-transient")
+	later := h.ownerMessage(d, "not a decision line", "evt-later")
+	later.CreatedAt = h.now.Add(time.Minute)
+	h.repo.cursor = "cursor-before"
+	h.repo.judgmentErr = domain.ErrUnavailable
+	h.buzz.inbox = []domain.SignedMessage{reply, later}
+
+	result, err := h.svc.Ingest(t.Context())
+
+	assert.ErrorIs(t, err, domain.ErrUnavailable)
+	assert.Equal(t, 1, result.Deferred)
+	assert.Equal(t, "cursor-before", h.repo.cursor, "cursor must not move past a reply that failed transiently")
+	assert.Equal(t, domain.DecisionPending, h.repo.decisions[d.ID].State)
+
+	h.repo.judgmentErr = nil
+	h.buzz.inbox = []domain.SignedMessage{reply, later}
+	result, err = h.svc.Ingest(t.Context())
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.Resolved)
+	assert.Equal(t, domain.DecisionAccepted, h.repo.decisions[d.ID].State)
+	assert.NotEqual(t, "cursor-before", h.repo.cursor)
+}
+
+func TestIngestAdvancesCursorPastPermanentRejection(t *testing.T) {
+	h := newDecisionHarness(t)
+	d := h.request(t)
+	wrongThread := h.ownerMessage(d, "approve "+d.ID+" "+d.CandidateRevision+" "+d.EvidenceDigest, "evt-thread")
+	wrongThread.ThreadRootID = strings.Repeat("9", 64)
+	h.repo.cursor = "cursor-before"
+	h.buzz.inbox = []domain.SignedMessage{wrongThread}
+
+	result, err := h.svc.Ingest(t.Context())
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.Rejected)
+	assert.NotEqual(t, "cursor-before", h.repo.cursor)
+}
+
+func TestDecisionRequestAfterExpiryStartsFreshGeneration(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		expire func(*testing.T, *decisionHarness, domain.Decision)
+	}{
+		{"pending past expiry", func(_ *testing.T, h *decisionHarness, d domain.Decision) {
+			h.now = d.ExpiresAt.Add(time.Second)
+		}},
+		{"undelivered pending past expiry", func(_ *testing.T, h *decisionHarness, d domain.Decision) {
+			stored := h.repo.decisions[d.ID]
+			stored.ThreadID, stored.ChannelID = "", ""
+			h.repo.decisions[d.ID] = stored
+			h.buzz.posts, h.buzz.bodies = nil, nil
+			h.now = d.ExpiresAt.Add(time.Second)
+		}},
+		{"terminal expired", func(t *testing.T, h *decisionHarness, d domain.Decision) {
+			h.now = d.ExpiresAt.Add(time.Second)
+			_, err := h.svc.Respond(t.Context(), signedReply(d, "approve", "evt-late", decisionOwnerKey))
+			require.ErrorIs(t, err, domain.ErrStale)
+			require.Equal(t, domain.DecisionExpired, h.repo.decisions[d.ID].State)
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newDecisionHarness(t)
+			old := h.request(t)
+			tc.expire(t, h, old)
+			posted := len(h.buzz.posts)
+
+			renewed := h.request(t)
+
+			assert.NotEqual(t, old.ID, renewed.ID)
+			assert.Equal(t, domain.DecisionPending, renewed.State)
+			assert.Equal(t, h.now.Add(domain.DefaultDecisionTTL), renewed.ExpiresAt)
+			assert.Equal(t, domain.DecisionExpired, h.repo.decisions[old.ID].State)
+			require.Len(t, h.buzz.posts, posted+1, "only the fresh generation is posted")
+			assert.Equal(t, "kb-decision-"+renewed.ID, h.buzz.posts[posted].OperationKey)
+			again := h.request(t)
+			assert.Equal(t, renewed.ID, again.ID, "the fresh generation is itself idempotent")
+			assert.Len(t, h.buzz.posts, posted+1)
+		})
+	}
+	t.Run("resolved decision is returned, not renewed", func(t *testing.T) {
+		h := newDecisionHarness(t)
+		d := h.request(t)
+		_, err := h.svc.Respond(t.Context(), signedReply(d, "approve", "evt-ok", decisionOwnerKey))
+		require.NoError(t, err)
+		h.now = d.ExpiresAt.Add(time.Hour)
+
+		again := h.request(t)
+
+		assert.Equal(t, d.ID, again.ID)
+		assert.Equal(t, domain.DecisionAccepted, again.State)
+	})
+}
+
+func TestHostDecisionRequestUsesPersistedOwner(t *testing.T) {
+	h := newDecisionHarness(t)
+
+	draft, err := h.svc.PrepareHost(t.Context(), "rev-1", "publish")
+	require.NoError(t, err)
+	d, err := h.svc.RequestHost(t.Context(), draft)
+
+	require.NoError(t, err)
+	assert.Equal(t, "owner", d.OwnerID)
+	assert.Equal(t, domain.DecisionPending, d.State)
+	assert.NotEmpty(t, d.ThreadID)
+	stale := draft
+	stale.EvidenceDigest = TokenDigest("old")
+	_, err = h.svc.RequestHost(t.Context(), stale)
+	assert.ErrorIs(t, err, domain.ErrStale)
+	h.graph.owner = domain.OwnerIdentity{}
+	_, err = h.svc.PrepareHost(t.Context(), "rev-1", "publish")
+	assert.ErrorIs(t, err, domain.ErrForbidden)
+	_, err = h.svc.RequestHost(t.Context(), draft)
+	assert.ErrorIs(t, err, domain.ErrForbidden)
 }

@@ -28,6 +28,10 @@ const (
 	// The first poll looks back past the decision TTL so no reply is missed.
 	buzzInitialLookback = domain.DefaultDecisionTTL + time.Hour
 	buzzOpMarker        = "kb-op: "
+	// buzzMaxClockSkew bounds how far ahead of the host clock a signed event's
+	// created_at may be. Event timestamps are author-chosen, so they never move
+	// the poll cursor past the host's own clock.
+	buzzMaxClockSkew = 5 * time.Minute
 )
 
 var (
@@ -254,27 +258,39 @@ func (g *BuzzGateway) Send(ctx context.Context, operationKey, threadID, body str
 
 // Poll returns verified channel messages at or after cursor (unix seconds).
 // Duplicates across polls are expected; the service deduplicates by event ID.
+//
+// Event timestamps are chosen by their (possibly hostile or skewed) author, so
+// the cursor never advances past the host clock, events dated beyond
+// buzzMaxClockSkew are dropped, and a stored cursor already in the future is
+// treated as absent.
 func (g *BuzzGateway) Poll(ctx context.Context, cursor string) ([]domain.SignedMessage, string, error) {
-	since := g.cfg.Now().Add(-buzzInitialLookback).Unix()
+	now := g.cfg.Now()
+	since := now.Add(-buzzInitialLookback).Unix()
 	if cursor != "" {
 		v, err := strconv.ParseInt(cursor, 10, 64)
 		if err != nil || v <= 0 {
 			return nil, "", domain.ErrInvalidInput
 		}
-		since = v
+		if v <= now.Unix() {
+			since = v
+		}
 	}
 	events, err := g.query(ctx, since)
 	if err != nil {
 		return nil, "", err
 	}
+	horizon := now.Add(buzzMaxClockSkew).Unix()
 	next := since
 	out := make([]domain.SignedMessage, 0, len(events))
 	for _, e := range events {
+		if e.CreatedAt > horizon {
+			continue
+		}
 		sig, _ := hex.DecodeString(e.Sig)
 		root, parent := threadRefs(e)
 		out = append(out, domain.SignedMessage{EventID: e.ID, PubKey: e.PubKey, ChannelID: g.cfg.ChannelID, ThreadRootID: root, ParentID: parent, Content: e.Content, Kind: e.Kind, CreatedAt: time.Unix(e.CreatedAt, 0).UTC(), Signature: sig})
-		if e.CreatedAt > next {
-			next = e.CreatedAt
+		if at := min(e.CreatedAt, now.Unix()); at > next {
+			next = at
 		}
 	}
 	return out, strconv.FormatInt(next, 10), nil

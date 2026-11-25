@@ -61,7 +61,9 @@ type OwnerSignatureVerifier interface {
 	VerifyDigest(publicKey string, digest [32]byte, signature []byte) error
 }
 
-type IngestResult struct{ Resolved, Rejected, Ignored int }
+// IngestResult counts replies by outcome. Deferred replies failed transiently;
+// the poll cursor is held so they are retried on the next sync.
+type IngestResult struct{ Resolved, Rejected, Ignored, Deferred int }
 
 type DecisionService struct {
 	tx        Transactor
@@ -177,13 +179,11 @@ func (s *DecisionService) Request(ctx context.Context, p domain.Principal, d dom
 		if digest != d.EvidenceDigest {
 			return domain.ErrStale
 		}
-		id := captureID("kb-decision/v1", owner.OwnerID, d.CandidateRevision, d.EvidenceDigest, d.RequestedAction)
-		existing, err := s.repo.Decision(ctx, tx, id)
-		if err == nil {
-			out = existing
-			return nil
-		}
-		if !errors.Is(err, domain.ErrIncomplete) {
+		id, found, err := s.currentGeneration(ctx, tx, captureID("kb-decision/v1", owner.OwnerID, d.CandidateRevision, d.EvidenceDigest, d.RequestedAction))
+		if err != nil || found != nil {
+			if found != nil {
+				out = *found
+			}
 			return err
 		}
 		now := s.clock()
@@ -199,6 +199,39 @@ func (s *DecisionService) Request(ctx context.Context, p domain.Principal, d dom
 		}
 	}
 	return out, nil
+}
+
+// maxDecisionGenerations bounds the renewal chain walk. Each generation lives
+// for DefaultDecisionTTL, so this covers months of repeated requests.
+const maxDecisionGenerations = 128
+
+// currentGeneration follows the deterministic renewal chain starting at base.
+// A live or resolved generation is returned as-is (requests are idempotent).
+// An expired generation, including one still marked pending past ExpiresAt,
+// is marked expired and the walk continues to its successor; the first unused
+// ID in the chain is returned for a fresh request.
+func (s *DecisionService) currentGeneration(ctx context.Context, tx Tx, base string) (string, *domain.Decision, error) {
+	id := base
+	for range maxDecisionGenerations {
+		existing, err := s.repo.Decision(ctx, tx, id)
+		if errors.Is(err, domain.ErrIncomplete) {
+			return id, nil, nil
+		}
+		if err != nil {
+			return "", nil, err
+		}
+		if existing.State == domain.DecisionPending && !s.clock().Before(existing.ExpiresAt) {
+			existing.State = domain.DecisionExpired
+			if err = s.repo.UpdateDecision(ctx, tx, existing); err != nil {
+				return "", nil, err
+			}
+		}
+		if existing.State != domain.DecisionExpired {
+			return "", &existing, nil
+		}
+		id = captureID("kb-decision-renewal/v1", existing.ID)
+	}
+	return "", nil, domain.ErrConflict
 }
 
 func decisionBody(d domain.Decision) string {
@@ -357,6 +390,7 @@ func (s *DecisionService) Ingest(ctx context.Context) (IngestResult, error) {
 	if err != nil {
 		return result, err
 	}
+	var transient error
 	for i := range messages {
 		msg := messages[i]
 		action, id, revision, digest, ok := parseReplyLine(msg.Content)
@@ -366,10 +400,23 @@ func (s *DecisionService) Ingest(ctx context.Context) (IngestResult, error) {
 		}
 		reply := domain.DecisionReply{DecisionID: id, CandidateRevision: revision, EvidenceDigest: digest, Action: action, EventID: msg.EventID, SignerID: msg.PubKey, Signature: msg.Signature}
 		if _, e := s.resolve(ctx, reply, replyBinding{channel: replyBuzz, message: &msg}); e != nil {
+			if !permanentReplyRejection(e) {
+				// Keep resolving the rest of the batch (each reply is
+				// idempotent by event ID) but hold the cursor so this reply
+				// is polled again.
+				result.Deferred++
+				if transient == nil {
+					transient = e
+				}
+				continue
+			}
 			result.Rejected++
 			continue
 		}
 		result.Resolved++
+	}
+	if transient != nil {
+		return result, transient
 	}
 	if next != "" && next != cursor {
 		if err = s.tx.Within(ctx, func(ctx context.Context, tx Tx) error { return s.repo.PutCursor(ctx, tx, next) }); err != nil {
@@ -377,6 +424,18 @@ func (s *DecisionService) Ingest(ctx context.Context) (IngestResult, error) {
 		}
 	}
 	return result, nil
+}
+
+// permanentReplyRejection reports whether resolving a reply failed for a
+// reason that cannot change on retry (validation, authority, binding, state).
+// Anything else (graph, transaction or context failure) is transient.
+func permanentReplyRejection(err error) bool {
+	for _, permanent := range []error{domain.ErrInvalidInput, domain.ErrUnauthorized, domain.ErrForbidden, domain.ErrConflict, domain.ErrStale, domain.ErrIncomplete} {
+		if errors.Is(err, permanent) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *DecisionService) resolve(ctx context.Context, reply domain.DecisionReply, b replyBinding) (domain.Decision, error) {
@@ -629,4 +688,34 @@ func (s *DecisionService) RespondWithGrant(ctx context.Context, token, decisionI
 		return out, terminal
 	}
 	return out, nil
+}
+
+func (s *DecisionService) hostPrincipal(ctx context.Context) (domain.Principal, error) {
+	var p domain.Principal
+	err := s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
+		var e error
+		p, e = hostOwner(ctx, tx, s.owners)
+		return e
+	})
+	return p, err
+}
+
+// PrepareHost previews a decision request on behalf of the persisted host
+// owner. It is read-only and returns the evidence digest to confirm.
+func (s *DecisionService) PrepareHost(ctx context.Context, candidateRevision, requestedAction string) (domain.Decision, error) {
+	p, err := s.hostPrincipal(ctx)
+	if err != nil {
+		return domain.Decision{}, err
+	}
+	return s.Prepare(ctx, p, candidateRevision, requestedAction)
+}
+
+// RequestHost records a decision on behalf of the persisted host owner. The
+// draft's evidence digest must still match the current evidence.
+func (s *DecisionService) RequestHost(ctx context.Context, d domain.Decision) (domain.Decision, error) {
+	p, err := s.hostPrincipal(ctx)
+	if err != nil {
+		return domain.Decision{}, err
+	}
+	return s.Request(ctx, p, d)
 }
