@@ -49,6 +49,17 @@ Adjudication input is strict owner-controlled JSON, read from stdin by default.
 Preview is read-only; execution requires exact expected HEAD and digest.
 Never put target text, evidence content or credentials in argv.
 
+kb-admin verify-check [--input PATH|-]
+Applies the deterministic evidence policy to {"Revision":"candidate revision"} as the
+persisted host owner. Git evidence is read only from KB_GIT_REPOSITORIES, an
+owner-approved list of id=/absolute/repository entries separated by commas.
+kb-admin lesson-publish --preview [--input PATH|-]
+kb-admin lesson-publish [--input PATH|-]
+Lesson preview accepts the lesson JSON (ProjectID, LessonID, ExpectedHead, Text,
+SharingScope, Applicability, Counterexamples, SupportRevisions) and returns its policy
+State, Reasons and Digest without writing. Publish the same lesson JSON with
+ExpectedDigest set to Digest; a changed lesson, head or support state fails stale.
+
 kb-admin delete --preview [--input PATH|-]
 kb-admin delete [--input PATH|-]
 kb-admin deletion-status [--input PATH|-]
@@ -130,6 +141,8 @@ type hostAdjudication interface {
 type administration struct {
 	identity     hostIdentity
 	adjudication hostAdjudication
+	checks       hostChecks
+	lessons      hostLessons
 	lifecycle    hostLifecycle
 	recovery     hostRecovery
 }
@@ -150,7 +163,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	}
 	if err != nil && len(args) > 0 {
 		switch args[0] {
-		case "setup", "enroll", "revoke", "list", "verify", "reject", "invalidate", "recover", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check":
+		case "setup", "enroll", "revoke", "list", "verify", "reject", "invalidate", "verify-check", "lesson-publish", "recover", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check":
 			return commandError{command: args[0], cause: err}
 		}
 	}
@@ -172,7 +185,7 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 		return domain.ErrUnavailable
 	}
 	switch command {
-	case "setup", "enroll", "revoke", "list", "verify", "reject", "invalidate", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check":
+	case "setup", "enroll", "revoke", "list", "verify", "reject", "invalidate", "verify-check", "lesson-publish", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check":
 	default:
 		return domain.ErrInvalidInput
 	}
@@ -202,7 +215,7 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 	case "journal-init", "journal-check":
 	default:
 		flags.StringVar(&inputPath, "input", "-", "JSON file or stdin")
-		if command == "verify" || command == "reject" || command == "invalidate" || command == "delete" {
+		if command == "verify" || command == "reject" || command == "invalidate" || command == "delete" || command == "lesson-publish" {
 			flags.BoolVar(&preview, "preview", false, "preview only")
 		}
 	}
@@ -231,6 +244,12 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 	var lifecycleInput lifecycleInput
 	if lifecycleCommand(command) && command != "journal-init" && command != "journal-check" {
 		if err := readAdminInput(inputPath, stdin, lifecycleInput.target(command)); err != nil {
+			return err
+		}
+	}
+	var checkInput verificationInput
+	if verificationCommand(command) {
+		if err := readAdminInput(inputPath, stdin, checkInput.target(command, preview)); err != nil {
 			return err
 		}
 	}
@@ -278,6 +297,8 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 		switch {
 		case lifecycleCommand(command) && command != "journal-init" && command != "journal-check":
 			input = lifecycleInput.target(command)
+		case verificationCommand(command):
+			input = checkInput.target(command, preview)
 		case command == "invalidate" && preview:
 			input = invalidationPreview
 		case command == "invalidate":
@@ -316,6 +337,9 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 	}
 	if lifecycleCommand(command) {
 		return runLifecycle(ctx, command, preview, lifecycleInput, admin.lifecycle, output)
+	}
+	if verificationCommand(command) {
+		return runVerification(ctx, command, preview, checkInput, admin, output)
 	}
 	switch command {
 	case "setup", "enroll":
@@ -416,9 +440,22 @@ func composeAdministration(ctx context.Context, withObjects bool) (administratio
 			return administration{}, nil, err
 		}
 		admin.recovery = lifecycle
+		sources, err := composeSources()
+		if err != nil {
+			closeStore()
+			return administration{}, nil, err
+		}
 		evidence := repository.NewEvidenceRepository(store)
+		verifications := repository.NewVerificationRepository(store)
+		publications := repository.NewPublicationRepository(store)
+		principals := repository.NewRetrievalRepository(store)
 		capture := service.NewHostCaptureService(store, evidence, repository.NewJobsRepository(store), objects, identities)
-		admin.adjudication = service.NewVerificationService(store, repository.NewVerificationRepository(store), repository.NewPublicationRepository(store), identities, evidence, capture)
+		verification := service.NewVerificationService(store, verifications, publications, identities, evidence, capture).WithEvidenceChecks(service.EvidenceChecks{Principals: principals, Evidence: evidence, Attestations: verifications, Sources: sources, Objects: objects})
+		admin.adjudication, admin.checks = verification, verification
+		admin.lessons = service.NewLessonService(store, struct {
+			*repository.VerificationRepository
+			*repository.PublicationRepository
+		}{verifications, publications}, principals, identities)
 	}
 	return admin, closeStore, nil
 }

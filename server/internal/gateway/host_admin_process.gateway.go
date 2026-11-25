@@ -97,10 +97,10 @@ func childArguments(r domain.HostAdminRequest) ([]string, error) {
 		}
 		add("--after", o.After)
 	case "journal-init", "journal-check":
-	case "verify", "reject", "invalidate", "delete", "deletion-status", "policy", "policy-update":
+	case "verify", "reject", "invalidate", "verify-check", "lesson-publish", "delete", "deletion-status", "policy", "policy-update":
 		args = append(args, "--input", "-")
 		if o.Preview {
-			if r.Action != "verify" && r.Action != "reject" && r.Action != "invalidate" && r.Action != "delete" {
+			if r.Action != "verify" && r.Action != "reject" && r.Action != "invalidate" && r.Action != "lesson-publish" && r.Action != "delete" {
 				return nil, domain.ErrInvalidInput
 			}
 			args = append(args, "--preview")
