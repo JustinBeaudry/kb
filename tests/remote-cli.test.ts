@@ -129,6 +129,7 @@ test("invalid input names the failed check without echoing argument values", asy
     [["status", "--profile", "p", "--endpoint", "http://example.com"], /--endpoint/],
     [["status", "--profile", "p", "--endpoint", secretish], /--endpoint/],
     [["search", "deploy runbook", "--profile", "p", "--endpoint", "https://example.com", "--project", "demo"], /--query/],
+    [["search", "--profile", "p", "--endpoint", "https://example.com", "--project", "demo", "--applicability", "{SECRET-VALUE"], /--applicability/],
   ];
   const bad = Bun.spawn([process.execPath, "run", "src/cli.ts", "remote", "credential-set", "--profile", "p", "--endpoint", "https://example.com"], { stdin: new TextEncoder().encode("not-a-bearer\n"), stdout: "pipe", stderr: "pipe" });
   const [badOut, badErr, badCode] = await Promise.all([new Response(bad.stdout).text(), new Response(bad.stderr).text(), bad.exited]);
@@ -146,6 +147,7 @@ test("invalid input names the failed check without echoing argument values", asy
     expect(parsed.error.detail).toMatch(pattern);
     expect(err).not.toContain("pa55");
     expect(err).not.toContain("leak.example");
+    expect(err).not.toContain("SECRET-VALUE");
   }
 });
 

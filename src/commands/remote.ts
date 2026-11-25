@@ -134,7 +134,8 @@ export function createRemoteCommand(dependencies: {
       if ((depth !== undefined && depth > 2) || (visited !== undefined && (visited < 1 || visited > 50)) || (start !== undefined && start > 8 * 1024 * 1024) || (end !== undefined && (end > 8 * 1024 * 1024 || end < (start ?? 0))) || (args.continuation !== undefined && (start ?? 0) !== 0)) throw usage("Bounds: --depth 0..2, --visited 1..50, --start <= --end <= 8 MiB; omit --start with --continuation.");
       let applicability: Applicability | undefined;
       if (args.applicability !== undefined) {
-        const parsed: unknown = JSON.parse(args.applicability);
+        let parsed: unknown;
+        try { parsed = JSON.parse(args.applicability); } catch { throw usage("--applicability must be a JSON object."); }
         if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw usage("--applicability must be a JSON object.");
         // SAFETY: RemoteService validates every applicability field before use.
         applicability = parsed as Applicability;
