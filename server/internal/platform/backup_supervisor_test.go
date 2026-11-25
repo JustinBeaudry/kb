@@ -96,3 +96,45 @@ func TestBackupSchedulerFirstBackupHasNoPreviousRecoveryPoint(t *testing.T) {
 	assert.Zero(t, reports[0].RecoveryPointGap)
 	assert.True(t, reports[0].First)
 }
+
+type failingSaveStore struct {
+	*scheduleFixture
+	saves int
+}
+
+func (f *failingSaveStore) SaveSchedule(ctx context.Context, s domain.BackupSchedule) error {
+	f.saves++
+	if f.saves > 1 {
+		return domain.ErrUnavailable
+	}
+	return f.scheduleFixture.SaveSchedule(ctx, s)
+}
+
+func TestBackupSchedulerSeparatesUnsavedScheduleFromFailedBackup(t *testing.T) {
+	now := time.Date(2026, 11, 24, 20, 0, 0, 0, time.UTC)
+	f := &scheduleFixture{maintenance: domain.MaintenanceState{Phase: "open", LastSuccessfulBackup: now.Add(-21 * time.Hour)}}
+	store := &failingSaveStore{scheduleFixture: f}
+	s, e := NewBackupSupervisor(store, f, f, func() time.Time { return now })
+	require.NoError(t, e)
+	var reports []BackupEvidence
+	s.OnComplete(func(r BackupEvidence) { reports = append(reports, r) })
+	err := s.Tick(t.Context())
+	require.ErrorIs(t, err, ErrScheduleNotSaved, "the backup ran; only the schedule state failed")
+	assert.Len(t, reports, 1, "a completed backup is still a recovery point")
+}
+
+func TestObserveManualBackupReportsGapFromLastSuccessfulBackup(t *testing.T) {
+	now := time.Date(2026, 11, 24, 20, 0, 0, 0, time.UTC)
+	f := &scheduleFixture{maintenance: domain.MaintenanceState{Phase: "open", LastSuccessfulBackup: now.Add(-19 * time.Hour)}}
+	f.state.LastAttempt = now
+	var reports []BackupEvidence
+	_, err := ObserveManualBackup(t.Context(), f, func(ctx context.Context) (domain.BackupResult, error) { return f.Run(ctx, "manual-1") }, func(r BackupEvidence) { reports = append(reports, r) })
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+	assert.Equal(t, 19*time.Hour, reports[0].RecoveryPointGap)
+
+	f.failure = true
+	_, err = ObserveManualBackup(t.Context(), f, func(ctx context.Context) (domain.BackupResult, error) { return f.Run(ctx, "manual-2") }, func(r BackupEvidence) { reports = append(reports, r) })
+	require.Error(t, err)
+	assert.Len(t, reports, 1, "a failed manual backup is not a recovery point")
+}

@@ -227,4 +227,6 @@ func TestTelemetryKeepsBackupEvidenceButNotIdentifiers(t *testing.T) {
 	assert.Contains(t, out.String(), `"backup_age_seconds":75600`)
 	assert.Contains(t, out.String(), `"duration_ms":23109`)
 	assert.NotContains(t, out.String(), "scheduled-private-id")
+	telemetry.Logger().Error("backup_schedule_unsaved", "reason", "unavailable")
+	assert.Contains(t, out.String(), `"msg":"backup_schedule_unsaved"`)
 }
