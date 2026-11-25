@@ -1,0 +1,90 @@
+{
+  "id": "64d3e7d3e1",
+  "started": "2026-11-25T16:57:11.110Z",
+  "ended": "2026-11-25T16:57:20.747Z",
+  "wall_ms": 9637,
+  "exit_code": 0,
+  "timed_out": false,
+  "result_subtype": "success",
+  "is_error": false,
+  "model": "claude-haiku-5-5",
+  "tools_offered": [
+    "Bash"
+  ],
+  "num_turns": 5,
+  "usage": {
+    "input_tokens": 8,
+    "cache_creation_input_tokens": 11920,
+    "cache_read_input_tokens": 30529,
+    "output_tokens": 1580,
+    "output_tokens_details": {
+      "thinking_tokens": 378
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 11920,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 748,
+        "cache_read_input_tokens": 14655,
+        "cache_creation_input_tokens": 1402,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 1402
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 8,
+      "outputTokens": 1580,
+      "cacheReadInputTokens": 30529,
+      "cacheCreationInputTokens": 11920,
+      "webSearchRequests": 0,
+      "costUSD": 0.00348009,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 378,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 11920,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "cost_usd": 0.00348009,
+  "permission_denials": [],
+  "final_text": "{\"answer\": \"No. The Larch pilot is no longer scheduled for November 12, 2026. The current approved schedule is November 26, 2026. The October 23, 2026 decision superseded the November 12 target. The stated reason is that the change allows completion of certificate renewal. The public launch date is undecided.\", \"citations\": [{\"source\": \"wiki/larch-release.md\", \"start\": 11, \"end\": 14}, {\"source\": \"wiki/larch-release.md\", \"start\": 16, \"end\": 17}, {\"source\": \"wiki/larch-archive.md\", \"start\": 11, \"end\": 13}], \"limitations\": \"The current plan comes from wiki/larch-release.md, last updated 2026-10-24. The archive page records the original November 12 target and says it was superseded by the October 23 decision; its section heading says 'October 5 decision', which does not match the October 23 date given in the body, so the exact date of the change rests on the body text. Search was limited to the term 'larch' and its output was truncated, so I did not check for other Larch pilot records (for example, sandbox or legacy variants, which are separate entities with their own dates). I found no record of a change after October 24, 2026, but that is an absence in a limited search, not proof none exists. Today is 2026-11-25, so the recorded November 26 date is one day away.\"}",
+  "parsed_ok": true,
+  "answer": "No. The Larch pilot is no longer scheduled for November 12, 2026. The current approved schedule is November 26, 2026. The October 23, 2026 decision superseded the November 12 target. The stated reason is that the change allows completion of certificate renewal. The public launch date is undecided.",
+  "citations": [
+    {
+      "source": "wiki/larch-release.md",
+      "start": 11,
+      "end": 14
+    },
+    {
+      "source": "wiki/larch-release.md",
+      "start": 16,
+      "end": 17
+    },
+    {
+      "source": "wiki/larch-archive.md",
+      "start": 11,
+      "end": 13
+    }
+  ],
+  "limitations": "The current plan comes from wiki/larch-release.md, last updated 2026-10-24. The archive page records the original November 12 target and says it was superseded by the October 23 decision; its section heading says 'October 5 decision', which does not match the October 23 date given in the body, so the exact date of the change rests on the body text. Search was limited to the term 'larch' and its output was truncated, so I did not check for other Larch pilot records (for example, sandbox or legacy variants, which are separate entities with their own dates). I found no record of a change after October 24, 2026, but that is an absence in a limited search, not proof none exists. Today is 2026-11-25, so the recorded November 26 date is one day away."
+}

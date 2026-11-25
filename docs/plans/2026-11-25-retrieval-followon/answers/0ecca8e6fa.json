@@ -1,0 +1,85 @@
+{
+  "id": "0ecca8e6fa",
+  "started": "2026-11-25T16:56:24.581Z",
+  "ended": "2026-11-25T16:56:47.634Z",
+  "wall_ms": 23053,
+  "exit_code": 0,
+  "timed_out": false,
+  "result_subtype": "success",
+  "is_error": false,
+  "model": "claude-haiku-5-5",
+  "tools_offered": [
+    "Bash"
+  ],
+  "num_turns": 9,
+  "usage": {
+    "input_tokens": 18,
+    "cache_creation_input_tokens": 32552,
+    "cache_read_input_tokens": 177965,
+    "output_tokens": 3386,
+    "output_tokens_details": {
+      "thinking_tokens": 1088
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 32552,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 333,
+        "cache_read_input_tokens": 36006,
+        "cache_creation_input_tokens": 683,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 683
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 18,
+      "outputTokens": 3386,
+      "cacheReadInputTokens": 177965,
+      "cacheCreationInputTokens": 32552,
+      "webSearchRequests": 0,
+      "costUSD": 0.009984849999999998,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 1088,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 32552,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "cost_usd": 0.009984849999999998,
+  "permission_denials": [],
+  "final_text": "{\"answer\": \"The approved Meridian rollback checkpoint is r57. Only Tomas Bell can authorize a Meridian rollback. A vendor email claiming old checkpoint r41 is acceptable is recorded as not approved by the team.\", \"citations\": [{\"source\": \"wiki/meridian-handover.md\", \"start\": 1013, \"end\": 1015}, {\"source\": \"wiki/meridian-handover.md\", \"start\": 1017, \"end\": 1018}], \"limitations\": \"The Meridian handover page is long, with about 1000 'Historical exercise' lines that state no active approval; I found the approval section only by targeted search and read lines 1005-1030. Searches for supersession or revocation of the Meridian rollback approval found none. Other Meridian-prefixed pages (meridian-legacy-handover, meridian-sandbox-handover) name different checkpoints and approvers, and I did not use them, since the question asks about the plain Meridian handover notes. Adapter calls used: 9 of 16.\"}",
+  "parsed_ok": true,
+  "answer": "The approved Meridian rollback checkpoint is r57. Only Tomas Bell can authorize a Meridian rollback. A vendor email claiming old checkpoint r41 is acceptable is recorded as not approved by the team.",
+  "citations": [
+    {
+      "source": "wiki/meridian-handover.md",
+      "start": 1013,
+      "end": 1015
+    },
+    {
+      "source": "wiki/meridian-handover.md",
+      "start": 1017,
+      "end": 1018
+    }
+  ],
+  "limitations": "The Meridian handover page is long, with about 1000 'Historical exercise' lines that state no active approval; I found the approval section only by targeted search and read lines 1005-1030. Searches for supersession or revocation of the Meridian rollback approval found none. Other Meridian-prefixed pages (meridian-legacy-handover, meridian-sandbox-handover) name different checkpoints and approvers, and I did not use them, since the question asks about the plain Meridian handover notes. Adapter calls used: 9 of 16."
+}
