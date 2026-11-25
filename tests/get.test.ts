@@ -40,6 +40,23 @@ async function run(vault: string, page: string): Promise<{ stdout: string; stder
 }
 
 describe("get command", () => {
+  it("accepts the wiki/<page>.md source path that map and chunks report", async () => {
+    const vault = makeVault();
+    const { stdout, exitCode } = await run(vault, "wiki/auth.md");
+    expect(exitCode).toBe(0);
+    expect(parseEnvelope(stdout).chunks[0]!.source).toBe("wiki/auth.md");
+  });
+
+  it.each(["raw/secret.md", "wiki/../raw/secret.md", "wiki/sub/auth.md", "wiki/", "./wiki/auth.md"])(
+    "still rejects %s",
+    async (page) => {
+      const vault = makeVault();
+      const { stdout, exitCode } = await run(vault, page);
+      expect(exitCode).toBe(1);
+      expect(stdout).not.toContain("SENSITIVE_DATA");
+    },
+  );
+
   it("returns one chunk for an existing wiki page", async () => {
     const vault = makeVault();
     const { stdout, exitCode } = await run(vault, "auth");
