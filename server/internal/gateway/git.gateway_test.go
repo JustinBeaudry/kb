@@ -82,6 +82,78 @@ func TestGitSourceReaderRejectsUnapprovedInputs(t *testing.T) {
 	}
 }
 
+func gitCmd(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_AUTHOR_NAME=fixture", "GIT_AUTHOR_EMAIL=fixture@example.invalid", "GIT_COMMITTER_NAME=fixture", "GIT_COMMITTER_EMAIL=fixture@example.invalid")
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(out))
+	return strings.TrimSpace(string(out))
+}
+
+func TestGitSourceReaderRequiresCommitRevision(t *testing.T) {
+	dir, head := gitRepo(t, map[string]string{"a.txt": "a"})
+	tree := gitCmd(t, dir, "rev-parse", head+"^{tree}")
+	blob := gitCmd(t, dir, "rev-parse", head+":a.txt")
+	reader, err := gateway.NewGitSourceReader(map[string]string{"demo": dir})
+	require.NoError(t, err)
+	cases := []struct {
+		name, revision string
+		want           error
+	}{
+		{"tree id", tree, domain.ErrInvalidInput},
+		{"blob id", blob, domain.ErrInvalidInput},
+		{"commit id", head, nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			snap, err := reader.ReadSnapshot(t.Context(), "demo", tc.revision, "a.txt")
+
+			if tc.want != nil {
+				assert.ErrorIs(t, err, tc.want)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, head, snap.Revision)
+		})
+	}
+}
+
+func TestGitSourceReaderOpensOnlyTheMappedRepository(t *testing.T) {
+	outer, head := gitRepo(t, map[string]string{"secret.txt": "outer", "sub/keep.txt": "k"})
+	bare := t.TempDir()
+	gitCmd(t, bare, "clone", "-q", "--bare", outer, ".")
+	linked := filepath.Join(t.TempDir(), "linked")
+	gitCmd(t, outer, "worktree", "add", "-q", "--detach", linked, head)
+	cases := []struct {
+		name, dir string
+		want      error
+	}{
+		{"subdirectory of a repository", filepath.Join(outer, "sub"), domain.ErrUnavailable},
+		{"not a repository", t.TempDir(), domain.ErrUnavailable},
+		{"bare repository", bare, nil},
+		{"linked worktree", linked, nil},
+		{"top level", outer, nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			reader, err := gateway.NewGitSourceReader(map[string]string{"demo": tc.dir})
+			require.NoError(t, err)
+
+			snap, err := reader.ReadSnapshot(t.Context(), "demo", head, "secret.txt")
+
+			if tc.want != nil {
+				assert.ErrorIs(t, err, tc.want)
+				assert.Empty(t, snap.Bytes)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, "outer", string(snap.Bytes))
+		})
+	}
+}
+
 func TestGitSourceReaderRejectsInvalidMapping(t *testing.T) {
 	cases := map[string]map[string]string{
 		"relative path": {"demo": "relative/path"},
