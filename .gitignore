@@ -18,3 +18,7 @@ knowledge/.kb/inject-log.jsonl
 knowledge/.kb/capture-errors.log
 knowledge/.kb/index/
 knowledge/.kb/sessions/
+
+# Session captures reference local transcripts. Keep them out of the public repository.
+knowledge/sessions/
+knowledge/raw/
