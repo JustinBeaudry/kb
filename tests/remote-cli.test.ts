@@ -119,6 +119,36 @@ test("real CLI required argument failures write only sanitized stderr", async ()
   }
 });
 
+test("invalid input names the failed check without echoing argument values", async () => {
+  const secretish = "https://user:pa55@leak.example/path";
+  const cases: [string[], RegExp][] = [
+    [["search", "--profile", "p", "--endpoint", "https://example.com", "--query", "x"], /--project/],
+    [["status", "--profile", "p"], /--endpoint/],
+    [["search", "--profile", "p", "--endpoint", "https://example.com", "--project", "demo", "--budget", "99999"], /--budget/],
+    [["fetch", "--profile", "p", "--endpoint", "https://example.com", "--id", "a"], /--locator/],
+    [["status", "--profile", "p", "--endpoint", "http://example.com"], /--endpoint/],
+    [["status", "--profile", "p", "--endpoint", secretish], /--endpoint/],
+    [["search", "deploy runbook", "--profile", "p", "--endpoint", "https://example.com", "--project", "demo"], /--query/],
+  ];
+  const bad = Bun.spawn([process.execPath, "run", "src/cli.ts", "remote", "credential-set", "--profile", "p", "--endpoint", "https://example.com"], { stdin: new TextEncoder().encode("not-a-bearer\n"), stdout: "pipe", stderr: "pipe" });
+  const [badOut, badErr, badCode] = await Promise.all([new Response(bad.stdout).text(), new Response(bad.stderr).text(), bad.exited]);
+  expect(badCode).toBe(1);
+  expect(badOut).toBe("");
+  expect(JSON.parse(badErr).error.detail).toMatch(/64 hex/);
+  expect(badErr).not.toContain("not-a-bearer");
+  for (const [args, pattern] of cases) {
+    const proc = Bun.spawn([process.execPath, "run", "src/cli.ts", "remote", ...args], { stdout: "pipe", stderr: "pipe" });
+    const [out, err, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
+    expect(code).toBe(1);
+    expect(out).toBe("");
+    const parsed = JSON.parse(err);
+    expect(parsed.error.code).toBe("invalid_input");
+    expect(parsed.error.detail).toMatch(pattern);
+    expect(err).not.toContain("pa55");
+    expect(err).not.toContain("leak.example");
+  }
+});
+
 test.skipIf(!Bun.which("go"))("real CLI bridges JSON-RPC through compiled Go MCP with injected remote credentials", async () => {
   const dir = await mkdtemp(join(tmpdir(), "kb-remote-cli-"));
   const root = resolve(import.meta.dir, "..");
