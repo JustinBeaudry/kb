@@ -14,6 +14,7 @@ import (
 
 	"github.com/JustinBeaudry/kb/server/internal/domain"
 	"github.com/JustinBeaudry/kb/server/internal/gateway"
+	"github.com/JustinBeaudry/kb/server/internal/platform"
 )
 
 type operatorRunner interface {
@@ -218,4 +219,16 @@ func callOperator(ctx context.Context, path string, r operatorRequest, stdout io
 		return domain.ErrUnavailable
 	}
 	return nil
+}
+
+// evidenceRunner logs recovery point evidence for operator-requested backups,
+// so manual backups leave the same trail as scheduled ones.
+type evidenceRunner struct {
+	operatorRunner
+	state   platform.SupervisorMaintenance
+	observe func(platform.BackupEvidence)
+}
+
+func (r evidenceRunner) Run(ctx context.Context, id string) (domain.BackupResult, error) {
+	return platform.ObserveManualBackup(ctx, r.state, func(ctx context.Context) (domain.BackupResult, error) { return r.operatorRunner.Run(ctx, id) }, r.observe)
 }

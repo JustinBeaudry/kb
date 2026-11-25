@@ -194,7 +194,7 @@ func (h *safeLogHandler) Enabled(ctx context.Context, l slog.Level) bool {
 }
 func (h *safeLogHandler) Handle(ctx context.Context, r slog.Record) error {
 	message := r.Message
-	if !oneOf(message, "telemetry_export_failed", "http_request", "job_lease_lost", "job_failed", "worker_stopped", "server_stopped", "capture_reconciliation_incomplete", "supervisor_stopped", "backup_completed", "backup_failed", "restore_failed", "maintenance_closed") {
+	if !oneOf(message, "telemetry_export_failed", "http_request", "job_lease_lost", "job_failed", "worker_stopped", "server_stopped", "capture_reconciliation_incomplete", "supervisor_stopped", "backup_completed", "backup_failed", "backup_schedule_unsaved", "restore_failed", "maintenance_closed") {
 		message = "event"
 	}
 	cleaned := slog.NewRecord(r.Time, r.Level, message, r.PC)

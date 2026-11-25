@@ -216,3 +216,17 @@ func (telemetryFailingExporter) ExportSpans(context.Context, []sdktrace.ReadOnly
 func (telemetryFailingExporter) Shutdown(context.Context) error {
 	return errors.New("fixture secret exporter failure")
 }
+
+func TestTelemetryKeepsBackupEvidenceButNotIdentifiers(t *testing.T) {
+	var out bytes.Buffer
+	telemetry, err := NewTelemetry(&out, "graph", tracetest.NewInMemoryExporter())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, telemetry.Shutdown(context.Background())) })
+	telemetry.Logger().Info("backup_completed", "backup_age_seconds", int64(75600), "duration_ms", int64(23109), "backup_id", "scheduled-private-id")
+	assert.Contains(t, out.String(), `"msg":"backup_completed"`)
+	assert.Contains(t, out.String(), `"backup_age_seconds":75600`)
+	assert.Contains(t, out.String(), `"duration_ms":23109`)
+	assert.NotContains(t, out.String(), "scheduled-private-id")
+	telemetry.Logger().Error("backup_schedule_unsaved", "reason", "unavailable")
+	assert.Contains(t, out.String(), `"msg":"backup_schedule_unsaved"`)
+}

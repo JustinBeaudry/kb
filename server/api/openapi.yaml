@@ -2059,6 +2059,12 @@
           "minimum_budget_bytes": {
             "type": "integer",
             "minimum": 1
+          },
+          "field": {
+            "type": "string",
+            "maxLength": 512,
+            "pattern": "^(/[A-Za-z0-9_]{1,64}){1,8}$",
+            "description": "JSON pointer to the first request body property that failed schema validation. Contains schema property names or array indexes only, never submitted values."
           }
         },
         "required": [

@@ -60,3 +60,81 @@ func TestBackupSchedulerNeverUsesTimeoutToClearUnknownPermits(t *testing.T) {
 	require.ErrorIs(t, s.Tick(t.Context()), domain.ErrMaintenance)
 	assert.Zero(t, f.runs)
 }
+
+func TestBackupSchedulerReportsRecoveryPointGapOnlyForCompletedBackups(t *testing.T) {
+	now := time.Date(2026, 11, 24, 20, 0, 0, 0, time.UTC)
+	previous := now.Add(-21 * time.Hour)
+	f := &scheduleFixture{maintenance: domain.MaintenanceState{Phase: "open", LastSuccessfulBackup: previous}, failure: true}
+	s, e := NewBackupSupervisor(f, f, f, func() time.Time { return now })
+	require.NoError(t, e)
+	var reports []BackupEvidence
+	s.OnComplete(func(r BackupEvidence) { reports = append(reports, r) })
+
+	require.Error(t, s.Tick(t.Context()))
+	assert.Empty(t, reports, "a failed backup is not evidence of a recovery point")
+
+	now = f.state.NextAttempt
+	f.failure = false
+	require.NoError(t, s.Tick(t.Context()))
+	require.Len(t, reports, 1)
+	assert.Equal(t, now.Sub(previous), reports[0].RecoveryPointGap)
+	assert.Equal(t, time.Minute, reports[0].Duration)
+
+	require.NoError(t, s.Tick(t.Context()))
+	assert.Len(t, reports, 1, "a tick that runs no backup reports nothing")
+}
+
+func TestBackupSchedulerFirstBackupHasNoPreviousRecoveryPoint(t *testing.T) {
+	now := time.Date(2026, 11, 24, 20, 0, 0, 0, time.UTC)
+	f := &scheduleFixture{maintenance: domain.MaintenanceState{Phase: "open"}}
+	s, e := NewBackupSupervisor(f, f, f, func() time.Time { return now })
+	require.NoError(t, e)
+	var reports []BackupEvidence
+	s.OnComplete(func(r BackupEvidence) { reports = append(reports, r) })
+	require.NoError(t, s.Tick(t.Context()))
+	require.Len(t, reports, 1)
+	assert.Zero(t, reports[0].RecoveryPointGap)
+	assert.True(t, reports[0].First)
+}
+
+type failingSaveStore struct {
+	*scheduleFixture
+	saves int
+}
+
+func (f *failingSaveStore) SaveSchedule(ctx context.Context, s domain.BackupSchedule) error {
+	f.saves++
+	if f.saves > 1 {
+		return domain.ErrUnavailable
+	}
+	return f.scheduleFixture.SaveSchedule(ctx, s)
+}
+
+func TestBackupSchedulerSeparatesUnsavedScheduleFromFailedBackup(t *testing.T) {
+	now := time.Date(2026, 11, 24, 20, 0, 0, 0, time.UTC)
+	f := &scheduleFixture{maintenance: domain.MaintenanceState{Phase: "open", LastSuccessfulBackup: now.Add(-21 * time.Hour)}}
+	store := &failingSaveStore{scheduleFixture: f}
+	s, e := NewBackupSupervisor(store, f, f, func() time.Time { return now })
+	require.NoError(t, e)
+	var reports []BackupEvidence
+	s.OnComplete(func(r BackupEvidence) { reports = append(reports, r) })
+	err := s.Tick(t.Context())
+	require.ErrorIs(t, err, ErrScheduleNotSaved, "the backup ran; only the schedule state failed")
+	assert.Len(t, reports, 1, "a completed backup is still a recovery point")
+}
+
+func TestObserveManualBackupReportsGapFromLastSuccessfulBackup(t *testing.T) {
+	now := time.Date(2026, 11, 24, 20, 0, 0, 0, time.UTC)
+	f := &scheduleFixture{maintenance: domain.MaintenanceState{Phase: "open", LastSuccessfulBackup: now.Add(-19 * time.Hour)}}
+	f.state.LastAttempt = now
+	var reports []BackupEvidence
+	_, err := ObserveManualBackup(t.Context(), f, func(ctx context.Context) (domain.BackupResult, error) { return f.Run(ctx, "manual-1") }, func(r BackupEvidence) { reports = append(reports, r) })
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+	assert.Equal(t, 19*time.Hour, reports[0].RecoveryPointGap)
+
+	f.failure = true
+	_, err = ObserveManualBackup(t.Context(), f, func(ctx context.Context) (domain.BackupResult, error) { return f.Run(ctx, "manual-2") }, func(r BackupEvidence) { reports = append(reports, r) })
+	require.Error(t, err)
+	assert.Len(t, reports, 1, "a failed manual backup is not a recovery point")
+}

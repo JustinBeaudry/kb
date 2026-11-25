@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"sync"
 	"time"
 
@@ -26,6 +27,53 @@ type BackupSupervisor struct {
 	backup      ScheduledBackup
 	maintenance SupervisorMaintenance
 	now         func() time.Time
+	completed   func(BackupEvidence)
+}
+
+// BackupEvidence describes one completed scheduled backup without identifiers.
+// RecoveryPointGap is the time since the previous successful snapshot, which
+// is the effective recovery point objective this backup closed. First marks a
+// backup with no earlier snapshot to measure against.
+type BackupEvidence struct {
+	RecoveryPointGap, Duration time.Duration
+	First                      bool
+}
+
+// ErrScheduleNotSaved means a scheduled backup completed but its schedule
+// state could not be persisted. It is not a failed backup.
+var ErrScheduleNotSaved = errors.New("backup schedule state not saved")
+
+// ObserveManualBackup runs an operator-requested backup and reports the same
+// recovery point evidence as scheduled backups, measured from the last
+// successful backup recorded in maintenance state.
+func ObserveManualBackup(ctx context.Context, state SupervisorMaintenance, run func(context.Context) (domain.BackupResult, error), observe func(BackupEvidence)) (domain.BackupResult, error) {
+	m, err := state.State(ctx)
+	if err != nil {
+		return domain.BackupResult{}, err
+	}
+	result, err := run(ctx)
+	if err != nil {
+		return result, err
+	}
+	if observe != nil {
+		observe(evidenceFor(m.LastSuccessfulBackup, result))
+	}
+	return result, nil
+}
+
+func evidenceFor(previous time.Time, result domain.BackupResult) BackupEvidence {
+	e := BackupEvidence{Duration: result.CompletedAt.Sub(result.StartedAt), First: previous.IsZero()}
+	if !e.First {
+		e.RecoveryPointGap = result.StartedAt.Sub(previous)
+	}
+	return e
+}
+
+// OnComplete registers an observer called after each completed scheduled backup.
+func (s *BackupSupervisor) OnComplete(fn func(BackupEvidence)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.completed = fn
 }
 
 func NewBackupSupervisor(store BackupScheduleStore, backup ScheduledBackup, maintenance SupervisorMaintenance, now func() time.Time) (*BackupSupervisor, error) {
@@ -87,12 +135,19 @@ func (s *BackupSupervisor) Tick(ctx context.Context) error {
 		}
 		state.NextAttempt = now.Add(backoff)
 	} else {
+		// A completed backup is a recovery point even if saving the schedule fails.
+		if s.completed != nil {
+			s.completed(evidenceFor(state.LastSnapshot, result))
+		}
 		state.LastSnapshot = result.StartedAt
 		state.Failures = 0
 		state.NextAttempt = result.StartedAt.Add(20 * time.Hour)
 	}
 	saveErr := s.store.SaveSchedule(context.WithoutCancel(ctx), state)
 	if saveErr != nil {
+		if runErr == nil {
+			return errors.Join(ErrScheduleNotSaved, saveErr)
+		}
 		return saveErr
 	}
 	return runErr
