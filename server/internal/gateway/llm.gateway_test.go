@@ -24,6 +24,7 @@ const fixtureKey = "fixture-key-not-a-secret"
 type recordedCall struct {
 	header http.Header
 	body   map[string]any
+	size   int
 }
 
 type fakeProvider struct {
@@ -38,7 +39,7 @@ func (f *fakeProvider) server(t *testing.T, status int, delay time.Duration, res
 		var body map[string]any
 		_ = json.Unmarshal(raw, &body)
 		f.mu.Lock()
-		f.calls = append(f.calls, recordedCall{header: r.Header.Clone(), body: body})
+		f.calls = append(f.calls, recordedCall{header: r.Header.Clone(), body: body, size: len(raw)})
 		f.mu.Unlock()
 		if delay > 0 {
 			select {
@@ -250,4 +251,42 @@ func TestNewAnthropicValidatesConfiguration(t *testing.T) {
 			assert.NotContains(t, fmt.Sprintf("%v %#v", tc.cfg, tc.cfg), "u:p")
 		})
 	}
+}
+
+func TestLLMGatewayInputBoundCoversSerializedRequest(t *testing.T) {
+	// Every byte below expands under JSON escaping (<, >, & and control
+	// characters become six-byte \u sequences; quotes and backslashes double).
+	escaped := strings.Repeat("<>&\"\\\x01\n", 400)
+	for _, tc := range []struct {
+		name     string
+		excerpts []domain.PromptExcerpt
+	}{
+		{"plain excerpts", generationRequest().Excerpts},
+		{"escape-heavy excerpts", []domain.PromptExcerpt{{RevisionID: "rev-a", Text: escaped}, {RevisionID: "rev-b", Text: escaped}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			provider := &fakeProvider{}
+			g := newLLM(t, provider.server(t, 200, 0, messageResponse(`{"proposals":[]}`, knownUsageJSON, "end_turn")), &fakeRecorder{})
+			req := generationRequest()
+			req.Excerpts = tc.excerpts
+			bound, err := g.InputBound(req)
+			require.NoError(t, err)
+
+			_, err = g.Generate(context.Background(), req)
+
+			require.NoError(t, err)
+			require.Len(t, provider.calls, 1)
+			assert.Greater(t, bound, int64(provider.calls[0].size), "bound covers the full serialized request, schema and escaping included")
+		})
+	}
+}
+
+func TestLLMGatewayInputBoundRejectsInvalidRequests(t *testing.T) {
+	g := newLLM(t, (&fakeProvider{}).server(t, 200, 0, ""), &fakeRecorder{})
+	req := generationRequest()
+	req.Excerpts = nil
+
+	_, err := g.InputBound(req)
+
+	assert.ErrorIs(t, err, domain.ErrInvalidInput)
 }

@@ -64,8 +64,11 @@ type ModelBudget interface {
 	Settle(context.Context, string, domain.Usage) error
 }
 
-// LLMGateway is the single instrumented model boundary.
+// LLMGateway is the single instrumented model boundary. InputBound reports a
+// conservative byte bound on the billed input for the request as the gateway
+// will serialize it, so reservations cover the real provider input.
 type LLMGateway interface {
+	InputBound(domain.GenerationRequest) (int64, error)
 	Generate(context.Context, domain.GenerationRequest) (domain.Generation, error)
 }
 
@@ -224,7 +227,16 @@ func (s *DreamingService) Process(ctx context.Context, job domain.Job, lease dom
 
 func (s *DreamingService) generate(ctx context.Context, job domain.Job, route domain.ModelRoute, snap dreamSnapshot) (domain.Generation, error) {
 	scope := domain.Scope{ProjectID: job.Scope.ProjectID}
-	worst := route.WorstCaseMicroUSD(int64(len(dreamInstructions)) + int64(len(dreamSchema)) + requestBytes(snap.excerpts))
+	base := domain.GenerationRequest{Route: route, Schema: dreamSchema, Instructions: dreamInstructions, Excerpts: snap.excerpts, PolicyRevision: snap.policy.Revision, JobID: job.ID}
+	// The serialized body is independent of the idempotency key and deadline,
+	// so one bound covers every attempt.
+	probe := base
+	probe.IdempotencyKey, probe.Deadline = job.ID, s.cfg.Now().Add(domain.GenerationDeadline)
+	inputBound, err := s.llm.InputBound(probe)
+	if err != nil {
+		return domain.Generation{}, err
+	}
+	worst := route.WorstCaseMicroUSD(inputBound)
 	last := domain.ErrUnavailable
 	for range domain.MaxGenerationAttempts {
 		reservation, err := s.budget.Reserve(ctx, scope, route.Name, worst)
@@ -233,7 +245,8 @@ func (s *DreamingService) generate(ctx context.Context, job domain.Job, route do
 		}
 		deadline := s.cfg.Now().Add(domain.GenerationDeadline)
 		callCtx, cancel := context.WithDeadline(ctx, deadline)
-		request := domain.GenerationRequest{Route: route, Schema: dreamSchema, Instructions: dreamInstructions, Excerpts: snap.excerpts, IdempotencyKey: reservation.ID, PolicyRevision: snap.policy.Revision, JobID: job.ID, Deadline: deadline}
+		request := base
+		request.IdempotencyKey, request.Deadline = reservation.ID, deadline
 		gen, genErr := s.llm.Generate(callCtx, request)
 		cancel()
 		// Settle even after cancellation or lease loss: spend may have happened.
@@ -252,10 +265,6 @@ func (s *DreamingService) generate(ctx context.Context, job domain.Job, route do
 		}
 	}
 	return domain.Generation{}, errors.Join(domain.ErrUnavailable, last)
-}
-
-func requestBytes(excerpts []domain.PromptExcerpt) int64 {
-	return domain.GenerationRequest{Excerpts: excerpts}.InputBytes()
 }
 
 var credentialLike = regexp.MustCompile(`(?i)(api[_-]?key|secret|passw(or)?d|bearer\s|private[_ -]key|-----begin|\bsk-[a-z0-9_-]{8,}|\bghp_[a-z0-9]{8,}|\bakia[0-9a-z]{16})`)

@@ -33,6 +33,10 @@ func (s *scriptedLLM) Generate(_ context.Context, r domain.GenerationRequest) (d
 	return domain.Generation{Proposals: out, StopReason: "end_turn", Usage: domain.Usage{Tokens: 10, TokensKnown: true, CostMicroUSD: 3, CostKnown: true}}, nil
 }
 
+func (s *scriptedLLM) InputBound(r domain.GenerationRequest) (int64, error) {
+	return 4096 + 6*r.InputBytes(), nil
+}
+
 type recordingSender struct{ sent []string }
 
 func (r *recordingSender) Send(_ context.Context, key, _ string, _ string) error {

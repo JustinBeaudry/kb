@@ -210,6 +210,14 @@ type fakeLLM struct {
 	mu        sync.Mutex
 	responses []func(domain.GenerationRequest) (domain.Generation, error)
 	requests  []domain.GenerationRequest
+	bound     int64
+}
+
+func (f *fakeLLM) InputBound(domain.GenerationRequest) (int64, error) {
+	if f.bound == 0 {
+		return 1000, nil
+	}
+	return f.bound, nil
 }
 
 func (f *fakeLLM) Generate(_ context.Context, r domain.GenerationRequest) (domain.Generation, error) {
@@ -598,6 +606,44 @@ func TestScheduleEnqueuesChangedProjectsOnly(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, enqueued)
 	assert.Equal(t, service.DreamJobKind, h.enqueued.jobs[0].Kind)
+}
+
+func TestReservationCoversGatewayInputBound(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		bound    int64
+		cap      int64
+		reserved bool
+	}{
+		// pricedRoute: 1 micro-USD per input byte-token, 5 per output token.
+		{"reservation uses the serialized bound", 40_000, 1_000_000, true},
+		{"bound beyond the remaining cap defers without a call", 1_000_000, 1_000_000, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newFakeDreamRepo("primary")
+			observedInputs(repo)
+			h := newDreamHarness(t, []domain.ModelRoute{pricedRoute}, tc.cap, repo)
+			h.llm.bound = tc.bound
+			h.llm.responses = append(h.llm.responses, propose())
+
+			err := h.service.Process(context.Background(), dreamJob, dreamLease)
+
+			require.NoError(t, err)
+			status, err := h.budget.Status(context.Background())
+			require.NoError(t, err)
+			assert.LessOrEqual(t, status.CommittedMicroUSD, tc.cap)
+			if !tc.reserved {
+				assert.Equal(t, []string{"model_budget_exhausted"}, h.jobs.deferred)
+				assert.Empty(t, h.llm.requests)
+				assert.Empty(t, h.budgetRepo.reservations)
+				return
+			}
+			require.Len(t, h.budgetRepo.reservations, 1)
+			for _, r := range h.budgetRepo.reservations {
+				assert.Equal(t, pricedRoute.WorstCaseMicroUSD(tc.bound), r.MaxCostMicroUSD)
+			}
+		})
+	}
 }
 
 func TestModelBudgetSettlementAndReconciliation(t *testing.T) {

@@ -46,6 +46,10 @@ const (
 	maxApplicabilityBytes    = 256
 	// deadlineSlack tolerates clock skew between caller and gateway checks.
 	deadlineSlack = 5 * time.Second
+	// providerFramingBytes covers input the provider adds around the request
+	// body (role framing and the structured-output system prompt it derives
+	// from the schema), which it bills as input tokens.
+	providerFramingBytes = 8192
 )
 
 func NewAnthropic(cfg AnthropicConfig, client *http.Client, recorder GenerationRecorder) (*Anthropic, error) {
@@ -131,6 +135,22 @@ func (g *Anthropic) body(r domain.GenerationRequest) ([]byte, error) {
 		"messages":      []map[string]any{{"role": "user", "content": content}},
 		"output_config": map[string]any{"format": map[string]any{"type": "json_schema", "schema": proposalSchema}},
 	})
+}
+
+// InputBound is a conservative upper bound, in bytes, on the input tokens
+// Generate can be billed for: the exact serialized request body (schema,
+// envelope and JSON-escaped excerpts) plus provider framing. Byte-level BPE
+// never yields more tokens than bytes. The body does not depend on the
+// idempotency key or deadline, so the bound holds for every attempt.
+func (g *Anthropic) InputBound(r domain.GenerationRequest) (int64, error) {
+	if !validRequest(r, time.Now()) {
+		return 0, domain.ErrInvalidInput
+	}
+	payload, err := g.body(r)
+	if err != nil {
+		return 0, err
+	}
+	return int64(len(payload)) + providerFramingBytes, nil
 }
 
 type providerUsage struct {
