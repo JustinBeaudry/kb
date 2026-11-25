@@ -644,7 +644,9 @@ func (s *VerificationService) PreviewInvalidationHost(ctx context.Context, revis
 		if err != nil {
 			return err
 		}
-		if !state.Valid || state.Status != domain.ClaimVerified {
+		// A valid superseded revision still supports pinned publications, so the
+		// owner must be able to invalidate it to withdraw them.
+		if !state.Valid || (state.Status != domain.ClaimVerified && state.Status != domain.ClaimSuperseded) {
 			return domain.ErrConflict
 		}
 		head, err := s.repo.Head(ctx, tx, state.Claim.ClaimID)

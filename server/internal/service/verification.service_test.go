@@ -539,6 +539,42 @@ func TestInvalidatingNewerRevisionDoesNotResurrectSupersededRevision(t *testing.
 	assert.Equal(t, domain.ClaimInvalidated, f.states[second].Status)
 	assert.Equal(t, domain.ClaimSuperseded, f.states[first].Status, "the older revision stays retired")
 	assert.Equal(t, second, f.heads[d.TargetID])
-	_, err = s.PreviewInvalidationHost(t.Context(), first)
-	assert.ErrorIs(t, err, domain.ErrConflict, "superseded revisions are not offered for invalidation as verified")
+}
+
+// A superseded revision stays valid support for publications pinned to it, so
+// the owner must still be able to invalidate it and withdraw those dependents.
+func TestOwnerCanInvalidateValidSupersededRevision(t *testing.T) {
+	tests := []struct {
+		name    string
+		mutate  func(*domain.RevisionState)
+		wantErr error
+	}{
+		{"valid superseded revision is offered for invalidation", func(*domain.RevisionState) {}, nil},
+		{"invalid superseded revision is rejected", func(s *domain.RevisionState) { s.Valid = false }, domain.ErrConflict},
+		{"disputed revision is rejected", func(s *domain.RevisionState) { s.Status = domain.ClaimDisputed }, domain.ErrConflict},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, f, d := verificationFixture(t)
+			first := publishRevision(t, s, f, d, 1)
+			publishRevision(t, s, f, d, 2)
+			state := f.states[first]
+			require.Equal(t, domain.ClaimSuperseded, state.Status)
+			tt.mutate(&state)
+			f.states[first] = state
+
+			input, err := s.PreviewInvalidationHost(t.Context(), first)
+
+			if tt.wantErr != nil {
+				assert.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, string(domain.ClaimSuperseded), input.ExpectedStatus)
+			input.IdempotencyKey = "invalidate-first"
+			_, err = s.InvalidateHost(t.Context(), input)
+			require.NoError(t, err)
+			assert.Equal(t, domain.ClaimInvalidated, f.states[first].Status)
+		})
+	}
 }
