@@ -41,7 +41,7 @@ func TestMemoryCandidatesRemainUntrustedAndRevalidate(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		want error
-	}{{"authentic", nil}, {"invalid input", domain.ErrInvalidInput}, {"no task", domain.ErrInvalidInput}, {"invalid entity", domain.ErrInvalidInput}, {"missing capability", domain.ErrForbidden}, {"bad digest", domain.ErrInvalidInput}, {"missing source", domain.ErrForbidden}, {"other task owner", domain.ErrForbidden}, {"head conflict", domain.ErrConflict}, {"head owner", domain.ErrForbidden}, {"source unavailable after IO", domain.ErrIncomplete}, {"source scope after IO", domain.ErrForbidden}, {"source digest after IO", domain.ErrConflict}, {"source policy after IO", domain.ErrStale}, {"source excluded after IO", domain.ErrForbidden}, {"missing dependency", domain.ErrIncomplete}, {"candidate dependency", domain.ErrIncomplete}, {"verified dependency", nil}, {"repository error", domain.ErrUnavailable}} {
+	}{{"authentic", nil}, {"invalid input", domain.ErrInvalidInput}, {"no task", domain.ErrInvalidInput}, {"invalid entity", domain.ErrInvalidInput}, {"missing capability", domain.ErrForbidden}, {"bad digest", domain.ErrInvalidInput}, {"missing source", domain.ErrForbidden}, {"other task owner", domain.ErrForbidden}, {"head conflict", domain.ErrConflict}, {"head owner", domain.ErrForbidden}, {"source unavailable after IO", domain.ErrIncomplete}, {"source scope after IO", domain.ErrForbidden}, {"source digest after IO", domain.ErrConflict}, {"source policy after IO", domain.ErrStale}, {"source excluded after IO", domain.ErrForbidden}, {"missing dependency", domain.ErrIncomplete}, {"candidate dependency", domain.ErrIncomplete}, {"verified dependency", nil}, {"dependency on superseded support", domain.ErrIncomplete}, {"repository error", domain.ErrUnavailable}} {
 		t.Run(tc.name, func(t *testing.T) {
 			capture, evidence, _, p, m := captureFixture(t)
 			p.Capabilities = append(p.Capabilities, "candidate:write", "retrieval:read")
@@ -88,14 +88,17 @@ func TestMemoryCandidatesRemainUntrustedAndRevalidate(t *testing.T) {
 				}
 			case "missing dependency":
 				input.DependsOn = []string{"missing"}
-			case "candidate dependency", "verified dependency":
+			case "candidate dependency", "verified dependency", "dependency on superseded support":
 				input.DependsOn = []string{"dep"}
 				status := domain.ClaimCandidate
-				if tc.name == "verified dependency" {
+				if tc.name != "candidate dependency" {
 					status = domain.ClaimVerified
 				}
 				auth.claims = []domain.ClaimRevision{{Revision: "dep", Status: status}}
 				auth.eligible["dep"] = true
+				// Adjudication rejects any superseded revision in the support
+				// closure, so admission must reject it up front.
+				auth.superseded = map[string]bool{"dep": tc.name == "dependency on superseded support"}
 			case "repository error":
 				repo.err = domain.ErrUnavailable
 			}

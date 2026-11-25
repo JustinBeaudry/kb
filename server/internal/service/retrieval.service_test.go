@@ -19,6 +19,7 @@ type retrievalFixture struct {
 	snapshotCalls int
 	claims        []domain.ClaimRevision
 	eligible      map[string]bool
+	superseded    map[string]bool
 	snapshot      RetrievalSnapshot
 	checkpoint    domain.Checkpoint
 	examined      int
@@ -84,6 +85,12 @@ func (f *retrievalFixture) Eligible(_ context.Context, _ Tx, _ domain.Principal,
 		for _, c := range f.claims {
 			if c.Revision == id && f.eligible[id] {
 				r.Claims = append(r.Claims, c)
+				if f.superseded[id] {
+					if r.SupersededSupport == nil {
+						r.SupersededSupport = map[string]bool{}
+					}
+					r.SupersededSupport[id] = true
+				}
 			}
 		}
 	}
@@ -224,6 +231,31 @@ func TestConflictingVersionsRemainVisible(t *testing.T) {
 				assert.NotEqual(t, domain.ClaimSuperseded, c.ClaimStatus)
 			}
 			assert.Equal(t, tt.wantRevisions, got)
+		})
+	}
+}
+func TestRetrievalWarnsWhenSupportIsSuperseded(t *testing.T) {
+	tests := []struct {
+		name       string
+		superseded bool
+		want       bool
+	}{
+		{"claim pinned to a superseded support revision carries the warning", true, true},
+		{"claim with current support carries no warning", false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, f, p, r := retrievalSetup(t)
+			f.claims = append(f.claims, domain.ClaimRevision{ClaimID: "dependent", Revision: "d1", Text: "dependent", Scope: r.Scope, Status: domain.ClaimVerified})
+			f.eligible["d1"] = true
+			f.superseded = map[string]bool{"d1": tt.superseded}
+
+			v, e := s.Retrieve(t.Context(), p, r)
+
+			require.NoError(t, e)
+			require.Len(t, v.Chunks, 1)
+			assert.Equal(t, domain.ClaimVerified, v.Chunks[0].ClaimStatus, "the claim itself stays visible and verified")
+			assert.Equal(t, tt.want, slices.Contains(v.Chunks[0].Warnings, "support_superseded"))
 		})
 	}
 }

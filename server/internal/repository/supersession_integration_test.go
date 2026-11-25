@@ -100,6 +100,54 @@ func TestNewerPublicationSupersedesPriorRevisionInRetrieval(t *testing.T) {
 		assert.Equal(t, dependent, out.Chunks[0].Revision)
 		assert.Equal(t, domain.ClaimVerified, out.Chunks[0].ClaimStatus)
 	})
+	t.Run("publications pinned to the superseded revision warn that their support is superseded", func(t *testing.T) {
+		out := retrieve("Dependent finding")
+		require.Len(t, out.Chunks, 1)
+		assert.Contains(t, out.Chunks[0].Warnings, "support_superseded")
+		current := retrieve("Shared finding")
+		require.Len(t, current.Chunks, 1)
+		assert.NotContains(t, current.Chunks[0].Warnings, "support_superseded")
+	})
+	t.Run("superseded revisions do not consume search seed slots", func(t *testing.T) {
+		var seeds []domain.ClaimRevision
+		require.NoError(t, store.Within(t.Context(), func(ctx context.Context, tx domain.Tx) error {
+			var e error
+			seeds, e = auth.Seeds(ctx, tx, domain.Scope{ProjectID: "demo"}, "shared-finding", 50)
+			return e
+		}))
+		var revisions []string
+		for _, c := range seeds {
+			revisions = append(revisions, c.Revision)
+		}
+		assert.Equal(t, []string{second}, revisions)
+		out, e := retrieval.Retrieve(t.Context(), agent.Principal, domain.RetrievalRequest{Scope: domain.Scope{ProjectID: "demo"}, Query: "shared-finding", Mode: domain.RetrievalEvidence, MaxVisited: 1})
+		require.NoError(t, e)
+		require.Len(t, out.Chunks, 1)
+		assert.Equal(t, second, out.Chunks[0].Revision)
+	})
+	t.Run("new candidates cannot build on a claim whose support is superseded", func(t *testing.T) {
+		_, e := memory.Submit(t.Context(), agent.Principal, domain.CandidateInput{ClaimID: "candidate-transitive-stale", Scope: scope, Text: "PRIVATE transitive", Kind: "finding", Evidence: refs, DependsOn: []string{dependent}})
+		assert.ErrorIs(t, e, domain.ErrIncomplete)
+	})
+	t.Run("backfill supersedes legacy duplicate verified revisions idempotently", func(t *testing.T) {
+		// Simulate data written before publication superseded prior revisions.
+		require.NoError(t, store.Within(t.Context(), func(ctx context.Context, tx domain.Tx) error {
+			native, e := store.Unwrap(tx)
+			if e != nil {
+				return e
+			}
+			_, e = native.Run(ctx, `MATCH (c:ClaimRevision {id:$id}) SET c.status='verified'`, map[string]any{"id": first})
+			return e
+		}))
+		require.Equal(t, domain.ClaimVerified, status(first))
+
+		for range 2 {
+			require.NoError(t, store.InitializeSchema(t.Context()))
+			assert.Equal(t, domain.ClaimSuperseded, status(first))
+			assert.Equal(t, domain.ClaimVerified, status(second))
+			assert.Equal(t, domain.ClaimVerified, status(dependent))
+		}
+	})
 	t.Run("new candidates cannot cite the superseded revision", func(t *testing.T) {
 		_, e := memory.Submit(t.Context(), agent.Principal, domain.CandidateInput{ClaimID: "candidate-stale-citation", Scope: scope, Text: "PRIVATE stale", Kind: "finding", Evidence: refs, DependsOn: []string{first}})
 		assert.Error(t, e)
@@ -114,5 +162,16 @@ func TestNewerPublicationSupersedesPriorRevisionInRetrieval(t *testing.T) {
 		assert.Equal(t, domain.ClaimInvalidated, status(second))
 		assert.Equal(t, domain.ClaimSuperseded, status(first))
 		assert.True(t, retrieve("Shared finding").NoResults)
+	})
+	t.Run("invalidating a superseded revision withdraws publications pinned to it", func(t *testing.T) {
+		input, e := verify.PreviewInvalidationHost(t.Context(), first)
+		require.NoError(t, e)
+		input.IdempotencyKey = "invalidate-first"
+		_, e = verify.InvalidateHost(t.Context(), input)
+		require.NoError(t, e)
+
+		assert.Equal(t, domain.ClaimInvalidated, status(first))
+		assert.Equal(t, domain.ClaimInvalidated, status(dependent))
+		assert.True(t, retrieve("Dependent finding").NoResults)
 	})
 }

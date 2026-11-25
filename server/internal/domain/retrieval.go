@@ -58,6 +58,9 @@ type EligibilityResult struct {
 	Claims      []ClaimRevision
 	Snapshot    RetrievalSnapshot
 	Unavailable bool
+	// SupersededSupport marks eligible revisions whose support closure includes
+	// a superseded revision. They stay visible but cannot be built upon.
+	SupersededSupport map[string]bool
 }
 
 // FetchMode separates ID-only publication evidence from explicitly task-scoped

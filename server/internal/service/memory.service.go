@@ -126,7 +126,9 @@ func (s *MemoryService) Submit(ctx context.Context, p domain.Principal, input do
 				return domain.ErrIncomplete
 			}
 			for _, dep := range eligible.Claims {
-				if dep.Status != domain.ClaimVerified {
+				// Adjudication rejects superseded revisions anywhere in the support
+				// closure, so admitting such a candidate could never be published.
+				if dep.Status != domain.ClaimVerified || eligible.SupersededSupport[dep.Revision] {
 					return domain.ErrIncomplete
 				}
 			}
