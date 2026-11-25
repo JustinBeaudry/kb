@@ -1,0 +1,21 @@
+{
+  "answer": "Contact the release custodian, who is currently Asha Venn. Eli Park held that role before October 1 and is no longer on call, so don't contact Eli. Two things must happen before EU export resumes: (1) reconcile the export offsets, and (2) get approval from the incident lead, who is currently Koen Li on rotation. The routine US restart procedure does not apply here.",
+  "citations": [
+    {
+      "source": "wiki/plover-export.md",
+      "start": 11,
+      "end": 14
+    },
+    {
+      "source": "wiki/duty-roster.md",
+      "start": 11,
+      "end": 16
+    },
+    {
+      "source": "wiki/export-runbook.md",
+      "start": 11,
+      "end": 16
+    }
+  ],
+  "limitations": "The names come from the duty roster, which was last updated 2026-10-24, so the assignments may have changed since then. The wiki gives no contact details for either person. It also doesn't say whether offset reconciliation must be finished before the approval is requested."
+}

@@ -1,0 +1,16 @@
+{
+  "answer": "Nacre production delivery failures are retried at most 7 times, and the first retry waits 90 seconds. Nacre-Lab uses different values (2 retries, 5-second delay), but it is a separate disposable demo, so they do not apply to production Nacre.",
+  "citations": [
+    {
+      "source": "wiki/queue-dispatch.md",
+      "start": 11,
+      "end": 13
+    },
+    {
+      "source": "wiki/queue-dispatch.md",
+      "start": 15,
+      "end": 16
+    }
+  ],
+  "limitations": "One page holds all the evidence (wiki/queue-dispatch.md, updated 2026-10-24). A search for 'nacre' found no other or conflicting Nacre retry values. The many ops-*.md retry entries cover other workstreams such as Indigo and Beryl, not Nacre. The page gives no backoff behavior after the first delay."
+}
