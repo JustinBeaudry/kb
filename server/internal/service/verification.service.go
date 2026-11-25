@@ -67,10 +67,11 @@ type VerificationService struct {
 	owners       HostOwnerRepository
 	evidence     EvidenceRepository
 	capture      OwnerEvidence
+	checks       *EvidenceChecks
 }
 
 func NewVerificationService(tx Transactor, r VerificationRepository, p PublicationRepository, o HostOwnerRepository, e EvidenceRepository, c OwnerEvidence) *VerificationService {
-	return &VerificationService{tx, r, p, o, e, c}
+	return &VerificationService{tx: tx, repo: r, publications: p, owners: o, evidence: e, capture: c}
 }
 func validateAdjudication(d AdjudicationDraft) error {
 	if domain.ValidateIDs(d.ProjectID, d.CandidateRevision, d.ExpectedCandidateHead, d.IdempotencyKey) != nil || len(d.IdempotencyKey) > 256 || len(d.Excerpts) > 50 || len(d.EntityIDs) > 50 {
@@ -169,7 +170,7 @@ func (s *VerificationService) artifact(ctx context.Context, tx Tx, ref domain.Ev
 	if p.Paused || p.Revision == "" || (p.Revision != a.PolicyRevision && p.Revision != a.CurrentPolicyRevision) {
 		return a, domain.ErrStale
 	}
-	if err = validateSource(p, a.SourcePath); err != nil {
+	if err = validateEvidenceSource(p, a); err != nil {
 		return a, err
 	}
 	return a, nil

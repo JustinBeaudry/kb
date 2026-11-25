@@ -18,7 +18,7 @@ function normalizePageName(page: string): string {
 export default defineCommand({
   meta: { name: "get", description: "Fetch a curated wiki page" },
   args: {
-    page: { type: "positional", description: "Wiki page name (without path)", required: true },
+    page: { type: "positional", description: "Wiki page name, or its wiki/<page>.md source path", required: true },
     vaultPath: { type: "string", description: "Path to the vault directory", alias: ["p"] },
     budget: { type: "string", description: "Complete output byte budget (overrides KB_RETRIEVAL_BUDGET)" },
     "start-line": { type: "string", description: "First absolute source line to return (default 1)" },
@@ -41,7 +41,10 @@ export default defineCommand({
       process.exit(1);
     }
 
-    const pageArg = args.page;
+    // Accept the exact source form that map and chunks report (wiki/<page>.md,
+    // including nested wiki/<dir>/<page>.md). One leading "wiki/" is stripped;
+    // traversal and real-path containment are still enforced below.
+    const pageArg = /^wiki\/[^/]/.test(args.page) ? args.page.slice("wiki/".length) : args.page;
     try {
       assertSafeFilename(pageArg);
     } catch (err) {

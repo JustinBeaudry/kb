@@ -75,7 +75,7 @@ jobs:
           python3 - <<'PY'
           import json
           events = [json.loads(line) for line in open('server/test-results.jsonl')]
-          required = ['TestRestoreRejectsMissingEvidence', 'TestRestoreReplaysDeletionBeforeReadiness', 'TestEncryptionKeyRotationPreservesPinnedEvidence', 'TestTelemetryContainsNoFixtureSecrets', 'TestMissingModelRouteDoesNotFailReadiness']
+          required = ['TestRestoreRejectsMissingEvidence', 'TestRestoreReplaysDeletionBeforeReadiness', 'TestEncryptionKeyRotationPreservesPinnedEvidence', 'TestTelemetryContainsNoFixtureSecrets', 'TestMissingModelRouteDoesNotFailReadiness', 'TestHermesConversationContract']
           for name in required:
               matches = [e for e in events if e.get('Test') == name and e.get('Action') in ('pass', 'skip', 'fail')]
               if not matches or any(e['Action'] != 'pass' for e in matches):

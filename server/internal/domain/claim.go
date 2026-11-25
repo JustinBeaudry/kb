@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // MaxRevisionBytes bounds every claim and checkpoint revision the server
 // issues. Servers advertise it in status so clients can size write receipts
@@ -35,6 +38,9 @@ type ClaimRevision struct {
 	DependsOn                     []string
 	Applicability                 Applicability
 	Status                        ClaimStatus
+	// Verification is the authoritative supporting check, attached on read
+	// only. It is never part of the immutable submitted revision data.
+	Verification *Verification `json:"-"`
 }
 
 type CandidateInput struct {
@@ -60,10 +66,46 @@ type Verification struct {
 	Method                                            string
 	Origin                                            Origin
 	CheckedAt                                         time.Time
+	Reasons                                           []ReasonCode `json:",omitempty"`
+	DistinctOrigins                                   []string     `json:",omitempty"`
 }
+
+// Sharing scopes. A cross-project lesson is discoverable by other projects
+// only through its generalized text; sources and identifiers stay private.
+const (
+	SharingProject      = "project"
+	SharingCrossProject = "cross_project"
+)
+
+// Publication states returned by lesson publication. Pending and rejected
+// outcomes write nothing and carry reason codes.
+const (
+	PublicationPublished = "published"
+	PublicationPending   = "pending"
+	PublicationRejected  = "rejected"
+)
 
 type Publication struct {
 	ID, ClaimRevision, SharingScope, Revision string
 	SupportRevisions                          []string
 	PolicyRevision                            string
+	GeneralizedText                           string       `json:",omitempty"`
+	State                                     string       `json:",omitempty"`
+	Reasons                                   []ReasonCode `json:",omitempty"`
+}
+
+// LessonInput requests a separate lesson derived from verified support.
+type LessonInput struct {
+	ProjectID, LessonID, ExpectedHead, Text, SharingScope string
+	Applicability                                         Applicability
+	Counterexamples, SupportRevisions                     []string
+}
+
+// LessonText renders the stored lesson with its counterexamples so they are
+// never separated from the generalization they qualify.
+func LessonText(text string, counterexamples []string) string {
+	if len(counterexamples) == 0 {
+		return text
+	}
+	return text + "\nNot applicable when: " + strings.Join(counterexamples, "; ")
 }

@@ -49,6 +49,35 @@ Adjudication input is strict owner-controlled JSON, read from stdin by default.
 Preview is read-only; execution requires exact expected HEAD and digest.
 Never put target text, evidence content or credentials in argv.
 
+kb-admin verify-check [--input PATH|-]
+Applies the deterministic evidence policy to {"Revision":"candidate revision"} as the
+persisted host owner. Git evidence is read only from KB_GIT_REPOSITORIES, an
+owner-approved list of id=/absolute/repository entries separated by commas.
+kb-admin lesson-publish --preview [--input PATH|-]
+kb-admin lesson-publish [--input PATH|-]
+Lesson preview accepts the lesson JSON (ProjectID, LessonID, ExpectedHead, Text,
+SharingScope, Applicability, Counterexamples, SupportRevisions) and returns its policy
+State, Reasons and Digest without writing. Publish the same lesson JSON with
+ExpectedDigest set to Digest; a changed lesson, head or support state fails stale.
+kb-admin decisions [--input PATH|-]           {"Limit":50}
+kb-admin decision-request --preview [--input PATH|-]  {"CandidateRevision":"REV","RequestedAction":"publish"}
+kb-admin decision-request [--input PATH|-]    {"CandidateRevision":"REV","RequestedAction":"publish","ExpectedEvidenceDigest":"64_HEX"}
+kb-admin decision-sync [--input PATH|-]       {"Limit":50}
+kb-admin decision-challenge [--input PATH|-]  {"DecisionID":"ID","Action":"approve|reject"}
+kb-admin decision-approve [--input PATH|-]    {"ChallengeID":"ID","DecisionID":"ID","Action":"approve|reject","Signature":"128_HEX"}
+Decisions bind one candidate revision and evidence digest and expire after 24h.
+decision-request --preview is read-only and prints the confirmation JSON with the
+current ExpectedEvidenceDigest; review it, then run decision-request with that JSON.
+Changed evidence fails stale. A repeat request returns the same decision; after
+expiry it opens a fresh 24h decision. decision-sync is the polling entry point;
+run it on a schedule you control (no built-in scheduler).
+decision-sync delivers pending decision posts and ingests owner replies via KB's
+own Buzz identity (KB_BUZZ_BINARY, KB_BUZZ_RELAY_URL, KB_BUZZ_CHANNEL,
+KB_BUZZ_PRIVATE_KEY_FILE); a Buzz outage leaves decisions pending.
+Recovery without Buzz: decision-challenge prints SigningDigest; the owner signs it
+(BIP-340) on their own device; decision-approve verifies that signature and redeems
+a one-use grant for exactly that action. No owner key or grant token is printed.
+
 kb-admin delete --preview [--input PATH|-]
 kb-admin delete [--input PATH|-]
 kb-admin deletion-status [--input PATH|-]
@@ -130,8 +159,11 @@ type hostAdjudication interface {
 type administration struct {
 	identity     hostIdentity
 	adjudication hostAdjudication
+	checks       hostChecks
+	lessons      hostLessons
 	lifecycle    hostLifecycle
 	recovery     hostRecovery
+	decisions    hostDecisions
 }
 type adminFactory func(context.Context, bool) (administration, func(), error)
 
@@ -143,6 +175,9 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	if len(args) > 0 && lifecycleCommand(args[0]) {
 		factory = composeLifecycleAdministration
 	}
+	if len(args) > 0 && decisionCommand(args[0]) {
+		factory = composeDecisionAdministration
+	}
 	route, complete := productionAdminRoute(ctx, output)
 	err := runAdminRouted(ctx, args, output, os.Stdin, factory, route)
 	if completionErr := complete(err); completionErr != nil {
@@ -150,7 +185,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	}
 	if err != nil && len(args) > 0 {
 		switch args[0] {
-		case "setup", "enroll", "revoke", "list", "verify", "reject", "invalidate", "recover", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check":
+		case "setup", "enroll", "revoke", "list", "verify", "reject", "invalidate", "verify-check", "lesson-publish", "recover", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-request", "decision-sync", "decision-challenge", "decision-approve":
 			return commandError{command: args[0], cause: err}
 		}
 	}
@@ -172,7 +207,7 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 		return domain.ErrUnavailable
 	}
 	switch command {
-	case "setup", "enroll", "revoke", "list", "verify", "reject", "invalidate", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check":
+	case "setup", "enroll", "revoke", "list", "verify", "reject", "invalidate", "verify-check", "lesson-publish", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-request", "decision-sync", "decision-challenge", "decision-approve":
 	default:
 		return domain.ErrInvalidInput
 	}
@@ -202,7 +237,7 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 	case "journal-init", "journal-check":
 	default:
 		flags.StringVar(&inputPath, "input", "-", "JSON file or stdin")
-		if command == "verify" || command == "reject" || command == "invalidate" || command == "delete" {
+		if command == "verify" || command == "reject" || command == "invalidate" || command == "delete" || command == "lesson-publish" || command == "decision-request" {
 			flags.BoolVar(&preview, "preview", false, "preview only")
 		}
 	}
@@ -229,8 +264,20 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 	var invalidation service.InvalidationInput
 	var invalidationPreview struct{ Revision string }
 	var lifecycleInput lifecycleInput
+	var decisionArgs decisionInput
+	if decisionCommand(command) {
+		if err := readAdminInput(inputPath, stdin, &decisionArgs); err != nil {
+			return err
+		}
+	}
 	if lifecycleCommand(command) && command != "journal-init" && command != "journal-check" {
 		if err := readAdminInput(inputPath, stdin, lifecycleInput.target(command)); err != nil {
+			return err
+		}
+	}
+	var checkInput verificationInput
+	if verificationCommand(command) {
+		if err := readAdminInput(inputPath, stdin, checkInput.target(command, preview)); err != nil {
 			return err
 		}
 	}
@@ -278,6 +325,10 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 		switch {
 		case lifecycleCommand(command) && command != "journal-init" && command != "journal-check":
 			input = lifecycleInput.target(command)
+		case verificationCommand(command):
+			input = checkInput.target(command, preview)
+		case decisionCommand(command):
+			input = decisionArgs
 		case command == "invalidate" && preview:
 			input = invalidationPreview
 		case command == "invalidate":
@@ -316,6 +367,12 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 	}
 	if lifecycleCommand(command) {
 		return runLifecycle(ctx, command, preview, lifecycleInput, admin.lifecycle, output)
+	}
+	if verificationCommand(command) {
+		return runVerification(ctx, command, preview, checkInput, admin, output)
+	}
+	if decisionCommand(command) {
+		return runDecisions(ctx, command, preview, decisionArgs, admin.decisions, output)
 	}
 	switch command {
 	case "setup", "enroll":
@@ -416,9 +473,22 @@ func composeAdministration(ctx context.Context, withObjects bool) (administratio
 			return administration{}, nil, err
 		}
 		admin.recovery = lifecycle
+		sources, err := composeSources()
+		if err != nil {
+			closeStore()
+			return administration{}, nil, err
+		}
 		evidence := repository.NewEvidenceRepository(store)
+		verifications := repository.NewVerificationRepository(store)
+		publications := repository.NewPublicationRepository(store)
+		principals := repository.NewRetrievalRepository(store)
 		capture := service.NewHostCaptureService(store, evidence, repository.NewJobsRepository(store), objects, identities)
-		admin.adjudication = service.NewVerificationService(store, repository.NewVerificationRepository(store), repository.NewPublicationRepository(store), identities, evidence, capture)
+		verification := service.NewVerificationService(store, verifications, publications, identities, evidence, capture).WithEvidenceChecks(service.EvidenceChecks{Principals: principals, Evidence: evidence, Attestations: verifications, Sources: sources, Objects: objects})
+		admin.adjudication, admin.checks = verification, verification
+		admin.lessons = service.NewLessonService(store, struct {
+			*repository.VerificationRepository
+			*repository.PublicationRepository
+		}{verifications, publications}, principals, identities)
 	}
 	return admin, closeStore, nil
 }

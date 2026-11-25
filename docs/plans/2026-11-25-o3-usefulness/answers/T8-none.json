@@ -1,0 +1,12 @@
+{
+  "trial": "435dde681d",
+  "task": "T8",
+  "arm": "none",
+  "final": "{\"answer\": \"I can't determine Birch's disaster-recovery RTO target from this session. No RTO value is available to me, so I'm not giving a number.\", \"evidence\": [], \"trust_notes\": \"No memory records, project pages, or tool-accessible files were available in this trial, so I found no records to verify, rely on, or mark as superseded or conflicting. I have not inferred a value from general practice or from the project name.\", \"limitations\": \"This trial has no memory or tool access, so I cannot read earlier sessions, the birch-pipeline repository, or any DR runbooks, SLAs, or ops docs. To get the answer, check the project's DR or runbook documentation, or the owning team's SLA, and rerun this question in a session with access to those sources.\"}",
+  "parsed": {
+    "answer": "I can't determine Birch's disaster-recovery RTO target from this session. No RTO value is available to me, so I'm not giving a number.",
+    "evidence": [],
+    "trust_notes": "No memory records, project pages, or tool-accessible files were available in this trial, so I found no records to verify, rely on, or mark as superseded or conflicting. I have not inferred a value from general practice or from the project name.",
+    "limitations": "This trial has no memory or tool access, so I cannot read earlier sessions, the birch-pipeline repository, or any DR runbooks, SLAs, or ops docs. To get the answer, check the project's DR or runbook documentation, or the owning team's SLA, and rerun this question in a session with access to those sources."
+  }
+}

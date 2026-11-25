@@ -119,3 +119,36 @@ func (r *VerificationRepository) AdvanceRevisionEpoch(ctx context.Context, tx do
 	}
 	return nil
 }
+
+// Attestation returns a qualified collector's attestation for exactly this
+// artifact generation's bytes. The attesting client must be an unrevoked
+// collector; agents have no route that writes ExecutionAttestation nodes.
+func (r *VerificationRepository) Attestation(ctx context.Context, tx domain.Tx, artifactID string) (domain.ExecutionAttestation, error) {
+	rows, err := r.query(ctx, tx, `MATCH (x:ExecutionAttestation {artifactID:$id})-[:ATTESTS]->(a:Artifact {id:$id}) MATCH (c:Client {id:x.collectorID}) WHERE c.role='collector' AND c.revokedAt IS NULL AND x.artifactDigest=a.digest RETURN x.data LIMIT 2`, map[string]any{"id": artifactID})
+	if err != nil {
+		return domain.ExecutionAttestation{}, err
+	}
+	if len(rows) == 0 {
+		return domain.ExecutionAttestation{}, domain.ErrIncomplete
+	}
+	var a domain.ExecutionAttestation
+	if len(rows) != 1 || decodeCapture(rows[0], 0, &a) != nil || a.ArtifactID != artifactID {
+		return a, domain.ErrUnavailable
+	}
+	return a, nil
+}
+
+func (r *VerificationRepository) LoadVerification(ctx context.Context, tx domain.Tx, id string) (domain.Verification, error) {
+	rows, err := r.query(ctx, tx, `MATCH (v:Verification {id:$id}) RETURN v.data LIMIT 2`, map[string]any{"id": id})
+	if err != nil {
+		return domain.Verification{}, err
+	}
+	if len(rows) == 0 {
+		return domain.Verification{}, domain.ErrIncomplete
+	}
+	var v domain.Verification
+	if len(rows) != 1 || decodeCapture(rows[0], 0, &v) != nil || v.ID != id {
+		return v, domain.ErrUnavailable
+	}
+	return v, nil
+}

@@ -1,0 +1,54 @@
+{
+  "checks": [
+    "All 16 fresh trial copies match all 123 frozen corpus file hashes.",
+    {
+      "operation": [
+        "guide"
+      ],
+      "exit": 0,
+      "visible_bytes": 9823
+    },
+    {
+      "operation": [
+        "search",
+        "Corundum",
+        0
+      ],
+      "exit": 0,
+      "visible_bytes": 169
+    },
+    {
+      "operation": [
+        "read",
+        "wiki/queue-dispatch.md",
+        "10",
+        "15"
+      ],
+      "exit": 0,
+      "visible_bytes": 341
+    },
+    {
+      "operation": [
+        "kb",
+        "map",
+        "Approved rollback"
+      ],
+      "exit": 0,
+      "visible_bytes": 729
+    },
+    {
+      "operation": [
+        "kb",
+        "get-node",
+        "wiki/meridian-handover.md#approved-rollback"
+      ],
+      "exit": 0,
+      "visible_bytes": 608
+    },
+    "Read traversal rejected.",
+    "Oversized lexical results explicitly truncated within per-call cap.",
+    "Control cannot invoke KB through the adapter."
+  ],
+  "pass": true,
+  "actual_solver_trials": 0
+}

@@ -706,6 +706,15 @@
           "ambiguous"
         ]
       },
+      "VerificationMethod": {
+        "type": "string",
+        "description": "How a supported verification was reached. An owner judgment is never relabeled as an empirical check.",
+        "enum": [
+          "owner_adjudicated",
+          "evidence_policy",
+          "lesson_policy"
+        ]
+      },
       "Completeness": {
         "type": "string",
         "enum": [
@@ -1426,6 +1435,9 @@
           "verification_outcome": {
             "$ref": "#/components/schemas/VerificationOutcome"
           },
+          "verification_method": {
+            "$ref": "#/components/schemas/VerificationMethod"
+          },
           "evidence": {
             "type": "array",
             "items": {
@@ -1896,6 +1908,52 @@
           "state"
         ]
       },
+      "DreamingStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Owner-only background dreaming state. Absent for other clients. Unknown model spend is never reported as zero: unreconciled reservations remain counted at their worst case in committed_micro_usd.",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "unconfigured",
+              "available",
+              "pending",
+              "budget_exhausted"
+            ]
+          },
+          "pending_jobs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reason_codes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "daily_cap_micro_usd": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "committed_micro_usd": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "unreconciled_reservations": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "state",
+          "pending_jobs",
+          "reason_codes",
+          "daily_cap_micro_usd",
+          "committed_micro_usd",
+          "unreconciled_reservations"
+        ]
+      },
       "StatusResult": {
         "type": "object",
         "additionalProperties": false,
@@ -1937,6 +1995,9 @@
             "type": "integer",
             "minimum": 1,
             "description": "Enforced upper bound on every claim and checkpoint revision this server issues (currently 64). Clients must not attempt writes when it is absent (older servers) or exceeds their own limit."
+          },
+          "dreaming": {
+            "$ref": "#/components/schemas/DreamingStatus"
           }
         },
         "required": [

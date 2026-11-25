@@ -15,6 +15,9 @@ export type OriginTrust = "submitted" | "collector_attested" | "gateway_observed
 
 export type VerificationOutcome = "supported" | "unsupported" | "ambiguous";
 
+/** How a supported verification was reached. An owner judgment is never relabeled as an empirical check. */
+export type VerificationMethod = "owner_adjudicated" | "evidence_policy" | "lesson_policy";
+
 export type Completeness = "complete" | "partial" | "withheld";
 
 export type RetrievalMode = "orientation" | "evidence" | "working";
@@ -210,6 +213,7 @@ export type EvidenceChunk = {
   claim_status: ClaimStatus;
   origin_trust: OriginTrust;
   verification_outcome?: VerificationOutcome;
+  verification_method?: VerificationMethod;
   evidence: EvidenceRef[];
   warnings: string[];
   /** Conditions of the independently verified/public target; hidden source/support applicability is never projected here. */
@@ -318,6 +322,16 @@ export type JobResult = {
   state: "queued" | "running" | "succeeded" | "failed" | "cancelled";
 };
 
+/** Owner-only background dreaming state. Absent for other clients. Unknown model spend is never reported as zero: unreconciled reservations remain counted at their worst case in committed_micro_usd. */
+export type DreamingStatus = {
+  state: "unconfigured" | "available" | "pending" | "budget_exhausted";
+  pending_jobs: number;
+  reason_codes: string[];
+  daily_cap_micro_usd: number;
+  committed_micro_usd: number;
+  unreconciled_reservations: number;
+};
+
 export type StatusResult = {
   schema_version: "3";
   connection_state: "available" | "degraded" | "unavailable";
@@ -327,6 +341,7 @@ export type StatusResult = {
   authorized_capabilities: string[];
   /** Enforced upper bound on every claim and checkpoint revision this server issues (currently 64). Clients must not attempt writes when it is absent (older servers) or exceeds their own limit. */
   max_revision_bytes?: number;
+  dreaming?: DreamingStatus;
 };
 
 /** Safe problem response. Authorization failures never reveal whether a restricted record exists. Optional retry/budget metadata must preserve that boundary. */
