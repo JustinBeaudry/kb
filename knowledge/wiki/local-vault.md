@@ -15,7 +15,7 @@ The local product is a directory of Markdown plus a CLI. `kb init` scaffolds `wi
 
 ## Lookup
 
-Commands that accept `--vault-path` / `-p` use that path first, then `KB_VAULT`, then a `.kb` text file in the working directory, then `~/kb`. The project file `.kb` in this repository contains `knowledge`, the path of this vault. `capture-session` uses `KB_VAULT` rather than `--vault-path`.
+Commands that accept `--vault-path` / `-p` use that path first, then `KB_VAULT`, then a `.kb` text file in the working directory, then `~/kb`. The project file `.kb` in this repository contains `knowledge`, the path of this vault. `capture-session` takes no `--vault-path`; it resolves the vault from `KB_VAULT`, then the `.kb` file, then `~/kb`. At this repository's root, with `KB_VAULT` unset, session captures go to `knowledge`, and `knowledge/sessions/` is gitignored.
 
 ## Retrieval
 
