@@ -178,3 +178,16 @@ func TestStatusHTTPUsesAuthenticatedStatusService(t *testing.T) {
 		})
 	}
 }
+func TestRetrievalWireExposesVerificationMethod(t *testing.T) {
+	outcome := domain.VerificationSupported
+	v := domain.RetrievalResult{SchemaVersion: "3", Chunks: []domain.EvidenceChunk{{RecordID: "c", Revision: "r", Text: "approved", ClaimStatus: domain.ClaimVerified, OriginTrust: domain.TrustSubmitted, VerificationOutcome: &outcome, VerificationMethod: domain.MethodOwnerAdjudicated}}}
+
+	a, e := domain.RetrievalWire(v)
+	require.NoError(t, e)
+	b, e := json.Marshal(retrievalAPI(v))
+	require.NoError(t, e)
+
+	assert.JSONEq(t, string(a), string(b))
+	assert.Contains(t, string(b), `"verification_outcome":"supported"`)
+	assert.Contains(t, string(b), `"verification_method":"owner_adjudicated"`)
+}

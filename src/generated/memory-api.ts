@@ -15,6 +15,9 @@ export type OriginTrust = "submitted" | "collector_attested" | "gateway_observed
 
 export type VerificationOutcome = "supported" | "unsupported" | "ambiguous";
 
+/** How a supported verification was reached. An owner judgment is never relabeled as an empirical check. */
+export type VerificationMethod = "owner_adjudicated" | "evidence_policy" | "lesson_policy";
+
 export type Completeness = "complete" | "partial" | "withheld";
 
 export type RetrievalMode = "orientation" | "evidence" | "working";
@@ -210,6 +213,7 @@ export type EvidenceChunk = {
   claim_status: ClaimStatus;
   origin_trust: OriginTrust;
   verification_outcome?: VerificationOutcome;
+  verification_method?: VerificationMethod;
   evidence: EvidenceRef[];
   warnings: string[];
   /** Conditions of the independently verified/public target; hidden source/support applicability is never projected here. */

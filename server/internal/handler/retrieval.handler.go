@@ -32,6 +32,10 @@ func retrievalAPI(r domain.RetrievalResult) RetrievalResult {
 			v := VerificationOutcome(*c.VerificationOutcome)
 			item.VerificationOutcome = &v
 		}
+		if c.VerificationMethod != "" {
+			m := VerificationMethod(c.VerificationMethod)
+			item.VerificationMethod = &m
+		}
 		if c.Passage != nil {
 			item.Passage = &Passage{StartByte: c.Passage.StartByte, EndByte: c.Passage.EndByte, SourceBytes: c.Passage.SourceBytes}
 		}

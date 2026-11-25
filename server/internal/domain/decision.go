@@ -47,8 +47,8 @@ type DecisionReply struct {
 // empirical check.
 type OwnerJudgment struct {
 	ID, DecisionID, CandidateRevision, EvidenceDigest, Action string
-	OwnerID, SignerID, EventID, Channel                      string
-	RecordedAt                                               time.Time
+	OwnerID, SignerID, EventID, Channel                       string
+	RecordedAt                                                time.Time
 }
 
 // DecisionReplyReceipt deduplicates owner replies by event identity. The digest
@@ -71,7 +71,7 @@ type SignedMessage struct {
 // was found by operation identity instead of a fresh acknowledgement.
 type MessageReceipt struct {
 	OperationKey, EventID, ThreadID, ChannelID string
-	Reconciled                      bool
+	Reconciled                                 bool
 }
 
 // DecisionReplyDigest is the canonical 32-byte message an enrolled owner signs

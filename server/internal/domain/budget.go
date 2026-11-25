@@ -36,6 +36,9 @@ func RetrievalWireValue(r RetrievalResult) map[string]any {
 		if c.VerificationOutcome != nil {
 			m["verification_outcome"] = *c.VerificationOutcome
 		}
+		if c.VerificationMethod != "" {
+			m["verification_method"] = c.VerificationMethod
+		}
 		if c.Passage != nil {
 			m["passage"] = map[string]any{"start_byte": c.Passage.StartByte, "end_byte": c.Passage.EndByte, "source_bytes": c.Passage.SourceBytes}
 		}
