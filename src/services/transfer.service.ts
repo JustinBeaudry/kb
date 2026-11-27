@@ -102,7 +102,7 @@ const TRUSTS = new Set(["submitted", "collector_attested", "gateway_observed", "
 
 const fail = (code: TransferError["code"]): Result<never, TransferError> => ({ ok: false, error: { code } });
 const sha256 = (v: string | Uint8Array) => createHash("sha256").update(v).digest("hex");
-const opaque = (v: unknown): v is string => typeof v === "string" && v.isWellFormed() && v.trim().length > 0 && Buffer.byteLength(v) <= 4096;
+export const opaque = (v: unknown): v is string => typeof v === "string" && v.isWellFormed() && v.trim().length > 0 && Buffer.byteLength(v) <= 4096;
 
 /** Deterministic JSON with sorted object keys: the approval digest input. */
 export function canonicalJSON(value: unknown): string {
@@ -125,7 +125,7 @@ function excluded(policy: TransferPolicy, id: string): boolean {
     return prefix === "" || id === prefix || id.startsWith(prefix + "/");
   });
 }
-function validScope(s: unknown, task: boolean): boolean {
+export function validScope(s: unknown, task: boolean): boolean {
   if (!s || typeof s !== "object" || Array.isArray(s)) return false;
   const v: Record<string, unknown> = { ...s };
   if (Object.keys(v).some((k) => !["project_id", "task_id", "session_id"].includes(k))) return false;
@@ -169,13 +169,13 @@ function locatorFor(fileID: string, digest: string, bytes: number, provenance?: 
     p.exported_evidence.pop();
   }
 }
-function validExportedClaim(c: ExportedClaim, scope: ExportScope): boolean {
+export function validExportedClaim(c: ExportedClaim, scope: ExportScope): boolean {
   return !!c && opaque(c.claim_id) && opaque(c.revision) && typeof c.text === "string" && opaque(c.kind) && CLAIM_STATUSES.has(c.claim_status) && TRUSTS.has(c.origin_trust) && validScope(c.scope, false) && c.scope.project_id === scope.project_id && (scope.task_id === undefined || c.scope.task_id === scope.task_id) && (scope.session_id === undefined || c.scope.session_id === scope.session_id) && Array.isArray(c.evidence) && c.evidence.length <= 50 && c.evidence.every((e) => opaque(e.artifact_id) && opaque(e.digest) && typeof e.locator === "string" && TRUSTS.has(e.origin?.trust));
 }
 
 /** Partial dominates withheld, which dominates complete: a bundle is only as
  * complete as its least complete page. */
-function mergeCompleteness(a: ExportPage["completeness"], b: ExportPage["completeness"]): ExportPage["completeness"] {
+export function mergeCompleteness(a: ExportPage["completeness"], b: ExportPage["completeness"]): ExportPage["completeness"] {
   if (a === "partial" || b === "partial") return "partial";
   return a === "withheld" || b === "withheld" ? "withheld" : "complete";
 }

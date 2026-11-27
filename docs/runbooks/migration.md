@@ -98,6 +98,32 @@ are preserved only as provenance metadata in the evidence locator
 record is always a new `candidate` with `submitted` origin: an exported
 `verified` claim must be re-verified in its new home.
 
+## Read memory in Obsidian
+
+`kb transfer vault-sync --project <p> [--task <t>] [--session <s>] --out <folder> --profile <agent> --endpoint <origin>`
+
+Writes a read-only view of the memory this client may see into a folder inside
+an Obsidian vault, for example `<vault>/kb-memory`. Rerun it whenever you want
+the view refreshed.
+
+- `index.md` lists every claim, grouped as Verified, Candidates (unverified),
+  and Disputed, superseded or rejected, with wikilinks to one page per claim in
+  `claims/`. Pages carry the same provenance front matter as an export bundle,
+  plus `kb/<status>` and `kb/kind/<kind>` tags for Obsidian search and graph
+  filters. Unverified claims open with a warning callout.
+- Claim text is written by agents, so it is rendered inert: code fences, inline
+  code, HTML and image embeds are escaped. A synced page cannot run Dataview JS,
+  Templater or other plugin code, and cannot load remote content when opened.
+- The sync owns only `index.md` and `claims/*.md` files it wrote, recorded in
+  `<folder>/.kb-vault-sync.json`. It refuses a non-empty folder it did not
+  create, a folder synced for another scope, and symlinks. Files you add are
+  left alone. Pages are rewritten only when their content changed.
+- Pages for claims that are gone are removed only when the export was
+  `complete`. A `partial` export (withheld or unavailable records) keeps
+  existing pages, marks the index Incomplete, and exits with status 2.
+- Edits to synced pages are replaced on the next run. To correct memory, submit
+  a candidate; an edited page is still a valid `--vault` for preview.
+
 ## Provenance loss and filtering
 
 - Local curated Markdown has no evidence chain. Its import carries the vault file
