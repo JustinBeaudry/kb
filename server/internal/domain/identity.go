@@ -48,6 +48,16 @@ type ClientRecord struct {
 // OwnerIdentity is the enrolled public signing identity, not an access token.
 type OwnerIdentity struct{ ID, PublicKey string }
 
+// OwnerKeyChange replaces the owner's public signing key. The retired key is
+// kept so it can never be enrolled again and so the owner can review what it
+// signed.
+type OwnerKeyChange struct {
+	OwnerID    string    `json:"owner_id"`
+	RetiredKey string    `json:"retired_key"`
+	PublicKey  string    `json:"public_key"`
+	ChangedAt  time.Time `json:"changed_at"`
+}
+
 // ClientMetadata deliberately has no bearer or token digest fields.
 type ClientMetadata struct {
 	Principal Principal

@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/JustinBeaudry/kb/server/internal/domain"
@@ -58,4 +59,12 @@ func TestChildArgumentsForAccessAudit(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"access"}, args)
 	assert.False(t, domain.HostAdminIssuesCredential("access"))
+}
+
+func TestChildArgumentsForOwnerRotate(t *testing.T) {
+	key := strings.Repeat("c", 64)
+	args, err := childArguments(domain.HostAdminRequest{Version: 1, Action: "owner-rotate", Options: domain.HostAdminOptions{PublicKey: key}})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"owner-rotate", "--owner-public-key", key}, args)
+	assert.False(t, domain.HostAdminIssuesCredential("owner-rotate"), "owner-rotate never mints a bearer")
 }

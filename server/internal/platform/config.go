@@ -13,7 +13,10 @@ import (
 type Config struct {
 	Graph                                      graph.Config
 	Address, TLSCert, TLSKey, IngressTransport string
-	ReadTimeout, WriteTimeout, IdleTimeout     time.Duration
+	// PublicURL is the origin clients reach the api at, for OAuth discovery.
+	// Empty turns discovery off.
+	PublicURL                              string
+	ReadTimeout, WriteTimeout, IdleTimeout time.Duration
 }
 
 func (Config) String() string   { return "platform.Config([redacted])" }
@@ -55,6 +58,9 @@ func LoadConfig() (Config, error) {
 	}
 	if c.Graph.URI == "" || c.Graph.User == "" || c.Graph.Secret == "" {
 		return Config{}, domain.ErrInvalidInput
+	}
+	if c.PublicURL, err = LoadPublicURL(); err != nil {
+		return Config{}, err
 	}
 	return c, nil
 }

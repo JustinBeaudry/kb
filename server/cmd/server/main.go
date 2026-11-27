@@ -235,5 +235,5 @@ func composeRuntime(ctx context.Context, cfg platform.Config, key []byte, object
 		<-auditDone
 		closeStore()
 	}
-	return &serverRuntime{api: handler.GuardPublicAPI(platform.AdmittedHandler(admission, instance, e), logger), readiness: service.NewHealthService(admission, store, objects, journal, 5*time.Second, instance), close: closeRuntime}, nil
+	return &serverRuntime{api: handler.WithOAuthDiscovery(handler.GuardPublicAPI(platform.AdmittedHandler(admission, instance, e), logger), cfg.PublicURL), readiness: service.NewHealthService(admission, store, objects, journal, 5*time.Second, instance), close: closeRuntime}, nil
 }

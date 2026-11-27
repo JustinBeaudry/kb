@@ -62,6 +62,10 @@ type IdentityRepository interface {
 	RotateClient(ctx context.Context, tx Tx, id, digest string, expiresAt *time.Time) error
 	Owner(context.Context, Tx) (OwnerIdentity, error)
 	PutOwner(context.Context, Tx, OwnerIdentity) error
+	// ReplaceOwnerKey swaps the owner key only while the current key is
+	// change.RetiredKey and the new key was never retired; otherwise it
+	// returns ErrConflict.
+	ReplaceOwnerKey(context.Context, Tx, domain.OwnerKeyChange) error
 }
 
 // OwnerPublicKeyValidator isolates provider encoding/curve validation from
@@ -349,6 +353,36 @@ func (s *IdentityService) RotateHost(ctx context.Context, id string, ttl time.Du
 		return ClientCredential{}, err
 	}
 	return c, nil
+}
+// ReplaceOwnerKeyHost replaces the owner's public signing key on the service
+// host, for a lost or stolen key. Signatures by the old key stop verifying at
+// once, so pending decision challenges signed with it fail. The old key is
+// kept as retired and can never be the owner key again. Clients and their
+// bearers are unchanged.
+func (s *IdentityService) ReplaceOwnerKeyHost(ctx context.Context, publicKey string) (domain.OwnerKeyChange, error) {
+	canonical, err := s.publicKeys.NormalizePublicKey(publicKey)
+	if err != nil {
+		return domain.OwnerKeyChange{}, domain.ErrInvalidInput
+	}
+	var change domain.OwnerKeyChange
+	err = s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
+		owner, err := s.repo.Owner(ctx, tx)
+		if err != nil {
+			return err
+		}
+		if owner.ID == "" || owner.PublicKey == "" {
+			return domain.ErrForbidden
+		}
+		if owner.PublicKey == canonical {
+			return domain.ErrConflict
+		}
+		change = domain.OwnerKeyChange{OwnerID: owner.ID, RetiredKey: owner.PublicKey, PublicKey: canonical, ChangedAt: s.now().UTC()}
+		return s.repo.ReplaceOwnerKey(ctx, tx, change)
+	})
+	if err != nil {
+		return domain.OwnerKeyChange{}, err
+	}
+	return change, nil
 }
 func (s *IdentityService) ListHost(ctx context.Context, limit int, after string) (ClientPage, error) {
 	if limit < 1 || limit > 100 || (after != "" && domain.ValidateIDs(after) != nil) {

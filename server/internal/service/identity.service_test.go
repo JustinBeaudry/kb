@@ -20,6 +20,7 @@ type identityFixture struct {
 	clients map[string]ClientRecord
 	owner   OwnerIdentity
 	epoch   uint64
+	retired map[string]bool
 }
 
 func (f *identityFixture) Within(ctx context.Context, fn func(context.Context, Tx) error) error {
@@ -71,6 +72,18 @@ func (f *identityFixture) PutOwner(_ context.Context, _ Tx, o OwnerIdentity) err
 		return domain.ErrConflict
 	}
 	f.owner = o
+	return nil
+}
+func (f *identityFixture) ReplaceOwnerKey(_ context.Context, _ Tx, c domain.OwnerKeyChange) error {
+	if f.owner.ID != c.OwnerID || f.owner.PublicKey != c.RetiredKey || f.retired[c.PublicKey] {
+		return domain.ErrConflict
+	}
+	if f.retired == nil {
+		f.retired = map[string]bool{}
+	}
+	f.retired[c.RetiredKey] = true
+	f.owner.PublicKey = c.PublicKey
+	f.epoch++
 	return nil
 }
 func newIdentityFixture() (*IdentityService, *identityFixture) {
@@ -404,4 +417,43 @@ func TestRefusedBearersAreAttributedInTheAccessAudit(t *testing.T) {
 
 	_, err = s.EnrollHost(t.Context(), EnrollInput{ClientID: domain.AccessOutsideGrant, Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"status:read"}})
 	assert.ErrorIs(t, err, domain.ErrInvalidInput, "no client may take the unknown-client marker as its ID")
+// Two more valid BIP-340 x-only keys: the x coordinates of 2G and 3G.
+const (
+	replacementOwnerKey = "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5"
+	laterOwnerKey       = "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+)
+
+func TestReplaceOwnerKeyRetiresTheOldKeyForGood(t *testing.T) {
+	s, f := newIdentityFixture()
+	client := setupFixture(t, s)
+
+	change, err := s.ReplaceOwnerKeyHost(t.Context(), strings.ToUpper(replacementOwnerKey))
+	require.NoError(t, err)
+	assert.Equal(t, domain.OwnerKeyChange{OwnerID: "owner-public", RetiredKey: ownerNostrPublicKey, PublicKey: replacementOwnerKey, ChangedAt: change.ChangedAt}, change)
+	assert.False(t, change.ChangedAt.IsZero())
+	assert.Equal(t, replacementOwnerKey, f.owner.PublicKey, "the key is stored in canonical lowercase form")
+
+	// Clients keep working: only the owner's signing key changed.
+	_, err = s.Authenticate(t.Context(), client.Bearer)
+	require.NoError(t, err)
+
+	_, err = s.ReplaceOwnerKeyHost(t.Context(), replacementOwnerKey)
+	assert.ErrorIs(t, err, domain.ErrConflict, "replacing a key with itself is refused")
+	_, err = s.ReplaceOwnerKeyHost(t.Context(), ownerNostrPublicKey)
+	assert.ErrorIs(t, err, domain.ErrConflict, "a retired key can never come back")
+	_, err = s.ReplaceOwnerKeyHost(t.Context(), laterOwnerKey)
+	require.NoError(t, err)
+	_, err = s.ReplaceOwnerKeyHost(t.Context(), replacementOwnerKey)
+	assert.ErrorIs(t, err, domain.ErrConflict)
+}
+
+func TestReplaceOwnerKeyNeedsAnOwnerAndAValidKey(t *testing.T) {
+	s, _ := newIdentityFixture()
+	_, err := s.ReplaceOwnerKeyHost(t.Context(), replacementOwnerKey)
+	assert.ErrorIs(t, err, domain.ErrForbidden, "no owner is enrolled yet")
+	setupFixture(t, s)
+	for _, key := range []string{"", "not-hex", strings.Repeat("0", 64), replacementOwnerKey[:62]} {
+		_, err = s.ReplaceOwnerKeyHost(t.Context(), key)
+		assert.ErrorIs(t, err, domain.ErrInvalidInput, key)
+	}
 }

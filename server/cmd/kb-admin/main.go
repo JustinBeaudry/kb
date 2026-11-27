@@ -40,6 +40,11 @@ Host backup/restore uses kb-supervisor; recovery_unavailable reports an unavaila
 kb-admin enroll --project PROJECT --credential-fd FD [--client-id ID] [--role agent] [--capabilities LIST] [--ttl DURATION]
 kb-admin rotate --client-id ID --credential-fd FD [--ttl DURATION]
 kb-admin revoke --client-id ID
+kb-admin owner-rotate --owner-public-key 64_HEX_NOSTR_PUBLIC_KEY
+owner-rotate replaces a lost or stolen owner signing key with a new public key.
+Signatures by the old key stop verifying at once; the old key is kept as retired
+and can never be enrolled again. Clients and bearers are unchanged. See the
+owner key runbook before running it.
 --ttl (setup, enroll, rotate) sets when the bearer stops authenticating, as a Go
 duration between 1h and 8784h (366 days), for example 2160h for 90 days. Without
 it the bearer does not expire. rotate issues a fresh bearer for an active client
@@ -162,6 +167,7 @@ type hostIdentity interface {
 	EnrollHost(context.Context, service.EnrollInput) (service.ClientCredential, error)
 	RevokeHost(context.Context, string) error
 	RotateHost(context.Context, string, time.Duration) (service.ClientCredential, error)
+	ReplaceOwnerKeyHost(context.Context, string) (domain.OwnerKeyChange, error)
 	ListHost(context.Context, int, string) (service.ClientPage, error)
 }
 type hostAdjudication interface {
@@ -200,7 +206,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	}
 	if err != nil && len(args) > 0 {
 		switch args[0] {
-		case "setup", "enroll", "rotate", "revoke", "list", "access", "verify", "reject", "invalidate", "verify-check", "lesson-publish", "recover", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-request", "decision-sync", "decision-challenge", "decision-approve":
+		case "setup", "enroll", "rotate", "revoke", "owner-rotate", "list", "access", "verify", "reject", "invalidate", "verify-check", "lesson-publish", "recover", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-request", "decision-sync", "decision-challenge", "decision-approve":
 			return commandError{command: args[0], cause: err}
 		}
 	}
@@ -222,7 +228,7 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 		return domain.ErrUnavailable
 	}
 	switch command {
-	case "setup", "enroll", "rotate", "revoke", "list", "access", "verify", "reject", "invalidate", "verify-check", "lesson-publish", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-request", "decision-sync", "decision-challenge", "decision-approve":
+	case "setup", "enroll", "rotate", "revoke", "owner-rotate", "list", "access", "verify", "reject", "invalidate", "verify-check", "lesson-publish", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-request", "decision-sync", "decision-challenge", "decision-approve":
 	default:
 		return domain.ErrInvalidInput
 	}
@@ -245,6 +251,8 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 			flags.StringVar(&clientID, "client-id", "", "client ID")
 		}
 		flags.StringVar(&ttlText, "ttl", "", "credential lifetime")
+	case "owner-rotate":
+		flags.StringVar(&key, "owner-public-key", "", "new public signing key")
 	case "rotate":
 		flags.StringVar(&clientID, "client-id", "", "client ID")
 		flags.StringVar(&ttlText, "ttl", "", "credential lifetime")
@@ -433,6 +441,12 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 		return err
 	case "revoke":
 		return admin.identity.RevokeHost(ctx, clientID)
+	case "owner-rotate":
+		change, err := admin.identity.ReplaceOwnerKeyHost(ctx, key)
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(output).Encode(change)
 	case "list":
 		page, err := admin.identity.ListHost(ctx, limit, after)
 		if err != nil {
