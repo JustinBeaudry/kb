@@ -1751,23 +1751,23 @@ func RegisterHandlersWithOptions(router EchoRouter, si ServerInterface, options 
 		Handler: si,
 	}
 
+	router.POST(options.BaseURL+"/v1/events\\:append", wrapper.AppendEvents, options.OperationMiddlewares["appendEvents"]...)
 	router.POST(options.BaseURL+"/v1/artifacts", wrapper.StageArtifact, options.OperationMiddlewares["stageArtifact"]...)
 	router.POST(options.BaseURL+"/v1/artifacts/:id\\:complete", wrapper.CompleteArtifact, options.OperationMiddlewares["completeArtifact"]...)
 	router.POST(options.BaseURL+"/v1/candidates", wrapper.SubmitCandidate, options.OperationMiddlewares["submitCandidate"]...)
 	router.GET(options.BaseURL+"/v1/checkpoints/:id", wrapper.GetCheckpoint, options.OperationMiddlewares["getCheckpoint"]...)
 	router.PUT(options.BaseURL+"/v1/checkpoints/:id", wrapper.PutCheckpoint, options.OperationMiddlewares["putCheckpoint"]...)
+	router.POST(options.BaseURL+"/v1/retrieval\\:orient", wrapper.OrientMemory, options.OperationMiddlewares["orientMemory"]...)
+	router.POST(options.BaseURL+"/v1/retrieval\\:search", wrapper.SearchMemory, options.OperationMiddlewares["searchMemory"]...)
+	router.GET(options.BaseURL+"/v1/evidence/:id", wrapper.FetchEvidence, options.OperationMiddlewares["fetchEvidence"]...)
+	router.POST(options.BaseURL+"/v1/decisions/:id\\:respond", wrapper.RespondDecision, options.OperationMiddlewares["respondDecision"]...)
+	router.GET(options.BaseURL+"/v1/policies/:project", wrapper.GetPolicy, options.OperationMiddlewares["getPolicy"]...)
+	router.PUT(options.BaseURL+"/v1/policies/:project", wrapper.PutPolicy, options.OperationMiddlewares["putPolicy"]...)
 	router.GET(options.BaseURL+"/v1/clients", wrapper.ListClients, options.OperationMiddlewares["listClients"]...)
 	router.POST(options.BaseURL+"/v1/clients", wrapper.EnrollClient, options.OperationMiddlewares["enrollClient"]...)
 	router.POST(options.BaseURL+"/v1/clients/:id\\:revoke", wrapper.RevokeClient, options.OperationMiddlewares["revokeClient"]...)
-	router.POST(options.BaseURL+"/v1/decisions/:id\\:respond", wrapper.RespondDecision, options.OperationMiddlewares["respondDecision"]...)
 	router.POST(options.BaseURL+"/v1/deletions", wrapper.DeleteMemory, options.OperationMiddlewares["deleteMemory"]...)
-	router.POST(options.BaseURL+"/v1/events\\:append", wrapper.AppendEvents, options.OperationMiddlewares["appendEvents"]...)
-	router.GET(options.BaseURL+"/v1/evidence/:id", wrapper.FetchEvidence, options.OperationMiddlewares["fetchEvidence"]...)
 	router.POST(options.BaseURL+"/v1/exports", wrapper.ExportMemory, options.OperationMiddlewares["exportMemory"]...)
-	router.GET(options.BaseURL+"/v1/policies/:project", wrapper.GetPolicy, options.OperationMiddlewares["getPolicy"]...)
-	router.PUT(options.BaseURL+"/v1/policies/:project", wrapper.PutPolicy, options.OperationMiddlewares["putPolicy"]...)
-	router.POST(options.BaseURL+"/v1/retrieval\\:orient", wrapper.OrientMemory, options.OperationMiddlewares["orientMemory"]...)
-	router.POST(options.BaseURL+"/v1/retrieval\\:search", wrapper.SearchMemory, options.OperationMiddlewares["searchMemory"]...)
 	router.GET(options.BaseURL+"/v1/status", wrapper.GetStatus, options.OperationMiddlewares["getStatus"]...)
 
 }

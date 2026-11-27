@@ -12,10 +12,10 @@
       "linux/amd64"
     ]
   },
-  "echo": "github.com/labstack/echo/v4@v4.16.3",
+  "echo": "github.com/labstack/echo/v4@v4.16.6",
   "generator": "github.com/oapi-codegen/oapi-codegen/v2@v2.8.1",
   "validator": "github.com/oapi-codegen/echo-middleware@v1.2.1",
-  "testcontainers": "github.com/testcontainers/testcontainers-go@v0.44.0",
+  "testcontainers": "github.com/testcontainers/testcontainers-go@v0.45.0",
   "testify": "github.com/stretchr/testify@v1.12.1",
   "linter": "github.com/golangci/golangci-lint/v2@v2.15.0",
   "docker_server_qualified": "29.6.2",
