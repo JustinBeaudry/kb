@@ -3,16 +3,18 @@ import { readFileSync, writeFileSync } from "node:fs";
 import type { CredentialStore } from "../capture/types";
 import { HTTPTransferGateway } from "../gateways/memory.gateway";
 import { RemoteCredentials } from "../gateways/remote-credentials";
+import { FileSyncFolder } from "../repositories/vault-sync.repository";
 import { FileBundleWriter, FileVaultRepository } from "../repositories/vault.repository";
 import { profileAccount } from "../services/remote.service";
 import { TransferService, type ImportManifest, type TransferError, type TransferGateway } from "../services/transfer.service";
+import { VaultSyncService } from "../services/vault-sync.service";
 
 const actions: Record<TransferError["code"], string> = {
   invalid_input: "Check the command arguments: explicit vault, project, task and selected file IDs.",
   approval_stale: "The manifest, selected sources or policy changed since approval. Run preview again and approve the new digest.",
   policy_paused: "Capture policy is paused for this project; nothing was read or uploaded.",
   vault_unavailable: "The vault path is missing or unreadable.",
-  output_exists: "Choose a new, empty output path, or pass --resume to continue an interrupted export.",
+  output_exists: "Choose a new, empty output path, or pass --resume to continue an interrupted export. vault-sync only writes to a new or empty folder, or one it created.",
   credential_unavailable: "Register both profiles for this origin using kb remote credential-set.",
   unauthorized: "Credential rejected or revoked; enroll and register a current client credential.",
   forbidden: "This client lacks the required capability or project grant.",
@@ -46,9 +48,9 @@ async function token(credentials: CredentialStore, profile: string | undefined, 
 
 export function createTransferCommand(dependencies: TransferDependencies = { credentials: new RemoteCredentials(), gateway: (o, a, e) => new HTTPTransferGateway(o, a, e) }) {
   return defineCommand({
-    meta: { name: "transfer", description: "Selected import of local vault files as remote candidates, and portable export. Never rewrites vault originals." },
+    meta: { name: "transfer", description: "Selected import of local vault files as remote candidates, portable export, and a read-only Obsidian view (vault-sync). Never rewrites vault originals." },
     args: {
-      action: { type: "positional", required: true, description: "inventory, preview, apply, or export" },
+      action: { type: "positional", required: true, description: "inventory, preview, apply, export, or vault-sync" },
       vault: { type: "string", description: "inventory/preview: explicit vault path" },
       project: { type: "string", description: "Project binding" },
       task: { type: "string", description: "Task binding (required for preview: imports are task-scoped candidates)" },
@@ -58,7 +60,7 @@ export function createTransferCommand(dependencies: TransferDependencies = { cre
       "include-sessions": { type: "boolean", description: "preview: allow selected sessions/ files (default off)" },
       manifest: { type: "string", description: "preview: new manifest output file; apply: approved manifest" },
       approve: { type: "string", description: "apply: approval digest printed by preview" },
-      out: { type: "string", description: "export: new output directory" },
+      out: { type: "string", description: "export: new output directory; vault-sync: folder inside an Obsidian vault that the sync owns" },
       resume: { type: "boolean", description: "export: continue an interrupted export in --out" },
       profile: { type: "string", description: "Agent profile (policy:read, candidate:write, evidence:read, memory:export)" },
       "evidence-profile": { type: "string", description: "apply: collector profile with artifacts:write" },
@@ -75,10 +77,19 @@ export function createTransferCommand(dependencies: TransferDependencies = { cre
           if (!inventory.ok) return report("vault_unavailable");
           return emit({ vault: vault.value.root, entries: inventory.value });
         }
-        if (!["preview", "apply", "export"].includes(action) || !args.profile || !args.endpoint) return report("invalid_input");
+        if (!["preview", "apply", "export", "vault-sync"].includes(action) || !args.profile || !args.endpoint) return report("invalid_input");
         const agent = await token(dependencies.credentials, args.profile, args.endpoint);
         const evidence = await token(dependencies.credentials, args["evidence-profile"], args.endpoint);
         if (!agent || (action === "apply" && !evidence)) return report("credential_unavailable");
+        if (action === "vault-sync") {
+          if (!args.project || !args.out) return report("invalid_input");
+          const sync = new VaultSyncService(dependencies.gateway(args.endpoint, agent, evidence), (d) => new FileSyncFolder(d));
+          const result = await sync.sync({ project_id: args.project, ...(args.task ? { task_id: args.task } : {}), ...(args.session ? { session_id: args.session } : {}) }, args.out);
+          if (!result.ok) return report(result.error.code);
+          emit(result.value);
+          if (result.value.completeness !== "complete") process.exitCode = 2;
+          return;
+        }
         const service = new TransferService(dependencies.gateway(args.endpoint, agent, evidence), (p) => FileVaultRepository.open(p), (d) => new FileBundleWriter(d));
         if (action === "preview") {
           if (!args.vault || !args.project || !args.task || !args.select || !args.manifest) return report("invalid_input");
