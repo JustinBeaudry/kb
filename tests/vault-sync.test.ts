@@ -118,7 +118,20 @@ describe("vault-sync", () => {
     const out = join(temp(), "kb");
     const result = await sync(new PagedExports(pages([claim("a", "One")], [claim("b", "Two")]), 1)).sync(scope, out);
     expect(result.ok).toBe(false);
-    expect(readdirSync(out).filter((f) => f !== "claims")).toEqual([]);
+    expect(existsSync(out)).toBe(false);
+
+    const retried = await sync(new PagedExports(pages([claim("a", "One")], [claim("b", "Two")]))).sync(scope, out);
+    expect(retried.ok && retried.value.written).toBe(3);
+  });
+
+  test("never overwrites a user's note that has a page's name", async () => {
+    const out = join(temp(), "kb");
+    await sync(new PagedExports(pages([claim("a", "One")]))).sync(scope, out);
+    const [page] = renderVaultPages(scope, [claim("b", "Two")], "complete").filter((p) => p.path.startsWith("claims/"));
+    writeFileSync(join(out, page!.path), "mine");
+    const refused = await sync(new PagedExports(pages([claim("a", "One"), claim("b", "Two")]))).sync(scope, out);
+    expect(!refused.ok && refused.error.code).toBe("output_exists");
+    expect(readFileSync(join(out, page!.path), "utf8")).toBe("mine");
   });
 
   test("never writes into a folder of the user's notes or one synced for another scope", async () => {

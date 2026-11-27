@@ -32,7 +32,9 @@ export function claimTitle(text: string): string {
   return cut.length > 0 ? cut : "Claim";
 }
 
-const shortID = (claimID: string) => createHash("sha256").update(claimID).digest("hex").slice(0, 8);
+// 64 bits: at 20,000 claims that share a title, a collision is about 1 in 10^11,
+// and the sync refuses one rather than overwrite a page.
+const shortID = (claimID: string) => createHash("sha256").update(claimID).digest("hex").slice(0, 16);
 const tagPart = (v: string) => v.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "other";
 
 function statusNote(status: ExportedClaim["claim_status"]): string | undefined {

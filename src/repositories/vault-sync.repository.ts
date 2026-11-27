@@ -17,6 +17,8 @@ export type WriteOutcome = "written" | "unchanged";
 /** A folder that vault sync owns. It never touches a file it did not write. */
 export interface SyncFolder {
   open(): Promise<Result<SyncState | undefined, VaultError>>;
+  /** Whether anything (file, folder or link) is at a sync path. */
+  occupied(path: string): Promise<Result<boolean, VaultError>>;
   write(path: string, content: string): Promise<Result<WriteOutcome, VaultError>>;
   remove(path: string): Promise<Result<void, VaultError>>;
   save(state: SyncState): Promise<Result<void, VaultError>>;
@@ -88,10 +90,21 @@ export class FileSyncFolder implements SyncFolder {
         return { ok: true, value: parsed as SyncState };
       }
       if (entries && entries.length > 0) return fail("output_exists");
-      mkdirSync(join(this.dir, "claims"), { recursive: true, mode: 0o700 });
+      // Nothing is created until the export has been read, so a failed first
+      // sync leaves no folder behind and can simply be retried.
       return { ok: true, value: undefined };
     } catch {
       return fail("unreadable");
+    }
+  }
+
+  async occupied(path: string): Promise<Result<boolean, VaultError>> {
+    if (!validSyncPath(path)) return fail("path_unsafe");
+    try {
+      lstatSync(join(this.dir, path));
+      return { ok: true, value: true };
+    } catch (e) {
+      return errno(e) === "ENOENT" ? { ok: true, value: false } : fail("unreadable");
     }
   }
 
@@ -124,6 +137,8 @@ export class FileSyncFolder implements SyncFolder {
 
   async save(state: SyncState): Promise<Result<void, VaultError>> {
     try {
+      mkdirSync(this.dir, { recursive: true, mode: 0o700 });
+      if (lstatSync(this.dir).isSymbolicLink()) return fail("path_unsafe");
       this.atomic(join(this.dir, SYNC_STATE_FILE), JSON.stringify(state, null, 2) + "\n");
       return { ok: true, value: undefined };
     } catch {

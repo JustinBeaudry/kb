@@ -58,7 +58,17 @@ export class VaultSyncService {
     const latest = [...new Map(claims.map((c) => [c.claim_id, c])).values()];
 
     const pages = renderVaultPages(scope, latest, completeness);
+    // Two pages on one path would leave one claim unreadable.
+    if (new Set(pages.map((p) => p.path)).size !== pages.length) return fail("unavailable");
     const files = new Set(prior?.files ?? []);
+    // A path this folder's syncs never wrote may hold the user's own note:
+    // refuse rather than overwrite it.
+    for (const page of pages) {
+      if (files.has(page.path)) continue;
+      const taken = await folder.occupied(page.path);
+      if (!taken.ok) return fail("invalid_input");
+      if (taken.value) return fail("output_exists");
+    }
     for (const page of pages) files.add(page.path);
     // Claim ownership of every path before writing, so an interrupted sync
     // still knows which files are its own on the next run.

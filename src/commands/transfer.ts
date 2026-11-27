@@ -14,7 +14,7 @@ const actions: Record<TransferError["code"], string> = {
   approval_stale: "The manifest, selected sources or policy changed since approval. Run preview again and approve the new digest.",
   policy_paused: "Capture policy is paused for this project; nothing was read or uploaded.",
   vault_unavailable: "The vault path is missing or unreadable.",
-  output_exists: "Choose a new, empty output path, or pass --resume to continue an interrupted export. vault-sync only writes to a new or empty folder, or one it created.",
+  output_exists: "Choose a new, empty output path, or pass --resume to continue an interrupted export. vault-sync only writes to a new or empty folder, or one it created, and never over a note it did not write; rename that note to continue.",
   credential_unavailable: "Register both profiles for this origin using kb remote credential-set.",
   unauthorized: "Credential rejected or revoked; enroll and register a current client credential.",
   forbidden: "This client lacks the required capability or project grant.",
