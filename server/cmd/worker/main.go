@@ -25,8 +25,12 @@ func main() {
 	defer func() { _ = telemetry.Shutdown(context.Background()) }()
 	http.DefaultTransport = telemetry.HTTPClientTransport(http.DefaultTransport)
 	logger := telemetry.Logger()
-	if err := runCapture(context.Background(), logger, telemetry); err != nil {
-		logger.Error("worker_stopped", "reason", "configuration_or_handlers_unavailable")
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	attempt := func(ctx context.Context) error { return runCapture(ctx, logger, telemetry) }
+	if err := superviseStartup(ctx, logger, defaultStartupRetry, attempt); err != nil {
+		logger.Error("worker_stopped", "reason", "configuration_or_handlers_unavailable", "stage", platform.FailureStage(err), "error_class", platform.ErrorClass(err))
+		stop()
 		os.Exit(1)
 	}
 }
@@ -116,37 +120,37 @@ func run(parent context.Context, logger *slog.Logger, handlers map[string]platfo
 func runCapture(parent context.Context, logger *slog.Logger, telemetry ...*platform.Telemetry) error {
 	cfg, err := platform.LoadConfig()
 	if err != nil {
-		return err
+		return platform.AtStage("config", err)
 	}
 	objectConfig, err := platform.LoadObjectConfig()
 	if err != nil {
-		return err
+		return platform.AtStage("config", err)
 	}
 	objects, err := gateway.NewS3(objectConfig)
 	if err != nil {
-		return err
+		return platform.AtStage("objects", err)
 	}
 	journalConfig, err := platform.LoadJournalConfig()
 	if err != nil {
-		return err
+		return platform.AtStage("config", err)
 	}
 	journal, err := gateway.NewS3DeletionJournal(journalConfig)
 	if err != nil {
-		return err
+		return platform.AtStage("journal", err)
 	}
 	mc, err := platform.LoadMaintenanceConfig()
 	if err != nil {
-		return err
+		return platform.AtStage("config", err)
 	}
 	admission, err := gateway.NewMaintenanceHTTPClient(mc.Endpoint, mc.Secret, mc.InstanceID)
 	if err != nil {
-		return err
+		return platform.AtStage("maintenance", err)
 	}
 	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	health, err := startWorkerHealth(ctx)
 	if err != nil {
-		return err
+		return platform.AtStage("health", err)
 	}
 	defer func() { _ = health.Close() }()
 	permit, err := platform.WaitForAdmission(ctx, admission, mc.InstanceID, "worker-startup")
@@ -154,7 +158,7 @@ func runCapture(parent context.Context, logger *slog.Logger, telemetry ...*platf
 		if ctx.Err() != nil {
 			return nil
 		}
-		return err
+		return platform.AtStage("admission", err)
 	}
 	startupCtx := domain.WithOperationOutcome(ctx)
 	startupFinished := false
@@ -169,7 +173,7 @@ func runCapture(parent context.Context, logger *slog.Logger, telemetry ...*platf
 	}()
 	store, err := graph.Connect(startupCtx, cfg.Graph)
 	if err != nil {
-		return err
+		return platform.AtStage("graph_connect", err)
 	}
 	if len(telemetry) > 0 {
 		store.SetTrace(telemetry[0].TraceIO)
@@ -184,10 +188,10 @@ func runCapture(parent context.Context, logger *slog.Logger, telemetry ...*platf
 	jobs := service.NewJobsService(store, jobsRepo)
 	lifecycle := service.NewLifecycleService(store, repository.NewLifecycleRepository(store), repository.NewIdentityRepository(store), jobsRepo, objects, journal, time.Now)
 	if err = lifecycle.Recover(startupCtx); err != nil {
-		return err
+		return platform.AtStage("lifecycle_recover", err)
 	}
 	if err = platform.FinishOperation(startupCtx, admission, permit, nil); err != nil {
-		return err
+		return platform.AtStage("finish_operation", err)
 	}
 	startupFinished = true
 	health.Ready(service.NewHealthService(admission, store, objects, journal, 5*time.Second, mc.InstanceID))
@@ -205,7 +209,7 @@ func runCapture(parent context.Context, logger *slog.Logger, telemetry ...*platf
 	}
 	dreaming, err := composeDreaming(store, jobs, jobsRepo, recorder)
 	if err != nil {
-		return err
+		return platform.AtStage("dreaming", err)
 	}
 	handlers[service.DreamJobKind] = dreaming.Process
 	dreams := &dreamScheduler{dreaming: dreaming}
@@ -228,21 +232,22 @@ func runCapture(parent context.Context, logger *slog.Logger, telemetry ...*platf
 					stop()
 					continue
 				}
-				err = lifecycle.Recover(checkCtx)
+				err = platform.AtStage("lifecycle_recover", lifecycle.Recover(checkCtx))
 				if err == nil {
-					_, err = lifecycle.Expire(checkCtx, time.Now().UTC())
+					_, expireErr := lifecycle.Expire(checkCtx, time.Now().UTC())
+					err = platform.AtStage("lifecycle_expire", expireErr)
 				}
 				if err == nil {
-					err = capture.Sweep(checkCtx, 100)
+					err = platform.AtStage("capture_sweep", capture.Sweep(checkCtx, 100))
 				}
 				if err == nil {
 					// Dream scheduling never blocks capture reconciliation.
 					_ = dreams.tick(checkCtx, time.Now().UTC())
 				}
-				err = platform.FinishOperation(checkCtx, admission, sweepPermit, err)
+				err = platform.AtStage("finish_operation", platform.FinishOperation(checkCtx, admission, sweepPermit, err))
 				stop()
 				if err != nil {
-					logger.Warn("capture_reconciliation_incomplete", "reason", "objects_or_policy_unavailable")
+					logger.Warn("capture_reconciliation_incomplete", "reason", "objects_or_policy_unavailable", "stage", platform.FailureStage(err), "error_class", platform.ErrorClass(err))
 				}
 			}
 		}
@@ -250,5 +255,5 @@ func runCapture(parent context.Context, logger *slog.Logger, telemetry ...*platf
 	err = worker.Run(ctx)
 	cancel()
 	<-stopped
-	return err
+	return platform.AtStage("worker_run", err)
 }

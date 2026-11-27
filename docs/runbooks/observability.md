@@ -21,3 +21,11 @@ CI stores race/test events and deduplicated whole-module coverage. `TestTelemetr
 Each completed scheduled backup logs `backup_completed` on the graph service with `backup_age_seconds`, the time since the previous successful snapshot, and `duration_ms`. The first backup after setup logs an age of 0. Operator-requested backups (`kb-supervisor backup`) log the same line, measured from the last successful backup, so manual and scheduled recovery points form one trail. A failed attempt logs `backup_failed` instead and never counts as a recovery point. If a scheduled backup completes but its schedule state can't be saved, it still logs `backup_completed`, followed by `backup_schedule_unsaved` rather than `backup_failed`. Neither line carries a backup ID, bucket, or key.
 
 To evidence the 24-hour RPO over a window, filter the graph service logs for `backup_completed` and check that every `backup_age_seconds` is at most 86400 and that no gap between consecutive lines exceeds 24 hours. A gap with no line at all, for example during an outage, is a missed recovery point even if no `backup_failed` appears. Log retention limits how far back this works, so export the lines if the window must exceed it.
+
+## Worker startup and sweep failures
+
+The worker retries its startup in-process when a dependency is unreachable, for example while the graph restarts during a deploy. Each retry logs `worker_startup_retry` with `stage`, `error_class`, `attempt` and `retry_after_ms`. Backoff starts at 1 second and doubles to 30 seconds. An attempt that ran for 2 minutes resets the backoff. After 15 minutes of continuous failure, or immediately for a configuration or policy failure, the worker logs `worker_stopped` with the same `stage` and `error_class` and exits, so the platform restart policy takes over.
+
+The minute sweep logs `capture_reconciliation_incomplete` with the `stage` that failed (`lifecycle_recover`, `lifecycle_expire`, `capture_sweep` or `finish_operation`) and its `error_class`. An occasional line during a graph or object store blip is expected. Repeated lines with the same stage point to the component to inspect.
+
+`stage` and `error_class` are closed vocabularies defined in `server/internal/platform/failure.go`. Values outside them are dropped at the log boundary, so neither attribute can carry vendor error text.
