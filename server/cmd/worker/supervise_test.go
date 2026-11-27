@@ -22,7 +22,7 @@ func TestSuperviseRetriesUnreachableGraphUntilItReturns(t *testing.T) {
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&logs, nil))
 	calls := 0
-	err := superviseStartup(t.Context(), logger, fastRetry, func(context.Context) error {
+	err := superviseStartup(t.Context(), logger, fastRetry, func(context.Context, func()) error {
 		calls++
 		if calls < 4 {
 			return platform.AtStage("graph_connect", domain.ErrUnavailable)
@@ -42,7 +42,7 @@ func TestSuperviseRetriesUnreachableGraphUntilItReturns(t *testing.T) {
 
 func TestSuperviseFailsClosedOnConfiguration(t *testing.T) {
 	calls := 0
-	err := superviseStartup(t.Context(), slog.New(slog.DiscardHandler), fastRetry, func(context.Context) error {
+	err := superviseStartup(t.Context(), slog.New(slog.DiscardHandler), fastRetry, func(context.Context, func()) error {
 		calls++
 		return platform.AtStage("config", domain.ErrInvalidInput)
 	})
@@ -54,7 +54,7 @@ func TestSuperviseFailsClosedOnConfiguration(t *testing.T) {
 func TestSuperviseGivesUpAfterSustainedOutage(t *testing.T) {
 	policy := fastRetry
 	policy.giveUp = 20 * time.Millisecond
-	err := superviseStartup(t.Context(), slog.New(slog.DiscardHandler), policy, func(context.Context) error {
+	err := superviseStartup(t.Context(), slog.New(slog.DiscardHandler), policy, func(context.Context, func()) error {
 		return platform.AtStage("graph_connect", domain.ErrUnavailable)
 	})
 	require.ErrorIs(t, err, domain.ErrUnavailable)
@@ -66,7 +66,7 @@ func TestSuperviseStopsQuietlyOnShutdown(t *testing.T) {
 	policy.initial, policy.max = time.Hour, time.Hour
 	done := make(chan error, 1)
 	go func() {
-		done <- superviseStartup(ctx, slog.New(slog.DiscardHandler), policy, func(context.Context) error {
+		done <- superviseStartup(ctx, slog.New(slog.DiscardHandler), policy, func(context.Context, func()) error {
 			return domain.ErrUnavailable
 		})
 	}()
@@ -80,17 +80,67 @@ func TestSuperviseStopsQuietlyOnShutdown(t *testing.T) {
 	}
 }
 
-func TestSuperviseResetsBackoffAfterHealthyRun(t *testing.T) {
+func TestSuperviseResetsWindowOnlyAfterServingHealthy(t *testing.T) {
 	policy := startupRetry{initial: time.Millisecond, max: time.Millisecond, giveUp: 30 * time.Millisecond, healthy: 5 * time.Millisecond}
 	calls := 0
-	err := superviseStartup(t.Context(), slog.New(slog.DiscardHandler), policy, func(context.Context) error {
+	err := superviseStartup(t.Context(), slog.New(slog.DiscardHandler), policy, func(_ context.Context, ready func()) error {
 		calls++
 		if calls == 10 {
 			return nil
 		}
-		time.Sleep(6 * time.Millisecond) // each run counts as healthy, so the outage clock resets
+		ready()
+		time.Sleep(6 * time.Millisecond) // each run serves long enough to count as healthy
 		return platform.AtStage("worker_run", errors.Join(domain.ErrUnavailable))
 	})
 	require.NoError(t, err)
 	assert.Equal(t, 10, calls)
+}
+
+func TestSuperviseSlowFailuresBeforeReadyStillGiveUp(t *testing.T) {
+	// Each attempt runs longer than healthy but never becomes ready, as when
+	// admission waits a long time and then the graph refuses the connection.
+	policy := startupRetry{initial: time.Millisecond, max: time.Millisecond, giveUp: 40 * time.Millisecond, healthy: 5 * time.Millisecond}
+	calls := 0
+	err := superviseStartup(t.Context(), slog.New(slog.DiscardHandler), policy, func(context.Context, func()) error {
+		calls++
+		time.Sleep(15 * time.Millisecond)
+		return platform.AtStage("graph_connect", domain.ErrUnavailable)
+	})
+	require.ErrorIs(t, err, domain.ErrUnavailable)
+	assert.Less(t, calls, 10)
+}
+
+func TestSuperviseBoundsAnAttemptThatNeverReturns(t *testing.T) {
+	policy := fastRetry
+	policy.giveUp = 20 * time.Millisecond
+	done := make(chan error, 1)
+	go func() {
+		done <- superviseStartup(t.Context(), slog.New(slog.DiscardHandler), policy, func(ctx context.Context, _ func()) error {
+			<-ctx.Done() // admission retrying forever
+			return nil
+		})
+	}()
+	select {
+	case err := <-done:
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		assert.Equal(t, "startup_deadline", platform.FailureStage(err))
+		assert.Equal(t, "deadline", platform.ErrorClass(err))
+	case <-time.After(5 * time.Second):
+		t.Fatal("supervisor did not bound a blocked startup")
+	}
+}
+
+func TestSuperviseDoesNotCancelAReadyAttempt(t *testing.T) {
+	policy := fastRetry
+	policy.giveUp = 10 * time.Millisecond
+	err := superviseStartup(t.Context(), slog.New(slog.DiscardHandler), policy, func(ctx context.Context, ready func()) error {
+		ready()
+		select {
+		case <-ctx.Done():
+			return platform.AtStage("worker_run", ctx.Err())
+		case <-time.After(40 * time.Millisecond): // served past the startup deadline
+			return nil
+		}
+	})
+	require.NoError(t, err)
 }

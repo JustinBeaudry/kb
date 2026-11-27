@@ -12,7 +12,7 @@ import (
 var FailureStages = []string{
 	"config", "objects", "journal", "maintenance", "health", "admission",
 	"graph_connect", "lifecycle_recover", "lifecycle_expire", "capture_sweep",
-	"finish_operation", "dreaming", "worker_run",
+	"finish_operation", "dreaming", "worker_run", "startup_deadline",
 }
 
 // ErrorClasses is the closed vocabulary for the "error_class" log attribute.

@@ -55,6 +55,10 @@ func (h *workerHealth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (h *workerHealth) Ready(health *service.HealthService) {
 	h.health.Store(handler.NewHealthHandler(health))
 }
+// Unready returns /readyz to "starting" after a failed or finished attempt.
+func (h *workerHealth) Unready() {
+	h.health.Store(nil)
+}
 func (h *workerHealth) Close() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

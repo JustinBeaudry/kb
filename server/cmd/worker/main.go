@@ -27,12 +27,31 @@ func main() {
 	logger := telemetry.Logger()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	attempt := func(ctx context.Context) error { return runCapture(ctx, logger, telemetry) }
-	if err := superviseStartup(ctx, logger, defaultStartupRetry, attempt); err != nil {
+	// The liveness listener outlives every startup attempt, so a worker that is
+	// deliberately waiting out a graph restart still answers /livez.
+	health, err := startWorkerHealth(ctx)
+	if err != nil {
+		err = platform.AtStage("health", err)
+	} else {
+		attempt := func(ctx context.Context, ready func()) error {
+			return runCapture(ctx, logger, captureOptions{health: health, ready: ready, telemetry: telemetry})
+		}
+		err = superviseStartup(ctx, logger, defaultStartupRetry, attempt)
+		_ = health.Close()
+	}
+	if err != nil {
 		logger.Error("worker_stopped", "reason", "configuration_or_handlers_unavailable", "stage", platform.FailureStage(err), "error_class", platform.ErrorClass(err))
 		stop()
 		os.Exit(1)
 	}
+}
+
+// captureOptions carries what main owns across startup attempts. A zero value
+// starts a private liveness listener, which is what the composition tests use.
+type captureOptions struct {
+	health    *workerHealth
+	ready     func()
+	telemetry *platform.Telemetry
 }
 func run(parent context.Context, logger *slog.Logger, handlers map[string]platform.RunJob) error {
 	if len(handlers) == 0 {
@@ -117,7 +136,7 @@ func run(parent context.Context, logger *slog.Logger, handlers map[string]platfo
 
 // runCapture composes durable capture and lifecycle handlers. Intelligence owns
 // evidence.extract later; it is deliberately absent from the claimed kinds.
-func runCapture(parent context.Context, logger *slog.Logger, telemetry ...*platform.Telemetry) error {
+func runCapture(parent context.Context, logger *slog.Logger, opts captureOptions) error {
 	cfg, err := platform.LoadConfig()
 	if err != nil {
 		return platform.AtStage("config", err)
@@ -148,11 +167,15 @@ func runCapture(parent context.Context, logger *slog.Logger, telemetry ...*platf
 	}
 	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	health, err := startWorkerHealth(ctx)
-	if err != nil {
-		return platform.AtStage("health", err)
+	health := opts.health
+	if health == nil {
+		if health, err = startWorkerHealth(ctx); err != nil {
+			return platform.AtStage("health", err)
+		}
+		defer func() { _ = health.Close() }()
 	}
-	defer func() { _ = health.Close() }()
+	// /readyz reports starting again whenever this attempt ends.
+	defer health.Unready()
 	permit, err := platform.WaitForAdmission(ctx, admission, mc.InstanceID, "worker-startup")
 	if err != nil {
 		if ctx.Err() != nil {
@@ -175,8 +198,8 @@ func runCapture(parent context.Context, logger *slog.Logger, telemetry ...*platf
 	if err != nil {
 		return platform.AtStage("graph_connect", err)
 	}
-	if len(telemetry) > 0 {
-		store.SetTrace(telemetry[0].TraceIO)
+	if opts.telemetry != nil {
+		store.SetTrace(opts.telemetry.TraceIO)
 	}
 	defer func() {
 		cleanup, cancel := context.WithTimeout(context.WithoutCancel(startupCtx), 5*time.Second)
@@ -195,6 +218,9 @@ func runCapture(parent context.Context, logger *slog.Logger, telemetry ...*platf
 	}
 	startupFinished = true
 	health.Ready(service.NewHealthService(admission, store, objects, journal, 5*time.Second, mc.InstanceID))
+	if opts.ready != nil {
+		opts.ready()
+	}
 	capture := service.NewCaptureService(store, repo, jobsRepo, objects)
 	handlers := map[string]platform.RunJob{"capture.reconcile": func(ctx context.Context, job domain.Job, lease domain.Lease) error {
 		return capture.Reconcile(ctx, job, lease, jobs)
@@ -204,8 +230,8 @@ func runCapture(parent context.Context, logger *slog.Logger, telemetry ...*platf
 		return lifecycle.ReconcilePolicy(ctx, job, lease, jobs)
 	}}
 	var recorder gateway.GenerationRecorder
-	if len(telemetry) > 0 {
-		recorder = telemetry[0]
+	if opts.telemetry != nil {
+		recorder = opts.telemetry
 	}
 	dreaming, err := composeDreaming(store, jobs, jobsRepo, recorder)
 	if err != nil {
