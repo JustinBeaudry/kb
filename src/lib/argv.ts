@@ -23,10 +23,14 @@ export function commandArgs(command: string, argv: string[] = process.argv): str
 }
 
 /**
- * Splits short options written as `-p=value` into `-p value`. citty 0.2 parses
- * with node's util.parseArgs, which reads `-p=value` as the value "=value";
- * kb has always accepted the inline form, so it is normalized before parsing.
- * Tokens after a `--` terminator are left alone.
+ * Splits the vault-path short option written as `-p=value` into `-p value`.
+ * citty 0.2 parses with node's util.parseArgs, which reads `-p=value` as the
+ * value "=value"; kb has always accepted the inline form, so it is normalized
+ * before parsing. Only `-p` is rewritten: it is kb's one value-taking short
+ * alias, and leaving every other token alone keeps a string option's value
+ * intact when that value happens to look like `-x=...` (for example
+ * `--query -x=foo`). A token that is itself the value of a preceding vault-path
+ * flag, and tokens after a `--` terminator, are left alone too.
  */
 export function normalizeShortInlineValues(args: string[]): string[] {
   const out: string[] = [];
@@ -36,8 +40,12 @@ export function normalizeShortInlineValues(args: string[]): string[] {
       out.push(...args.slice(i));
       break;
     }
-    const match = /^-([A-Za-z])=(.*)$/s.exec(arg);
-    if (match) out.push(`-${match[1]}`, match[2]!);
+    if (arg === "-p" || arg === "--vault-path" || arg === "--vaultPath") {
+      out.push(arg);
+      if (i + 1 < args.length) out.push(args[++i]!);
+      continue;
+    }
+    if (arg.startsWith("-p=")) out.push("-p", arg.slice(3));
     else out.push(arg);
   }
   return out;
