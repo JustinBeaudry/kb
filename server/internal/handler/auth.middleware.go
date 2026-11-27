@@ -53,22 +53,37 @@ func Authentication(identity Authenticator) echo.MiddlewareFunc {
 func authentication(identity Authenticator, access AccessRecorder) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
+			if access == nil {
+				bearer, ok := bearerHeader(c.Request().Header)
+				if !ok {
+					return problem(c, domain.ErrUnauthorized)
+				}
+				p, err := identity.Authenticate(c.Request().Context(), bearer)
+				if err != nil {
+					return problem(c, err)
+				}
+				c.SetRequest(c.Request().WithContext(context.WithValue(c.Request().Context(), principalKey{}, p)))
+				return next(c)
+			}
+			// The collector exists before authentication so a refused bearer
+			// is counted too, under the client it names or as unknown.
+			collector := domain.NewAccessCollector()
+			ctx := domain.WithAccessCollector(c.Request().Context(), collector)
+			defer func() {
+				if o := collector.Observations(); len(o) > 0 {
+					access.Record(o)
+				}
+			}()
 			bearer, ok := bearerHeader(c.Request().Header)
 			if !ok {
+				domain.ObserveAuthFailure(ctx, "", domain.AccessAuthUnknown)
 				return problem(c, domain.ErrUnauthorized)
 			}
-			p, err := identity.Authenticate(c.Request().Context(), bearer)
+			p, err := identity.Authenticate(ctx, bearer)
 			if err != nil {
 				return problem(c, err)
 			}
-			ctx := context.WithValue(c.Request().Context(), principalKey{}, p)
-			if access == nil {
-				c.SetRequest(c.Request().WithContext(ctx))
-				return next(c)
-			}
-			collector := domain.NewAccessCollector()
-			c.SetRequest(c.Request().WithContext(domain.WithAccessCollector(ctx, collector)))
-			defer func() { access.Record(collector.Observations()) }()
+			c.SetRequest(c.Request().WithContext(context.WithValue(ctx, principalKey{}, p)))
 			return refused(c.Request().Context(), next(c))
 		}
 	}

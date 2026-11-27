@@ -34,16 +34,23 @@ func TestAccessAuditRecordsEachAuthenticatedRequestOnce(t *testing.T) {
 		{"GET", "/v1/status", "fixture-secret", ""},
 		{"POST", "/v1/clients", "fixture-secret", `{"id":"other","role":"agent","project_ids":["demo"],"capabilities":["status:read"]}`},
 		{"GET", "/v1/status", "wrong-secret", ""},
+		{"GET", "/v1/status", "", ""},
 	} {
 		req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
-		req.Header.Set("Authorization", "Bearer "+tc.token)
+		if tc.token != "" {
+			req.Header.Set("Authorization", "Bearer "+tc.token)
+		}
 		req.Header.Set("Content-Type", "application/json")
 		e.ServeHTTP(httptest.NewRecorder(), req)
 	}
 	assert.Equal(t, [][]domain.AccessObservation{
 		{{ClientID: "client", Capability: "status:read", Allowed: true}},
 		{{ClientID: "client", Capability: "clients:manage", Allowed: false}},
-	}, rec.seen, "an unauthenticated request has no client to attribute, so it records nothing")
+		// The fixture identity records nothing for a wrong bearer; the
+		// identity service attributes those (see the service tests). A
+		// request with no bearer at all is counted as unknown here.
+		{{ClientID: domain.AccessOutsideGrant, Capability: domain.AccessAuthUnknown, Allowed: false}},
+	}, rec.seen)
 }
 
 func TestAccessAuditIsOffWithoutRecorder(t *testing.T) {
