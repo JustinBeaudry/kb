@@ -34,3 +34,18 @@ func TestChildArgumentsForVerificationCommands(t *testing.T) {
 		})
 	}
 }
+
+func TestChildArgumentsForCredentialCommands(t *testing.T) {
+	args, err := childArguments(domain.HostAdminRequest{Version: 1, Action: "rotate", Options: domain.HostAdminOptions{ClientID: "agent", TTL: "2160h"}})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"rotate", "--client-id", "agent", "--ttl", "2160h", "--credential-fd", "3"}, args)
+	args, err = childArguments(domain.HostAdminRequest{Version: 1, Action: "enroll", Options: domain.HostAdminOptions{ProjectID: "p", TTL: "24h"}})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"enroll", "--project", "p", "--ttl", "24h", "--credential-fd", "3"}, args)
+	for _, action := range []string{"setup", "enroll", "rotate"} {
+		assert.True(t, domain.HostAdminIssuesCredential(action), action)
+	}
+	for _, action := range []string{"revoke", "list", "verify"} {
+		assert.False(t, domain.HostAdminIssuesCredential(action), action)
+	}
+}

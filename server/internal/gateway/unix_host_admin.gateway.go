@@ -224,7 +224,7 @@ func (s *UnixHostAdminServer) serve(ctx context.Context, conn *net.UnixConn) {
 			return
 		}
 	}
-	needsSink := r.Action == "setup" || r.Action == "enroll"
+	needsSink := domain.HostAdminIssuesCredential(r.Action)
 	if needsSink != (sink != nil) {
 		return
 	}

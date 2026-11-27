@@ -10,6 +10,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/JustinBeaudry/kb/server/internal/domain"
 	"github.com/JustinBeaudry/kb/server/internal/service"
@@ -118,6 +119,8 @@ type fakeHostIdentity struct {
 	credential service.ClientCredential
 	page       service.ClientPage
 	revoked    string
+	rotated    string
+	rotatedTTL time.Duration
 }
 
 func (f *fakeHostIdentity) Setup(context.Context, domain.OwnerIdentity, service.EnrollInput) (service.ClientCredential, error) {
@@ -125,6 +128,10 @@ func (f *fakeHostIdentity) Setup(context.Context, domain.OwnerIdentity, service.
 }
 func (f *fakeHostIdentity) EnrollHost(_ context.Context, input service.EnrollInput) (service.ClientCredential, error) {
 	f.input = input
+	return f.credential, nil
+}
+func (f *fakeHostIdentity) RotateHost(_ context.Context, id string, ttl time.Duration) (service.ClientCredential, error) {
+	f.rotated, f.rotatedTTL = id, ttl
 	return f.credential, nil
 }
 func (f *fakeHostIdentity) RevokeHost(_ context.Context, id string) error { f.revoked = id; return nil }
@@ -303,5 +310,33 @@ func TestHostLifecycleHelpExplainsExactConfirmationAndJournalRecovery(t *testing
 	require.NoError(t, run(t.Context(), []string{"help"}, &out))
 	for _, want := range []string{"delete --preview", "ExpectedSelectionDigest", "same-project identical-byte", "deletion-status", "policy-update", "ExpectedRevision", "journal-init", "journal-check", "never initializes"} {
 		assert.Contains(t, out.String(), want)
+	}
+}
+
+func TestHostAdminRotateWritesBearerOnlyToDescriptor(t *testing.T) {
+	f := &fakeHostIdentity{credential: service.ClientCredential{Bearer: "fixture-rotated-secret"}}
+	factory := func(context.Context, bool) (administration, func(), error) {
+		return administration{identity: f, recovery: &fakeHostRecovery{}}, func() {}, nil
+	}
+	destination, err := os.CreateTemp(t.TempDir(), "credential")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = destination.Close() })
+	var out bytes.Buffer
+	require.NoError(t, runAdmin(t.Context(), []string{"rotate", "--client-id", "client", "--ttl", "2160h", "--credential-fd", fmt.Sprint(destination.Fd())}, &out, strings.NewReader(""), factory))
+	assert.Empty(t, out.String())
+	assert.Equal(t, "client", f.rotated)
+	assert.Equal(t, 2160*time.Hour, f.rotatedTTL)
+	written, err := os.ReadFile(destination.Name())
+	require.NoError(t, err)
+	assert.Equal(t, "fixture-rotated-secret\n", string(written))
+
+	for _, args := range [][]string{
+		{"rotate", "--ttl", "1h", "--credential-fd", fmt.Sprint(destination.Fd())},
+		{"rotate", "--client-id", "client", "--ttl", "soon", "--credential-fd", fmt.Sprint(destination.Fd())},
+		{"rotate", "--client-id", "client", "--ttl", "-1h", "--credential-fd", fmt.Sprint(destination.Fd())},
+		{"rotate", "--client-id", "client"},
+		{"enroll", "--project", "p", "--ttl", "0", "--credential-fd", fmt.Sprint(destination.Fd())},
+	} {
+		assert.ErrorIs(t, runAdmin(t.Context(), args, &out, strings.NewReader(""), factory), domain.ErrInvalidInput, args)
 	}
 }

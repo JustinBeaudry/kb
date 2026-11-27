@@ -41,6 +41,8 @@ type ClientRecord struct {
 	Principal   Principal
 	TokenDigest string
 	RevokedAt   *time.Time
+	// ExpiresAt, when set, is the instant the bearer stops authenticating.
+	ExpiresAt *time.Time
 }
 
 // OwnerIdentity is the enrolled public signing identity, not an access token.
@@ -50,4 +52,5 @@ type OwnerIdentity struct{ ID, PublicKey string }
 type ClientMetadata struct {
 	Principal Principal
 	RevokedAt *time.Time
+	ExpiresAt *time.Time `json:",omitempty"`
 }

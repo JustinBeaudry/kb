@@ -181,4 +181,46 @@ func TestIdentityRealGraph(t *testing.T) {
 		err := identity.Revoke(t.Context(), domain.Principal{Role: domain.RoleOwner, OwnerID: "forged"}, "collector")
 		assert.ErrorIs(t, err, domain.ErrForbidden)
 	})
+	t.Run("expiry and rotation persist and take effect on the next request", func(t *testing.T) {
+		enrolledAt := time.Now().UTC()
+		first, err := identity.EnrollHost(t.Context(), service.EnrollInput{ClientID: "rotating", Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"status:read"}, TTL: 2 * time.Hour})
+		require.NoError(t, err)
+		page, err := identity.ListHost(t.Context(), 100, "")
+		require.NoError(t, err)
+		var listed *time.Time
+		for _, c := range page.Clients {
+			if c.Principal.ClientID == "rotating" {
+				listed = c.ExpiresAt
+			}
+		}
+		require.NotNil(t, listed)
+		assert.WithinDuration(t, enrolledAt.Add(2*time.Hour), *listed, time.Minute)
+		before, err := identity.Authenticate(t.Context(), first.Bearer)
+		require.NoError(t, err)
+
+		second, err := identity.RotateHost(t.Context(), "rotating", 0)
+		require.NoError(t, err)
+		code, _ := request(http.MethodGet, "/v1/status", "", first.Bearer)
+		assert.Equal(t, 401, code)
+		code, _ = request(http.MethodGet, "/v1/status", "", second.Bearer)
+		assert.Equal(t, 200, code)
+		after, err := identity.Authenticate(t.Context(), second.Bearer)
+		require.NoError(t, err)
+		assert.Greater(t, after.AuthEpoch, before.AuthEpoch)
+		assert.Equal(t, before.Capabilities, after.Capabilities)
+		require.NoError(t, store.Within(t.Context(), func(ctx context.Context, tx domain.Tx) error {
+			record, err := repo.FindToken(ctx, tx, service.TokenDigest(second.Bearer))
+			require.NoError(t, err)
+			assert.Nil(t, record.ExpiresAt, "rotation without a TTL clears the previous expiry")
+			native, err := store.Unwrap(tx)
+			require.NoError(t, err)
+			_, err = native.Run(ctx, "MATCH (c:Client {id:'rotating'}) SET c.expiresAt=$past", map[string]any{"past": time.Now().Add(-time.Second).UnixNano()})
+			return err
+		}))
+		code, _ = request(http.MethodGet, "/v1/status", "", second.Bearer)
+		assert.Equal(t, 401, code, "an expired bearer is refused")
+
+		_, err = identity.RotateHost(t.Context(), credential.ClientID, 0)
+		assert.ErrorIs(t, err, domain.ErrForbidden, "a revoked client cannot be rotated back to life")
+	})
 }

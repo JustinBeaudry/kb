@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/JustinBeaudry/kb/server/internal/domain"
 )
@@ -17,7 +18,21 @@ type EnrollInput struct {
 	ClientID                 string
 	Role                     domain.Role
 	ProjectIDs, Capabilities []string
+	// TTL bounds the bearer's lifetime; zero issues a bearer without expiry.
+	TTL time.Duration
 }
+
+// Credential lifetimes are bounded so a forgotten bearer cannot live forever
+// once an expiry is chosen, and cannot be set so short it expires mid-setup.
+const (
+	MinCredentialTTL = time.Hour
+	MaxCredentialTTL = 366 * 24 * time.Hour
+)
+
+func validTTL(ttl time.Duration) bool {
+	return ttl == 0 || (ttl >= MinCredentialTTL && ttl <= MaxCredentialTTL)
+}
+
 type ClientCredential struct {
 	ClientID  string
 	Bearer    string
@@ -39,6 +54,9 @@ type IdentityRepository interface {
 	FindToken(context.Context, Tx, string) (ClientRecord, error)
 	PutClient(context.Context, Tx, ClientRecord) error
 	RevokeClient(context.Context, Tx, string) error
+	// RotateClient replaces an active client's bearer digest and expiry in
+	// place, keeping its identity and grants. The old bearer stops working.
+	RotateClient(ctx context.Context, tx Tx, id, digest string, expiresAt *time.Time) error
 	Owner(context.Context, Tx) (OwnerIdentity, error)
 	PutOwner(context.Context, Tx, OwnerIdentity) error
 }
@@ -50,10 +68,11 @@ type IdentityService struct {
 	tx         Transactor
 	repo       IdentityRepository
 	publicKeys OwnerPublicKeyValidator
+	now        func() time.Time
 }
 
 func NewIdentityService(tx Transactor, repo IdentityRepository, publicKeys OwnerPublicKeyValidator) *IdentityService {
-	return &IdentityService{tx: tx, repo: repo, publicKeys: publicKeys}
+	return &IdentityService{tx: tx, repo: repo, publicKeys: publicKeys, now: time.Now}
 }
 func TokenDigest(bearer string) string {
 	digest := sha256.Sum256([]byte(bearer))
@@ -70,6 +89,9 @@ func (s *IdentityService) Authenticate(ctx context.Context, bearer string) (doma
 			return err
 		}
 		if record.RevokedAt != nil || record.Principal.Role == domain.RoleOwner {
+			return domain.ErrUnauthorized
+		}
+		if record.ExpiresAt != nil && !s.now().Before(*record.ExpiresAt) {
 			return domain.ErrUnauthorized
 		}
 		p = record.Principal
@@ -148,13 +170,12 @@ func (s *IdentityService) enroll(ctx context.Context, tx Tx, ownerID string, inp
 	if id == "" {
 		id = rand.Text()
 	}
-	var raw [32]byte
-	if _, err := rand.Read(raw[:]); err != nil {
-		return ClientCredential{}, domain.ErrUnavailable
+	bearer, err := newBearer()
+	if err != nil {
+		return ClientCredential{}, err
 	}
-	bearer := hex.EncodeToString(raw[:])
 	p := domain.Principal{ClientID: id, OwnerID: ownerID, Role: input.Role, ProjectIDs: slices.Clone(input.ProjectIDs), Capabilities: slices.Clone(input.Capabilities)}
-	if err := s.repo.PutClient(ctx, tx, ClientRecord{Principal: p, TokenDigest: TokenDigest(bearer)}); err != nil {
+	if err := s.repo.PutClient(ctx, tx, ClientRecord{Principal: p, TokenDigest: TokenDigest(bearer), ExpiresAt: s.expiry(input.TTL)}); err != nil {
 		return ClientCredential{}, err
 	}
 	record, err := s.repo.FindToken(ctx, tx, TokenDigest(bearer))
@@ -162,6 +183,20 @@ func (s *IdentityService) enroll(ctx context.Context, tx Tx, ownerID string, inp
 		return ClientCredential{}, err
 	}
 	return ClientCredential{ClientID: id, Bearer: bearer, Principal: record.Principal}, nil
+}
+func newBearer() (string, error) {
+	var raw [32]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "", domain.ErrUnavailable
+	}
+	return hex.EncodeToString(raw[:]), nil
+}
+func (s *IdentityService) expiry(ttl time.Duration) *time.Time {
+	if ttl == 0 {
+		return nil
+	}
+	at := s.now().UTC().Add(ttl)
+	return &at
 }
 func (s *IdentityService) Revoke(ctx context.Context, owner domain.Principal, id string) error {
 	return s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
@@ -176,6 +211,9 @@ func (s *IdentityService) Revoke(ctx context.Context, owner domain.Principal, id
 }
 func validateEnrollment(input EnrollInput) error {
 	if strings.HasPrefix(input.ClientID, ownerActorPrefix) || (input.ClientID != "" && domain.ValidateIDs(input.ClientID) != nil) {
+		return domain.ErrInvalidInput
+	}
+	if !validTTL(input.TTL) {
 		return domain.ErrInvalidInput
 	}
 	if len(input.ProjectIDs) == 0 || len(input.ProjectIDs) > 50 || len(input.Capabilities) == 0 || len(input.Capabilities) > 20 {
@@ -264,6 +302,38 @@ func (s *IdentityService) RevokeHost(ctx context.Context, id string) error {
 		}
 		return s.repo.RevokeClient(ctx, tx, id)
 	})
+}
+
+// RotateHost issues a fresh bearer for an active client on the controlled
+// service host. Grants are unchanged; the previous bearer stops working in the
+// same transaction, and the auth epoch advances so state bound to it is stale.
+func (s *IdentityService) RotateHost(ctx context.Context, id string, ttl time.Duration) (ClientCredential, error) {
+	if domain.ValidateIDs(id) != nil || strings.HasPrefix(id, ownerActorPrefix) || !validTTL(ttl) {
+		return ClientCredential{}, domain.ErrInvalidInput
+	}
+	var c ClientCredential
+	err := s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
+		if _, err := hostOwner(ctx, tx, s.repo); err != nil {
+			return err
+		}
+		bearer, err := newBearer()
+		if err != nil {
+			return err
+		}
+		if err := s.repo.RotateClient(ctx, tx, id, TokenDigest(bearer), s.expiry(ttl)); err != nil {
+			return err
+		}
+		record, err := s.repo.FindToken(ctx, tx, TokenDigest(bearer))
+		if err != nil {
+			return err
+		}
+		c = ClientCredential{ClientID: id, Bearer: bearer, Principal: record.Principal}
+		return nil
+	})
+	if err != nil {
+		return ClientCredential{}, err
+	}
+	return c, nil
 }
 func (s *IdentityService) ListHost(ctx context.Context, limit int, after string) (ClientPage, error) {
 	if limit < 1 || limit > 100 || (after != "" && domain.ValidateIDs(after) != nil) {

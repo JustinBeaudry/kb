@@ -54,6 +54,17 @@ func (f *identityFixture) RevokeClient(_ context.Context, _ Tx, id string) error
 	f.epoch++
 	return nil
 }
+func (f *identityFixture) RotateClient(_ context.Context, _ Tx, id, digest string, expiresAt *time.Time) error {
+	c, ok := f.clients[id]
+	if !ok || c.RevokedAt != nil {
+		return domain.ErrForbidden
+	}
+	c.TokenDigest = digest
+	c.ExpiresAt = expiresAt
+	f.clients[id] = c
+	f.epoch++
+	return nil
+}
 func (f *identityFixture) Owner(_ context.Context, _ Tx) (OwnerIdentity, error) { return f.owner, nil }
 func (f *identityFixture) PutOwner(_ context.Context, _ Tx, o OwnerIdentity) error {
 	if f.owner.ID != "" {
@@ -293,4 +304,71 @@ func TestHostOwnerCannotAuthenticateAsBearer(t *testing.T) {
 	assert.ErrorIs(t, err, domain.ErrInvalidInput)
 	_, err = s.EnrollHost(t.Context(), EnrollInput{ClientID: "host-owner:fake", Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"status:read"}})
 	assert.ErrorIs(t, err, domain.ErrInvalidInput)
+}
+
+func TestExpiredCredentialStopsAuthenticating(t *testing.T) {
+	s, f := newIdentityFixture()
+	clock := time.Date(2026, 11, 27, 12, 0, 0, 0, time.UTC)
+	s.now = func() time.Time { return clock }
+	_, err := s.Setup(t.Context(), OwnerIdentity{ID: "owner-public", PublicKey: ownerNostrPublicKey}, EnrollInput{ClientID: "client", Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"status:read"}, TTL: 2 * time.Hour})
+	require.NoError(t, err)
+	short, err := s.EnrollHost(t.Context(), EnrollInput{ClientID: "short", Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"status:read"}, TTL: time.Hour})
+	require.NoError(t, err)
+	require.NotNil(t, f.clients["short"].ExpiresAt)
+	assert.Equal(t, clock.Add(time.Hour), *f.clients["short"].ExpiresAt)
+
+	clock = clock.Add(time.Hour - time.Nanosecond)
+	_, err = s.Authenticate(t.Context(), short.Bearer)
+	require.NoError(t, err)
+	clock = clock.Add(time.Nanosecond)
+	_, err = s.Authenticate(t.Context(), short.Bearer)
+	assert.ErrorIs(t, err, domain.ErrUnauthorized)
+}
+
+func TestCredentialTTLIsBounded(t *testing.T) {
+	s, _ := newIdentityFixture()
+	setupFixture(t, s)
+	for _, ttl := range []time.Duration{-time.Hour, time.Minute, MaxCredentialTTL + time.Hour} {
+		_, err := s.EnrollHost(t.Context(), EnrollInput{Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"status:read"}, TTL: ttl})
+		assert.ErrorIs(t, err, domain.ErrInvalidInput, ttl)
+		_, err = s.RotateHost(t.Context(), "client", ttl)
+		assert.ErrorIs(t, err, domain.ErrInvalidInput, ttl)
+	}
+	_, err := s.EnrollHost(t.Context(), EnrollInput{Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"status:read"}, TTL: MaxCredentialTTL})
+	assert.NoError(t, err)
+}
+
+func TestRotateReplacesBearerAndKeepsGrants(t *testing.T) {
+	s, f := newIdentityFixture()
+	old := setupFixture(t, s)
+	before, err := s.Authenticate(t.Context(), old.Bearer)
+	require.NoError(t, err)
+
+	rotated, err := s.RotateHost(t.Context(), "client", 90*24*time.Hour)
+	require.NoError(t, err)
+	assert.NotEqual(t, old.Bearer, rotated.Bearer)
+	assert.Len(t, rotated.Bearer, 64)
+	_, err = s.Authenticate(t.Context(), old.Bearer)
+	assert.ErrorIs(t, err, domain.ErrUnauthorized)
+	after, err := s.Authenticate(t.Context(), rotated.Bearer)
+	require.NoError(t, err)
+	assert.Equal(t, before.ClientID, after.ClientID)
+	assert.Equal(t, before.ProjectIDs, after.ProjectIDs)
+	assert.Equal(t, before.Capabilities, after.Capabilities)
+	assert.Greater(t, after.AuthEpoch, before.AuthEpoch)
+	require.NotNil(t, f.clients["client"].ExpiresAt)
+
+	require.NoError(t, s.RevokeHost(t.Context(), "client"))
+	_, err = s.RotateHost(t.Context(), "client", 0)
+	assert.ErrorIs(t, err, domain.ErrForbidden)
+	_, err = s.RotateHost(t.Context(), "missing", 0)
+	assert.ErrorIs(t, err, domain.ErrForbidden)
+	_, err = s.RotateHost(t.Context(), "host-owner:x", 0)
+	assert.ErrorIs(t, err, domain.ErrInvalidInput)
+}
+
+func TestRotateRequiresPersistedOwner(t *testing.T) {
+	s, _ := newIdentityFixture()
+	_, err := s.RotateHost(t.Context(), "client", 0)
+	assert.ErrorIs(t, err, domain.ErrForbidden)
 }
