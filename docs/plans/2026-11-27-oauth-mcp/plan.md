@@ -88,6 +88,8 @@ Phase 3 adds approval in the browser with a NIP-07 signer: the page asks the ext
 3. **Browser approval** with a NIP-07 signer.
 4. **Client ID Metadata Documents.**
 
+Phase 2 ships as three pull requests, each safe on its own: (2a) the `/oauth/*` guard and registration, (2b) authorize, the request poll and `kb-admin oauth-approve`/`oauth-deny`, (2c) token exchange, refresh, revocation, and last the authorization server metadata that tells clients the flow exists.
+
 Each phase is its own pull request and ships behind no flag: phase 1 is inert without phase 2, and phase 2 does nothing until the owner approves a request.
 
 ## Tests that must exist before phase 2 merges

@@ -92,6 +92,19 @@ An agent, its host or its tools are fully controlled by an attacker who holds a 
 | Revoking it stops it at the next request. | `TestRevokedTokenFailsNextRequest` |
 | It cannot starve other clients: the public guard bounds the api to 8 requests a second and 8 in flight before any graph work, and each credential to half of that (kb#41). | `TestPublicGuardBoundsBurstAndRefillsEightPerSecond`, `TestPublicGuardGivesEachCredentialHalfTheCapacity` |
 
+### Anonymous OAuth registration
+
+`POST /oauth/register` (RFC 7591) takes no credential, so anyone on the internet can call it. A registration grants nothing: it only names redirect URIs that a later grant request must match exactly.
+
+| Defense | Test |
+| --- | --- |
+| Only public clients using the authorization code grant are registered. Redirect URIs must be `https`, or `http` on a loopback IP literal, with no fragment or user info; names with control or bidirectional-override characters are refused. | `TestOAuthRegisterRefusesWhatKbWillNotIssue` |
+| Unknown metadata, logos and software statements are ignored and never stored or logged. | `TestOAuthRegisterReturnsClientMetadata` |
+| `/oauth/*` has its own guard, 2 requests a second, a burst of 8 and 4 in flight, before any graph work, so it cannot take capacity from bearer clients. | `TestOAuthGuardBoundsRateAndConcurrency` |
+| At most 256 unapproved registrations exist at once, each expiring after 24 hours and pruned on the next registration. | `TestOAuthRegistrationsRealGraph`, `TestOAuthRegisterStopsAtPendingCap` |
+
+Residual: a flood can fill the pending cap for up to 24 hours and block new registrations. There is no per-source limit, because kb takes nothing about the caller from proxy headers. Bearer clients are unaffected.
+
 ### Owner key compromise
 
 Whoever holds the owner's Nostr key can publish anything. The key never reaches the service; signatures are verified against the enrolled public key (`TestNostrVerifierChecksOwnerDigestSignature`), and each adjudication binds the exact candidate head and digest (`TestOwnerAdjudicationRequiresExactHeadAndDigest`). A lost or stolen key is replaced on the host with `kb-admin owner-rotate`: signatures by the old key stop verifying at once, and the retired key can never be enrolled again (`TestReplaceOwnerKeyRetiresTheOldKeyForGood`, and the owner key replacement case in `TestIdentityRealGraph`). The steps, including reviewing what the old key approved, are in [credentials](runbooks/credentials.md#owner-key-loss-or-theft).
@@ -110,6 +123,6 @@ Evidence and backups are encrypted with age keyrings before upload, authenticate
 
 1. **Failed authentication is not attributed.** Requests with a bad bearer appear only as `401` counts in request logs, not in the access audit trail. Add a bounded counter of failed attempts per source.
 2. **Tool descriptions do not tell agents to treat stored text as data.** kb deliberately sends no instructions, but each retrieval tool's description could say that returned text is stored content, not instructions, without adding a server voice. Decide and test.
-3. **OAuth grants** (roadmap Tier 1) will add a new path to a bearer. Each grant must expire, be owner-approved with the owner's key, and appear in the access audit trail before it ships.
+3. **OAuth grants** (roadmap Tier 1) will add a new path to a bearer. Registration is live and grants nothing. Each grant must expire, be owner-approved with the owner's key, and appear in the access audit trail before authorize and token exchange ship.
 4. **Owner key review tooling.** `owner-rotate` replaces the key, but finding everything a retired key approved is a manual review today. Add a host listing of owner judgments by signing key and time.
 5. **Branch protection on `main`** (roadmap security item 2): require the Memory service and Security checks before merge.
