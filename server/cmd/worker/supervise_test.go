@@ -115,9 +115,9 @@ func TestSuperviseBoundsAnAttemptThatNeverReturns(t *testing.T) {
 	policy.giveUp = 20 * time.Millisecond
 	done := make(chan error, 1)
 	go func() {
-		done <- superviseStartup(t.Context(), slog.New(slog.DiscardHandler), policy, func(ctx context.Context, _ startupHooks) error {
-			<-ctx.Done() // admission retrying forever
-			return nil
+		done <- superviseStartup(t.Context(), slog.New(slog.DiscardHandler), policy, func(_ context.Context, h startupHooks) error {
+			<-h.admission.Done() // admission retrying forever
+			return platform.AtStage("admission", h.admission.Err())
 		})
 	}()
 	select {
@@ -155,6 +155,24 @@ func TestSuperviseDoesNotCancelWorkAfterAdmission(t *testing.T) {
 		case <-ctx.Done():
 			return platform.AtStage("lifecycle_recover", ctx.Err())
 		case <-time.After(40 * time.Millisecond):
+		}
+		h.ready()
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestSuperviseKeepsAPermitGrantedAsTheDeadlineFires(t *testing.T) {
+	// The permit arrives in the same instant the deadline fires, before the
+	// attempt can report admitted. The work under the permit must still run.
+	policy := fastRetry
+	policy.giveUp = 10 * time.Millisecond
+	err := superviseStartup(t.Context(), slog.New(slog.DiscardHandler), policy, func(ctx context.Context, h startupHooks) error {
+		<-h.admission.Done()
+		h.admitted()
+		time.Sleep(20 * time.Millisecond) // recovery under the permit
+		if ctx.Err() != nil {
+			return platform.AtStage("lifecycle_recover", ctx.Err())
 		}
 		h.ready()
 		return nil

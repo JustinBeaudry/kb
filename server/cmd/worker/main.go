@@ -34,7 +34,7 @@ func main() {
 		err = platform.AtStage("health", err)
 	} else {
 		attempt := func(ctx context.Context, hooks startupHooks) error {
-			return runCapture(ctx, logger, captureOptions{health: health, admitted: hooks.admitted, ready: hooks.ready, telemetry: telemetry})
+			return runCapture(ctx, logger, captureOptions{health: health, admission: hooks.admission, admitted: hooks.admitted, ready: hooks.ready, telemetry: telemetry})
 		}
 		err = superviseStartup(ctx, logger, defaultStartupRetry, attempt)
 		_ = health.Close()
@@ -50,7 +50,8 @@ func main() {
 // starts a private liveness listener, which is what the composition tests use.
 type captureOptions struct {
 	health    *workerHealth
-	admitted  func() // called once maintenance admission is granted
+	admission context.Context // bounds only the admission wait when set
+	admitted  func()          // called once maintenance admission is granted
 	ready     func()
 	telemetry *platform.Telemetry
 }
@@ -178,7 +179,14 @@ func runCapture(parent context.Context, logger *slog.Logger, opts captureOptions
 	}
 	// /readyz reports starting again whenever this attempt ends.
 	defer health.Unready()
-	permit, err := platform.WaitForAdmission(ctx, admission, mc.InstanceID, "worker-startup")
+	// Only the admission wait observes the startup deadline; work under a
+	// granted permit runs on ctx.
+	admissionCtx, stopAdmission := context.WithCancel(ctx)
+	defer stopAdmission()
+	if opts.admission != nil {
+		defer context.AfterFunc(opts.admission, stopAdmission)()
+	}
+	permit, err := platform.WaitForAdmission(admissionCtx, admission, mc.InstanceID, "worker-startup")
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil
