@@ -37,7 +37,7 @@ Status as of 2026-11-27. Items are in priority order within each tier. Linear tr
 2. **Protect `main`:** require the Memory service and Security checks before merge.
 3. **Credential lifetime:** optional expiry on client credentials and a rotate command that issues a new bearer and revokes the old one in one step. Required before OAuth grants exist.
 4. **Access audit trail:** a durable, owner-readable record of which client read or wrote which project, kept in the graph rather than in logs, so the closed log schema stays closed.
-5. **Threat model document** covering prompt injection through stored memory, cross-project leakage, credential theft and a compromised client, with the test that covers each.
+5. **Threat model** (done): [docs/threat-model.md](threat-model.md) covers prompt injection through stored memory, cross-project leakage, credential theft, a compromised client, owner key loss and storage exposure, names the test behind each defense, and lists the open gaps.
 
 ## Tier 2: retrieval quality
 
