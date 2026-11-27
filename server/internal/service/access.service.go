@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/base64"
 	"errors"
 	"log/slog"
@@ -15,9 +16,9 @@ import (
 
 // AccessRepository persists access audit rollups in the graph.
 type AccessRepository interface {
-	AddAccess(context.Context, Tx, []domain.AccessRollup) error
+	AddAccess(context.Context, Tx, domain.AccessBatch) error
 	ListAccess(context.Context, Tx, domain.AccessQuery) ([]domain.AccessRollup, error)
-	PruneAccess(ctx context.Context, tx Tx, beforeDay string, limit int) (int, error)
+	PruneAccess(ctx context.Context, tx Tx, beforeDay string, batchesBefore time.Time, limit int) (int, error)
 }
 
 // AccessOwners resolves the enrolled owner for host-only reads.
@@ -34,6 +35,11 @@ const (
 	accessFlushBatch    = 500
 	accessPruneBatch    = 1000
 	defaultAccessWindow = 30
+	// accessBatchRetry is how long a failed batch is retried under its own ID.
+	// Batch markers are kept for accessBatchMarkers, well past that, so a late
+	// retry of a batch that did commit still finds its marker.
+	accessBatchRetry   = 24 * time.Hour
+	accessBatchMarkers = 7 * 24 * time.Hour
 )
 
 // AccessService is the access audit trail: an in-memory ledger that request
@@ -48,6 +54,7 @@ type AccessService struct {
 
 	mu      sync.Mutex
 	pending map[string]*domain.AccessRollup
+	retry   []domain.AccessBatch
 	dropped int64
 }
 
@@ -103,43 +110,77 @@ func (s *AccessService) mergeLocked(r domain.AccessRollup) {
 	}
 }
 
-// Flush writes pending rollups to the graph and prunes expired ones. Rollups
-// that fail to write go back to the ledger for the next flush.
+// Flush writes pending rollups to the graph and prunes expired ones. Each
+// batch is written once under its own ID. A batch that fails, including one
+// whose commit is uncertain, is kept as it is and retried under the same ID
+// before anything newer, so the graph never counts it twice.
 func (s *AccessService) Flush(ctx context.Context) error {
+	now := s.now().UTC()
 	s.mu.Lock()
-	batch := s.pending
+	pending := s.pending
 	s.pending = map[string]*domain.AccessRollup{}
+	batches := s.retry
+	s.retry = nil
 	dropped := s.dropped
 	s.dropped = 0
 	s.mu.Unlock()
 	if dropped > 0 {
 		s.logger.WarnContext(ctx, "access_audit_dropped", "dropped_records", dropped)
 	}
-	keys := slices.Sorted(maps.Keys(batch))
+	keys := slices.Sorted(maps.Keys(pending))
 	for start := 0; start < len(keys); start += accessFlushBatch {
 		end := min(start+accessFlushBatch, len(keys))
 		rows := make([]domain.AccessRollup, 0, end-start)
 		for _, k := range keys[start:end] {
-			rows = append(rows, *batch[k])
+			rows = append(rows, *pending[k])
 		}
-		err := s.tx.Within(ctx, func(ctx context.Context, tx Tx) error { return s.repo.AddAccess(ctx, tx, rows) })
+		batches = append(batches, domain.AccessBatch{ID: rand.Text(), At: now, Rollups: rows})
+	}
+	for i, b := range batches {
+		if now.Sub(b.At) > accessBatchRetry {
+			s.drop(b)
+			continue
+		}
+		err := s.tx.Within(ctx, func(ctx context.Context, tx Tx) error { return s.repo.AddAccess(ctx, tx, b) })
 		if err != nil {
-			s.requeue(keys[start:], batch)
+			s.keep(batches[i:])
 			return err
 		}
 	}
-	cutoff := domain.AccessDay(s.now().UTC().AddDate(0, 0, -AccessRetentionDays))
+	cutoff := domain.AccessDay(now.AddDate(0, 0, -AccessRetentionDays))
 	return s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
-		_, err := s.repo.PruneAccess(ctx, tx, cutoff, accessPruneBatch)
+		_, err := s.repo.PruneAccess(ctx, tx, cutoff, now.Add(-accessBatchMarkers), accessPruneBatch)
 		return err
 	})
 }
 
-func (s *AccessService) requeue(keys []string, batch map[string]*domain.AccessRollup) {
+// keep holds failed batches for the next flush, oldest first, within the same
+// bound as the pending ledger. Past it, the oldest batches are dropped and
+// counted.
+func (s *AccessService) keep(batches []domain.AccessBatch) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, k := range keys {
-		s.mergeLocked(*batch[k])
+	s.retry = append(slices.Clone(batches), s.retry...)
+	rows := 0
+	for _, b := range s.retry {
+		rows += len(b.Rollups)
+	}
+	for rows > MaxPendingAccess && len(s.retry) > 0 {
+		rows -= len(s.retry[0].Rollups)
+		s.dropLocked(s.retry[0])
+		s.retry = s.retry[1:]
+	}
+}
+
+func (s *AccessService) drop(b domain.AccessBatch) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.dropLocked(b)
+}
+
+func (s *AccessService) dropLocked(b domain.AccessBatch) {
+	for _, r := range b.Rollups {
+		s.dropped += r.Allowed + r.Denied
 	}
 }
 

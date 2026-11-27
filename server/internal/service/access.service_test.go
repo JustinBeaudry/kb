@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -16,30 +17,49 @@ import (
 type accessFake struct {
 	owner   OwnerIdentity
 	stored  map[string]domain.AccessRollup
+	batches map[string]bool
+	tried   []string
 	failAdd int
-	pruned  []string
+	// lostCommit stores the next batch, then reports failure, like a commit
+	// whose acknowledgement never arrived.
+	lostCommit int
+	pruned     []string
+	markersAt  []time.Time
 	listed  []domain.AccessQuery
 	list    []domain.AccessRollup
 }
 
 func newAccessFake() *accessFake {
-	return &accessFake{owner: OwnerIdentity{ID: "owner", PublicKey: "key"}, stored: map[string]domain.AccessRollup{}}
+	return &accessFake{owner: OwnerIdentity{ID: "owner", PublicKey: "key"}, stored: map[string]domain.AccessRollup{}, batches: map[string]bool{}}
 }
 
 func (f *accessFake) Owner(context.Context, Tx) (OwnerIdentity, error) { return f.owner, nil }
 
-func (f *accessFake) AddAccess(_ context.Context, _ Tx, rows []domain.AccessRollup) error {
+func (f *accessFake) AddAccess(_ context.Context, _ Tx, b domain.AccessBatch) error {
+	f.tried = append(f.tried, b.ID)
 	if f.failAdd > 0 {
 		f.failAdd--
 		return domain.ErrUnavailable
 	}
-	for _, r := range rows {
+	if f.batches[b.ID] {
+		return nil
+	}
+	f.batches[b.ID] = true
+	defer func() {
+		if f.lostCommit > 0 {
+			f.lostCommit--
+		}
+	}()
+	for _, r := range b.Rollups {
 		prior, ok := f.stored[r.Key()]
 		if ok {
 			r.Allowed += prior.Allowed
 			r.Denied += prior.Denied
 		}
 		f.stored[r.Key()] = r
+	}
+	if f.lostCommit > 0 {
+		return domain.ErrUnknownOutcome
 	}
 	return nil
 }
@@ -52,8 +72,9 @@ func (f *accessFake) ListAccess(_ context.Context, _ Tx, q domain.AccessQuery) (
 	return f.list, nil
 }
 
-func (f *accessFake) PruneAccess(_ context.Context, _ Tx, before string, _ int) (int, error) {
+func (f *accessFake) PruneAccess(_ context.Context, _ Tx, before string, markers time.Time, _ int) (int, error) {
 	f.pruned = append(f.pruned, before)
+	f.markersAt = append(f.markersAt, markers)
 	return 0, nil
 }
 
@@ -77,6 +98,7 @@ func TestAccessServiceFlushesMergedRollupsAndPrunes(t *testing.T) {
 		assert.Equal(t, "2026-11-27", r.Day)
 	}
 	assert.Equal(t, []string{"2025-10-23"}, f.pruned)
+	assert.Equal(t, []time.Time{time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)}, f.markersAt)
 
 	// An empty ledger flushes nothing new.
 	require.NoError(t, s.Flush(context.Background()))
@@ -95,6 +117,52 @@ func TestAccessServiceRequeuesFailedWrites(t *testing.T) {
 	for _, r := range f.stored {
 		assert.Equal(t, int64(2), r.Allowed)
 	}
+}
+
+func TestAccessServiceNeverCountsAnUncertainBatchTwice(t *testing.T) {
+	s, f := accessFixture(t)
+	f.lostCommit = 1
+	s.Record([]domain.AccessObservation{{ClientID: "a", ProjectID: "p", Capability: "c", Allowed: true}})
+	require.Error(t, s.Flush(context.Background()))
+	require.Len(t, f.stored, 1, "the write committed even though the flush could not tell")
+
+	s.Record([]domain.AccessObservation{{ClientID: "a", ProjectID: "p", Capability: "c", Allowed: true}})
+	require.NoError(t, s.Flush(context.Background()))
+	require.Len(t, f.tried, 3)
+	assert.Equal(t, f.tried[0], f.tried[1], "the uncertain batch is retried under its own ID")
+	assert.NotEqual(t, f.tried[1], f.tried[2], "newer observations go in a new batch")
+	for _, r := range f.stored {
+		assert.Equal(t, int64(2), r.Allowed, "one access per request, never three")
+	}
+	assert.Empty(t, s.retry)
+}
+
+func TestAccessServiceBoundsAndExpiresRetries(t *testing.T) {
+	f := newAccessFake()
+	at := time.Date(2026, 11, 27, 12, 0, 0, 0, time.UTC)
+	s := NewAccessService(directTx{}, f, f, func() time.Time { return at }, nil)
+	f.failAdd = 100
+	for i := range 3 {
+		obs := make([]domain.AccessObservation, 0, MaxPendingAccess/2)
+		for j := range MaxPendingAccess / 2 {
+			obs = append(obs, domain.AccessObservation{ClientID: "a", ProjectID: "p", Capability: fmt.Sprint("c", i, "-", j), Allowed: true})
+		}
+		s.Record(obs)
+		require.Error(t, s.Flush(context.Background()))
+	}
+	rows := 0
+	for _, b := range s.retry {
+		rows += len(b.Rollups)
+	}
+	assert.Equal(t, MaxPendingAccess, rows, "retries stay within the ledger bound")
+	assert.Equal(t, int64(MaxPendingAccess/2), s.dropped, "the oldest batches are dropped and counted")
+
+	// A batch older than the retry window is dropped rather than written late.
+	f.failAdd = 0
+	at = at.Add(accessBatchRetry + time.Minute)
+	require.NoError(t, s.Flush(context.Background()))
+	assert.Empty(t, f.stored)
+	assert.Empty(t, s.retry)
 }
 
 func TestAccessServiceBoundsPendingLedger(t *testing.T) {

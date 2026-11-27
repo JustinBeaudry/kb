@@ -40,6 +40,15 @@ func (a AccessRollup) Key() string {
 	return strings.Join([]string{a.Day, a.ClientID, a.ProjectID, a.Capability}, accessKeySeparator)
 }
 
+// AccessBatch is one flush of rollups. Its ID makes the write idempotent: a
+// batch whose commit was uncertain is retried under the same ID, and the graph
+// skips a batch ID it already holds, so counts are never added twice.
+type AccessBatch struct {
+	ID      string
+	At      time.Time
+	Rollups []AccessRollup
+}
+
 // AccessQuery filters the owner's view of the audit trail. Empty client or
 // project means any. Since is an inclusive UTC day (YYYY-MM-DD).
 type AccessQuery struct {
@@ -140,6 +149,26 @@ type accessCollectorKey struct{}
 // such as host administration and the worker, record nothing.
 func WithAccessCollector(ctx context.Context, c *AccessCollector) context.Context {
 	return context.WithValue(ctx, accessCollectorKey{}, c)
+}
+
+// DenyAccess marks every decision recorded so far in this request as denied.
+// Call it when the request is refused as forbidden after its project and
+// capability checks passed, such as a task that belongs to another client, so
+// the trail shows the refusal rather than an allowed access.
+func DenyAccess(ctx context.Context) {
+	c, _ := ctx.Value(accessCollectorKey{}).(*AccessCollector)
+	c.denyAll()
+}
+
+func (c *AccessCollector) denyAll() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for k := range c.seen {
+		c.seen[k] = false
+	}
 }
 
 // ObserveAccess records one authorization decision on the request's collector.

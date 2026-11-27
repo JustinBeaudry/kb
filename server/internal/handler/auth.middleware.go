@@ -69,7 +69,7 @@ func authentication(identity Authenticator, access AccessRecorder) echo.Middlewa
 			collector := domain.NewAccessCollector()
 			c.SetRequest(c.Request().WithContext(domain.WithAccessCollector(ctx, collector)))
 			defer func() { access.Record(collector.Observations()) }()
-			return next(c)
+			return refused(c.Request().Context(), next(c))
 		}
 	}
 }
@@ -111,7 +111,18 @@ func requestMetadata(logger *slog.Logger) echo.MiddlewareFunc {
 		}
 	}
 }
+
+// refused marks the request's access decisions denied when err refuses it as
+// forbidden, and returns err unchanged.
+func refused(ctx context.Context, err error) error {
+	if errors.Is(err, domain.ErrForbidden) {
+		domain.DenyAccess(ctx)
+	}
+	return err
+}
+
 func problem(c echo.Context, err error) error {
+	_ = refused(c.Request().Context(), err)
 	p := problemFor(err)
 	return writeProblem(c, p.status, p.code, p.message, p.action)
 }

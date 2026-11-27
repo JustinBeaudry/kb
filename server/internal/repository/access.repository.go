@@ -33,23 +33,34 @@ func (r *AccessRepository) query(ctx context.Context, tx domain.Tx, statement st
 	return rows, nil
 }
 
-func (r *AccessRepository) AddAccess(ctx context.Context, tx domain.Tx, rollups []domain.AccessRollup) error {
-	if len(rollups) == 0 {
+// AddAccess merges one batch of rollups unless a batch with the same ID was
+// already stored. The AccessBatch marker is created in the same transaction
+// as the counts, so a retried batch either finds it and adds nothing or
+// commits marker and counts together.
+func (r *AccessRepository) AddAccess(ctx context.Context, tx domain.Tx, batch domain.AccessBatch) error {
+	if !domain.ValidAccessID(batch.ID) || batch.At.IsZero() {
+		return domain.ErrInvalidInput
+	}
+	if len(batch.Rollups) == 0 {
 		return nil
 	}
-	rows := make([]map[string]any, len(rollups))
-	for i, a := range rollups {
+	rows := make([]map[string]any, len(batch.Rollups))
+	for i, a := range batch.Rollups {
 		if a.Allowed < 0 || a.Denied < 0 || !domain.ValidAccessDay(a.Day) {
 			return domain.ErrInvalidInput
 		}
 		rows[i] = map[string]any{"key": a.Key(), "client": a.ClientID, "project": a.ProjectID, "capability": a.Capability, "day": a.Day, "allowed": a.Allowed, "denied": a.Denied, "first": a.FirstAt.UTC().UnixNano(), "last": a.LastAt.UTC().UnixNano()}
 	}
-	_, err := r.query(ctx, tx, `UNWIND $rows AS r
+	_, err := r.query(ctx, tx, `OPTIONAL MATCH (stored:AccessBatch {id:$batch})
+WITH stored WHERE stored IS NULL
+CREATE (marker:AccessBatch {id:$batch, at:$at})
+WITH marker
+UNWIND $rows AS r
 MERGE (a:AccessRollup {key:r.key})
 ON CREATE SET a.clientID=r.client, a.projectID=r.project, a.capability=r.capability, a.day=r.day, a.allowed=0, a.denied=0, a.firstAt=r.first, a.lastAt=r.last
 SET a.allowed=a.allowed+r.allowed, a.denied=a.denied+r.denied,
     a.firstAt=CASE WHEN r.first < a.firstAt THEN r.first ELSE a.firstAt END,
-    a.lastAt=CASE WHEN r.last > a.lastAt THEN r.last ELSE a.lastAt END`, map[string]any{"rows": rows})
+    a.lastAt=CASE WHEN r.last > a.lastAt THEN r.last ELSE a.lastAt END`, map[string]any{"batch": batch.ID, "at": batch.At.UTC().UnixNano(), "rows": rows})
 	return err
 }
 
@@ -80,10 +91,15 @@ ORDER BY a.key DESC LIMIT $limit`, map[string]any{"since": q.Since, "client": q.
 	return out, nil
 }
 
-// PruneAccess deletes up to limit rollups from days before beforeDay.
-func (r *AccessRepository) PruneAccess(ctx context.Context, tx domain.Tx, beforeDay string, limit int) (int, error) {
-	if !domain.ValidAccessDay(beforeDay) || limit < 1 {
+// PruneAccess deletes up to limit rollups from days before beforeDay, and up
+// to limit batch markers written before batchesBefore. It returns the number
+// of rollups deleted.
+func (r *AccessRepository) PruneAccess(ctx context.Context, tx domain.Tx, beforeDay string, batchesBefore time.Time, limit int) (int, error) {
+	if !domain.ValidAccessDay(beforeDay) || batchesBefore.IsZero() || limit < 1 {
 		return 0, domain.ErrInvalidInput
+	}
+	if _, err := r.query(ctx, tx, `MATCH (b:AccessBatch) WHERE b.at < $before WITH b LIMIT $limit DELETE b`, map[string]any{"before": batchesBefore.UTC().UnixNano(), "limit": int64(limit)}); err != nil {
+		return 0, err
 	}
 	rows, err := r.query(ctx, tx, `MATCH (a:AccessRollup) WHERE a.day < $before WITH a LIMIT $limit DELETE a RETURN count(*)`, map[string]any{"before": beforeDay, "limit": int64(limit)})
 	if err != nil {

@@ -20,22 +20,25 @@ func TestAccessRollupsRealGraph(t *testing.T) {
 		return domain.AccessRollup{Day: day, ClientID: client, ProjectID: project, Capability: "retrieval:read", Allowed: allowed, Denied: denied, FirstAt: first, LastAt: last}
 	}
 	within := func(fn func(context.Context, domain.Tx) error) error { return store.Within(ctx, fn) }
-
-	require.NoError(t, within(func(ctx context.Context, tx domain.Tx) error {
-		return repo.AddAccess(ctx, tx, []domain.AccessRollup{
-			row("2026-11-27", "a", "p", 2, 0, at, at.Add(time.Minute)),
-			row("2026-11-26", "a", "p", 1, 0, at, at),
-			row("2026-11-27", "b", "*", 0, 3, at, at),
-			row("2024-01-01", "old", "p", 1, 0, at, at),
+	add := func(id string, batchAt time.Time, rows ...domain.AccessRollup) error {
+		return within(func(ctx context.Context, tx domain.Tx) error {
+			return repo.AddAccess(ctx, tx, domain.AccessBatch{ID: id, At: batchAt, Rollups: rows})
 		})
-	}))
-	// A second flush for the same key adds counts and widens the time range.
-	require.NoError(t, within(func(ctx context.Context, tx domain.Tx) error {
-		return repo.AddAccess(ctx, tx, []domain.AccessRollup{row("2026-11-27", "a", "p", 1, 1, at.Add(-time.Hour), at.Add(time.Hour))})
-	}))
-	assert.ErrorIs(t, within(func(ctx context.Context, tx domain.Tx) error {
-		return repo.AddAccess(ctx, tx, []domain.AccessRollup{row("not-a-day", "a", "p", 1, 0, at, at)})
-	}), domain.ErrInvalidInput)
+	}
+
+	require.NoError(t, add("batch-1", at.Add(-30*24*time.Hour),
+		row("2026-11-27", "a", "p", 2, 0, at, at.Add(time.Minute)),
+		row("2026-11-26", "a", "p", 1, 0, at, at),
+		row("2026-11-27", "b", "*", 0, 3, at, at),
+		row("2024-01-01", "old", "p", 1, 0, at, at),
+	))
+	// A second batch for the same key adds counts and widens the time range.
+	second := row("2026-11-27", "a", "p", 1, 1, at.Add(-time.Hour), at.Add(time.Hour))
+	require.NoError(t, add("batch-2", at, second))
+	// Retrying a batch that already committed adds nothing.
+	require.NoError(t, add("batch-2", at, second))
+	assert.ErrorIs(t, add("batch-3", at, row("not-a-day", "a", "p", 1, 0, at, at)), domain.ErrInvalidInput)
+	assert.ErrorIs(t, add("", at, second), domain.ErrInvalidInput)
 
 	var got []domain.AccessRollup
 	list := func(q domain.AccessQuery) {
@@ -59,10 +62,16 @@ func TestAccessRollupsRealGraph(t *testing.T) {
 
 	var pruned int
 	require.NoError(t, within(func(ctx context.Context, tx domain.Tx) (err error) {
-		pruned, err = repo.PruneAccess(ctx, tx, "2026-01-01", 100)
+		pruned, err = repo.PruneAccess(ctx, tx, "2026-01-01", at.Add(-7*24*time.Hour), 100)
 		return err
 	}))
 	assert.Equal(t, 1, pruned)
 	list(domain.AccessQuery{Since: "2000-01-01", Limit: 10})
 	assert.Len(t, got, 3)
+
+	// The pruned marker no longer blocks its ID; the recent one still does.
+	require.NoError(t, add("batch-1", at, row("2026-11-25", "c", "p", 1, 0, at, at)))
+	require.NoError(t, add("batch-2", at, row("2026-11-25", "d", "p", 1, 0, at, at)))
+	list(domain.AccessQuery{Since: "2026-11-25", Limit: 10})
+	assert.Len(t, got, 4, "batch-1 was written again after its marker expired; batch-2 was skipped")
 }

@@ -68,3 +68,13 @@ func TestValidAccessDay(t *testing.T) {
 	}
 	assert.Equal(t, "2026-11-27", AccessDay(time.Date(2026, 11, 27, 23, 59, 0, 0, time.UTC)))
 }
+
+func TestDenyAccessMarksTheRequestsDecisionsDenied(t *testing.T) {
+	c := NewAccessCollector()
+	ctx := WithAccessCollector(context.Background(), c)
+	p := Principal{ClientID: "agent", ProjectIDs: []string{"demo"}}
+	ObserveAccess(ctx, p, "checkpoint:write", []string{"demo"}, true)
+	DenyAccess(ctx)
+	DenyAccess(context.Background()) // no collector: nothing to mark
+	assert.Equal(t, []AccessObservation{{ClientID: "agent", ProjectID: "demo", Capability: "checkpoint:write", Allowed: false}}, c.Observations())
+}
