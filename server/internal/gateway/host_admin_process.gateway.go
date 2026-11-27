@@ -96,6 +96,8 @@ func childArguments(r domain.HostAdminRequest) ([]string, error) {
 		args = append(args, "--credential-fd", "3")
 	case "revoke":
 		add("--client-id", o.ClientID)
+	case "owner-rotate":
+		add("--owner-public-key", o.PublicKey)
 	case "list":
 		if o.Limit != 0 {
 			args = append(args, "--limit", strconv.Itoa(o.Limit))
