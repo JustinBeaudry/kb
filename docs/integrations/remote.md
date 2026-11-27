@@ -166,6 +166,45 @@ and unavailable errors are reported on stderr with nonzero status. **A remote
 failure never silently falls back to the local vault.** Use local commands only
 after an explicit choice and report their distinct provenance.
 
+## Remote MCP over HTTP
+
+The memory API also serves MCP itself, over Streamable HTTP at `/mcp` on the
+same origin. Clients that can send an `Authorization` header connect directly,
+with no local bridge:
+
+```sh
+claude mcp add --transport http kb https://memory.example.com/mcp \
+  --header "Authorization: Bearer $KB_MEMORY_BEARER"
+```
+
+Other clients that support Streamable HTTP with a custom header (Codex,
+Cursor, Gemini CLI and others) take the same URL and header; see each client's
+MCP documentation for where they go. Keep the bearer in an environment
+variable rather than in a checked-in config file.
+
+What the endpoint guarantees:
+
+- **Same authority as REST.** Every request is authenticated from its bearer,
+  and every tool runs through the same services and project and capability
+  checks as `/v1`. Tool arguments can never name or change the client.
+- **One credential per tool.** Enroll a separate agent credential for each AI
+  client with only the projects and capabilities it needs, so one can be
+  revoked without touching the others.
+- **Stateless.** One JSON-RPC message per POST, one JSON response, no session
+  ID and no server-initiated stream (`GET` and `DELETE` return 405).
+  Notifications return 202 with no body. Batches are refused.
+- **No browsers.** Any request with an `Origin` header is refused with 403,
+  which blocks DNS rebinding and cross-site use of a credential.
+- **Bounded.** Request bodies are limited to 64 KiB and requests share the
+  API's rate limit. An unsupported `MCP-Protocol-Version` header returns 400.
+
+The tools and their outputs are the same as the stdio bridge's below.
+`memory_status` does not report `http_mcp_transport_unavailable` over this
+endpoint. Continuations are signed per API process, so after a restart rerun
+the original request without its continuation. Apps that require OAuth (such
+as Claude.ai and ChatGPT connectors) can't connect yet; OAuth is on the
+roadmap.
+
 ## Optional stdio MCP bridge
 
 The current checkout exposes `kb remote mcp --profile NAME --endpoint ORIGIN`.

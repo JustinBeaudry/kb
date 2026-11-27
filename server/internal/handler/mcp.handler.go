@@ -37,18 +37,27 @@ type StatusReader interface {
 	Status(context.Context) (domain.Status, error)
 }
 
-// MCPServer is a transport-independent MCP tool dispatcher. Only stdio framing
-// is implemented; remote HTTP MCP stays unadvertised until independently
-// authenticated and qualified.
+// MCPServer is a transport-independent MCP tool dispatcher. ServeStdio frames
+// it for the local kb-mcp bridge; RemoteMCPHandler serves it over Streamable
+// HTTP on the authoritative API.
 type MCPServer struct {
 	retrieval   RetrievalReader
 	memory      CandidateWriter
 	checkpoints CheckpointWriter
 	status      StatusReader
 	cursorKey   [32]byte
+	// transportGaps are appended to memory_status capability gaps. The stdio
+	// bridge cannot tell whether the server it talks to offers remote MCP.
+	transportGaps []string
 }
 
 func NewMCPServer(retrieval RetrievalReader, memory CandidateWriter, checkpoints CheckpointWriter, status StatusReader) *MCPServer {
+	s := newMCPServer(retrieval, memory, checkpoints, status)
+	s.transportGaps = []string{mcpTransportGap}
+	return s
+}
+
+func newMCPServer(retrieval RetrievalReader, memory CandidateWriter, checkpoints CheckpointWriter, status StatusReader) *MCPServer {
 	s := &MCPServer{retrieval: retrieval, memory: memory, checkpoints: checkpoints, status: status}
 	// An unpredictable per-server key protects the outer frame budget from
 	// modification. Cursors are deliberately invalidated on server restart.
@@ -470,7 +479,7 @@ func (s *MCPServer) call(ctx context.Context, id json.RawMessage, name string, r
 		if err != nil {
 			return toolFrame(id, budget, nil, err), nil
 		}
-		gaps := append(slices.Clone(st.CapabilityGaps), mcpTransportGap)
+		gaps := nonNil(append(slices.Clone(st.CapabilityGaps), s.transportGaps...))
 		return toolFrame(id, budget, map[string]any{"schema_version": "3", "connection_state": st.ConnectionState, "authorized_project_ids": nonNil(st.AuthorizedProjectIDs), "authorized_capabilities": nonNil(st.AuthorizedCapabilities), "capability_gaps": gaps}, nil), nil
 	}
 	return nil, errInvalidArguments

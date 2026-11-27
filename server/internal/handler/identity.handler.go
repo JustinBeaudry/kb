@@ -35,6 +35,7 @@ type IdentityHandler struct {
 	status      StatusService
 	transfer    TransferService
 	decisions   DecisionService
+	remoteMCP   bool
 }
 
 var _ StrictServerInterface = (*IdentityHandler)(nil)
@@ -94,7 +95,9 @@ func configuredServer(identity IdentityService, capture CaptureService, checkpoi
 	}, middleware.ContextTimeout(10*time.Second), Authentication(identity))
 	// Authentication runs before validation. kin-openapi must not re-interpret the
 	// already authenticated principal or treat submitted fields as authority.
-	e.Use(validator.OapiRequestValidatorWithOptions(spec, &validator.Options{Options: openapi3filter.Options{AuthenticationFunc: func(context.Context, *openapi3filter.AuthenticationInput) error { return nil }}, ErrorHandler: func(c echo.Context, he *echo.HTTPError) error {
+	// /mcp carries JSON-RPC, which the OpenAPI document does not describe; the
+	// MCP dispatcher validates its own frames strictly.
+	e.Use(validator.OapiRequestValidatorWithOptions(spec, &validator.Options{Skipper: func(c echo.Context) bool { return c.Path() == RemoteMCPPath }, Options: openapi3filter.Options{AuthenticationFunc: func(context.Context, *openapi3filter.AuthenticationInput) error { return nil }}, ErrorHandler: func(c echo.Context, he *echo.HTTPError) error {
 		if he.Code == 404 {
 			return problem(c, domain.ErrUnavailable)
 		}
@@ -135,6 +138,9 @@ func configuredServer(identity IdentityService, capture CaptureService, checkpoi
 	}
 	if transfer != nil {
 		e.POST("/v1/exports", wrapper.ExportMemory)
+	}
+	if impl.remoteMCP && retrieval != nil && memory != nil && checkpoints != nil && status != nil {
+		newRemoteMCP(retrieval, memory, checkpoints, status).register(e)
 	}
 	e.Any("/*", func(c echo.Context) error { return problem(c, domain.ErrUnavailable) })
 	return e, nil
