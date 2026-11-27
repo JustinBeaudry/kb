@@ -1745,6 +1745,13 @@
             },
             "minItems": 1,
             "maxItems": 20
+          },
+          "ttl_seconds": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 3600,
+            "maximum": 31622400,
+            "description": "Seconds until the bearer stops authenticating, from one hour to 366 days. Omit for a bearer without expiry; kb-admin rotate issues a replacement before it lapses."
           }
         },
         "required": [
@@ -1784,6 +1791,11 @@
           },
           "revoked": {
             "type": "boolean"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the bearer stops authenticating. Absent for a bearer without expiry."
           }
         },
         "required": [

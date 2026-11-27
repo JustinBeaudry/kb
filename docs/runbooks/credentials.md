@@ -30,6 +30,7 @@ The host Unix path is owner-only and validates the peer UID and fixed child exec
 Client bearers can expire and be rotated:
 
 - `kb-admin setup`, `enroll` and `rotate` take `--ttl DURATION`, a Go duration between `1h` and `8784h` (366 days). The bearer stops authenticating at that instant; the next request gets `401`. Without `--ttl` the bearer does not expire, which is the previous behavior. Prefer `--ttl 2160h` (90 days) for agents.
+- Over HTTP, `POST /v1/clients` takes the same bound as `ttl_seconds` (3600 to 31622400). The response's `client.expires_at` says when the bearer stops authenticating, and is absent for a bearer without expiry. A value outside the bound is rejected with `400` before anything is enrolled.
 - `kb-admin rotate --client-id ID --credential-fd 3 [--ttl DURATION]` issues a fresh bearer for an active client and writes it to the descriptor, like `enroll`. Grants are unchanged. The old bearer stops working in the same transaction, and the auth epoch advances, so export cursors and other state bound to it are stale. A revoked client cannot be rotated; enroll a new one.
 - `kb-admin list` shows `ExpiresAt` for each client. Rotate before that time, then import the new bearer on the client with `kb remote credential-set`.
 

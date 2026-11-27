@@ -282,6 +282,8 @@ export type ClientInput = {
   role: "collector" | "agent" | "verifier";
   project_ids: OpaqueID[];
   capabilities: ("status:read" | "retrieval:read" | "evidence:read" | "candidate:write" | "checkpoint:write" | "events:append" | "artifacts:write" | "verification:write" | "policy:read" | "memory:export")[];
+  /** Seconds until the bearer stops authenticating, from one hour to 366 days. Omit for a bearer without expiry; kb-admin rotate issues a replacement before it lapses. */
+  ttl_seconds?: number;
 };
 
 export type Client = {
@@ -291,6 +293,8 @@ export type Client = {
   capabilities: string[];
   auth_epoch: number;
   revoked: boolean;
+  /** When the bearer stops authenticating. Absent for a bearer without expiry. */
+  expires_at?: string;
 };
 
 export type ClientsResult = {
