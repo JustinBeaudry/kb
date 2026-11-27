@@ -120,7 +120,7 @@ func (s *CaptureService) Stage(ctx context.Context, p domain.Principal, m Artifa
 	if m.DerivationID != "" {
 		return domain.Artifact{}, domain.ErrForbidden
 	}
-	if err := Authorize(p, "artifacts:write", []string{m.Scope.ProjectID}); err != nil {
+	if err := authorize(ctx, p, "artifacts:write", []string{m.Scope.ProjectID}); err != nil {
 		return domain.Artifact{}, err
 	}
 	return s.stage(ctx, p.ClientID, m, body, nil)
@@ -290,7 +290,7 @@ func (s *CaptureService) load(ctx context.Context, p domain.Principal, id, cap s
 		if err != nil {
 			return domain.ErrForbidden
 		}
-		if err = Authorize(p, cap, []string{a.Scope.ProjectID}); err != nil {
+		if err = authorize(ctx, p, cap, []string{a.Scope.ProjectID}); err != nil {
 			return err
 		}
 		if cap == "artifacts:write" && owner != p.ClientID {
@@ -409,7 +409,7 @@ func (s *CaptureService) Append(ctx context.Context, p domain.Principal, events 
 		if !validEvent(e) {
 			return nil, domain.ErrInvalidInput
 		}
-		if err := Authorize(p, "events:append", []string{e.Scope.ProjectID}); err != nil {
+		if err := authorize(ctx, p, "events:append", []string{e.Scope.ProjectID}); err != nil {
 			return nil, err
 		}
 	}

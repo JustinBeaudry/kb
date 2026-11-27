@@ -17,6 +17,7 @@ type HostAdminOptions struct {
 	Limit        int    `json:"limit,omitempty"`
 	Preview      bool   `json:"preview,omitempty"`
 	TTL          string `json:"ttl,omitempty"`
+	Since        string `json:"since,omitempty"`
 }
 
 // HostAdminIssuesCredential reports whether an action mints a bearer, which

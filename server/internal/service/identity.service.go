@@ -37,6 +37,8 @@ type ClientCredential struct {
 	ClientID  string
 	Bearer    string
 	Principal domain.Principal
+	// ExpiresAt is when Bearer stops authenticating; nil means no expiry.
+	ExpiresAt *time.Time
 }
 
 func (ClientCredential) String() string   { return "ClientCredential([redacted])" }
@@ -182,7 +184,7 @@ func (s *IdentityService) enroll(ctx context.Context, tx Tx, ownerID string, inp
 	if err != nil {
 		return ClientCredential{}, err
 	}
-	return ClientCredential{ClientID: id, Bearer: bearer, Principal: record.Principal}, nil
+	return ClientCredential{ClientID: id, Bearer: bearer, Principal: record.Principal, ExpiresAt: record.ExpiresAt}, nil
 }
 func newBearer() (string, error) {
 	var raw [32]byte
@@ -327,7 +329,7 @@ func (s *IdentityService) RotateHost(ctx context.Context, id string, ttl time.Du
 		if err != nil {
 			return err
 		}
-		c = ClientCredential{ClientID: id, Bearer: bearer, Principal: record.Principal}
+		c = ClientCredential{ClientID: id, Bearer: bearer, Principal: record.Principal, ExpiresAt: record.ExpiresAt}
 		return nil
 	})
 	if err != nil {

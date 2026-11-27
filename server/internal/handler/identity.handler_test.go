@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/JustinBeaudry/kb/server/internal/domain"
 	"github.com/JustinBeaudry/kb/server/internal/service"
@@ -157,4 +158,69 @@ func TestRequestValidatorNamesFailingFieldWithoutValues(t *testing.T) {
 			assert.NotContains(t, rec.Body.String(), "owner_authenticated")
 		})
 	}
+}
+
+type enrollingIdentity struct {
+	fixtureIdentity
+	got *service.EnrollInput
+}
+
+func (enrollingIdentity) Authenticate(_ context.Context, bearer string) (domain.Principal, error) {
+	if bearer != "owner-secret" {
+		return domain.Principal{}, domain.ErrUnauthorized
+	}
+	return domain.Principal{ClientID: "owner", OwnerID: "owner", Role: domain.RoleOwner, Capabilities: []string{"clients:manage"}}, nil
+}
+func (e enrollingIdentity) Enroll(_ context.Context, _ domain.Principal, input service.EnrollInput) (service.ClientCredential, error) {
+	*e.got = input
+	p := domain.Principal{ClientID: input.ClientID, Role: input.Role, ProjectIDs: input.ProjectIDs, Capabilities: input.Capabilities, AuthEpoch: 1}
+	credential := service.ClientCredential{ClientID: input.ClientID, Bearer: "issued-bearer", Principal: p}
+	if input.TTL > 0 {
+		at := time.Date(2026, 11, 27, 13, 0, 0, 0, time.UTC)
+		credential.ExpiresAt = &at
+	}
+	return credential, nil
+}
+
+func TestEnrollmentTTLOverHTTP(t *testing.T) {
+	var got service.EnrollInput
+	e, err := NewIdentityServer(enrollingIdentity{got: &got}, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+	require.NoError(t, err)
+	enroll := func(extra string) *httptest.ResponseRecorder {
+		body := `{"id":"agent-1","role":"agent","project_ids":["demo"],"capabilities":["status:read"]` + extra + `}`
+		req := httptest.NewRequest(http.MethodPost, "/v1/clients", strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer owner-secret")
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		e.ServeHTTP(rec, req)
+		return rec
+	}
+
+	for _, ttl := range []string{"3599", "31622401", "0", "-1", `"3600"`} {
+		got = service.EnrollInput{}
+		rec := enroll(`,"ttl_seconds":` + ttl)
+		assert.Equal(t, http.StatusBadRequest, rec.Code, ttl)
+		assert.Empty(t, got.ClientID, "a rejected TTL never reaches enrollment: %s", ttl)
+	}
+
+	rec := enroll(`,"ttl_seconds":3600`)
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	assert.Equal(t, time.Hour, got.TTL)
+	var result struct {
+		Client struct {
+			ExpiresAt *time.Time `json:"expires_at"`
+		} `json:"client"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &result))
+	require.NotNil(t, result.Client.ExpiresAt)
+	assert.Equal(t, time.Date(2026, 11, 27, 13, 0, 0, 0, time.UTC), result.Client.ExpiresAt.UTC())
+
+	rec = enroll(`,"ttl_seconds":31622400`)
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	assert.Equal(t, service.MaxCredentialTTL, got.TTL)
+
+	rec = enroll("")
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	assert.Zero(t, got.TTL)
+	assert.NotContains(t, rec.Body.String(), "expires_at")
 }

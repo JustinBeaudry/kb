@@ -30,8 +30,19 @@ The host Unix path is owner-only and validates the peer UID and fixed child exec
 Client bearers can expire and be rotated:
 
 - `kb-admin setup`, `enroll` and `rotate` take `--ttl DURATION`, a Go duration between `1h` and `8784h` (366 days). The bearer stops authenticating at that instant; the next request gets `401`. Without `--ttl` the bearer does not expire, which is the previous behavior. Prefer `--ttl 2160h` (90 days) for agents.
+- Over HTTP, `POST /v1/clients` takes the same bound as `ttl_seconds` (3600 to 31622400). The response's `client.expires_at` says when the bearer stops authenticating, and is absent for a bearer without expiry. A value outside the bound is rejected with `400` before anything is enrolled.
 - `kb-admin rotate --client-id ID --credential-fd 3 [--ttl DURATION]` issues a fresh bearer for an active client and writes it to the descriptor, like `enroll`. Grants are unchanged. The old bearer stops working in the same transaction, and the auth epoch advances, so export cursors and other state bound to it are stale. A revoked client cannot be rotated; enroll a new one.
 - `kb-admin list` shows `ExpiresAt` for each client. Rotate before that time, then import the new bearer on the client with `kb remote credential-set`.
+
+## Access audit trail
+
+The api counts every authorization decision an authenticated client causes: one row per client, project, capability and UTC day, with allowed and denied counts and the first and last time seen. It records counts and times only, never request content, queries, bearers or source addresses. Rows are buffered in memory and written to the graph every 30 seconds and on clean shutdown, and rows older than 400 days are pruned.
+
+- `kb-admin access [--client-id ID] [--project PROJECT] [--since YYYY-MM-DD] [--limit 100] [--after CURSOR]` prints the trail as JSON, newest day first. The default window is the last 30 days. Pass the returned `next` as `--after` for the next page.
+- A project of `*` means the client asked for a project it was never granted. Denials there are the first thing to look at after a suspected credential leak; then revoke or rotate the client.
+- A project of `""` means a request that names no project, such as `status:read`.
+- Requests that fail authentication have no client to attribute, so they are not in the trail; they appear only as `401` counts in the request logs.
+- If the api is shut down abruptly, up to 30 seconds of counts can be lost. If more than 10,000 distinct rows build up between flushes, new rows are dropped and the api logs `access_audit_dropped`.
 
 Rotate keys by adding new named keys while explicitly retaining old journal authentication keys, backup authority keys and age identities needed by retained evidence/backups. Verify both old and new archive reads, then verify that an old archive fails closed without its retained identity. Removing keys is deliberate data loss after retention, not routine rotation. Do not change journal namespace or reset sequence to recover capacity. A 9000 warning requires extension planning; sequence10000 closes admission.
 

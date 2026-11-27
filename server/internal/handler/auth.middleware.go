@@ -35,7 +35,22 @@ func bearerHeader(header http.Header) (string, bool) {
 	return strings.TrimPrefix(value, "Bearer "), true
 }
 
+// AccessRecorder receives each authenticated request's authorization
+// decisions once the request finishes. It must not block on I/O.
+type AccessRecorder interface {
+	Record([]domain.AccessObservation)
+}
+
+// WithAccessAudit records which client was allowed or refused which
+// capability on which project, for the owner's access audit trail.
+func WithAccessAudit(r AccessRecorder) ServerOption {
+	return func(h *IdentityHandler) { h.access = r }
+}
+
 func Authentication(identity Authenticator) echo.MiddlewareFunc {
+	return authentication(identity, nil)
+}
+func authentication(identity Authenticator, access AccessRecorder) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			bearer, ok := bearerHeader(c.Request().Header)
@@ -46,8 +61,15 @@ func Authentication(identity Authenticator) echo.MiddlewareFunc {
 			if err != nil {
 				return problem(c, err)
 			}
-			c.SetRequest(c.Request().WithContext(context.WithValue(c.Request().Context(), principalKey{}, p)))
-			return next(c)
+			ctx := context.WithValue(c.Request().Context(), principalKey{}, p)
+			if access == nil {
+				c.SetRequest(c.Request().WithContext(ctx))
+				return next(c)
+			}
+			collector := domain.NewAccessCollector()
+			c.SetRequest(c.Request().WithContext(domain.WithAccessCollector(ctx, collector)))
+			defer func() { access.Record(collector.Observations()) }()
+			return refused(c.Request().Context(), next(c))
 		}
 	}
 }
@@ -58,7 +80,11 @@ func Capability(capability string, projects func(echo.Context) []string) echo.Mi
 			if projects != nil {
 				scope = projects(c)
 			}
-			if err := service.Authorize(principal(c.Request().Context()), capability, scope); err != nil {
+			ctx := c.Request().Context()
+			p := principal(ctx)
+			err := service.Authorize(p, capability, scope)
+			domain.ObserveAccess(ctx, p, capability, scope, err == nil)
+			if err != nil {
 				return problem(c, err)
 			}
 			return next(c)
@@ -85,7 +111,18 @@ func requestMetadata(logger *slog.Logger) echo.MiddlewareFunc {
 		}
 	}
 }
+
+// refused marks the request's access decisions denied when err refuses it as
+// forbidden, and returns err unchanged.
+func refused(ctx context.Context, err error) error {
+	if errors.Is(err, domain.ErrForbidden) {
+		domain.DenyAccess(ctx)
+	}
+	return err
+}
+
 func problem(c echo.Context, err error) error {
+	_ = refused(c.Request().Context(), err)
 	p := problemFor(err)
 	return writeProblem(c, p.status, p.code, p.message, p.action)
 }

@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { defineCommand, runMain } from "citty";
+import { normalizeShortInlineValues } from "./lib/argv";
 import { VERSION } from "./lib/constants";
 
 const main = defineCommand({
@@ -30,4 +31,4 @@ const main = defineCommand({
   },
 });
 
-runMain(main);
+runMain(main, { rawArgs: normalizeShortInlineValues(process.argv.slice(2)) });

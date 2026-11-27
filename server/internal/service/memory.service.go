@@ -29,7 +29,7 @@ func (s *MemoryService) Submit(ctx context.Context, p domain.Principal, input do
 	if domain.ValidateIDs(input.ClaimID, input.Text, input.Kind, input.Scope.ProjectID, input.Scope.TaskID) != nil || len(input.Text) > 16384 || len(input.Evidence) > 50 || len(input.DependsOn) > 50 || len(input.EntityIDs) > 50 {
 		return domain.ClaimRevision{}, domain.ErrInvalidInput
 	}
-	if e := Authorize(p, "candidate:write", []string{input.Scope.ProjectID}); e != nil {
+	if e := authorize(ctx, p, "candidate:write", []string{input.Scope.ProjectID}); e != nil {
 		return domain.ClaimRevision{}, e
 	}
 	for _, id := range input.EntityIDs {
@@ -45,7 +45,7 @@ func (s *MemoryService) Submit(ctx context.Context, p domain.Principal, input do
 			if e != nil {
 				return e
 			}
-			if e = Authorize(snapshot.Principal, "candidate:write", []string{input.Scope.ProjectID}); e != nil {
+			if e = authorize(ctx, snapshot.Principal, "candidate:write", []string{input.Scope.ProjectID}); e != nil {
 				return e
 			}
 			if snapshot.TaskOwner != "" && snapshot.TaskOwner != p.ClientID {
@@ -74,7 +74,7 @@ func (s *MemoryService) Submit(ctx context.Context, p domain.Principal, input do
 		if e != nil {
 			return e
 		}
-		if e = Authorize(snapshot.Principal, "candidate:write", []string{input.Scope.ProjectID}); e != nil {
+		if e = authorize(ctx, snapshot.Principal, "candidate:write", []string{input.Scope.ProjectID}); e != nil {
 			return e
 		}
 		if snapshot.TaskOwner != "" && snapshot.TaskOwner != p.ClientID {

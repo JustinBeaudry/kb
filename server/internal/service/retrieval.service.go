@@ -118,7 +118,7 @@ func (s *RetrievalService) Retrieve(ctx context.Context, p domain.Principal, inp
 	if err != nil {
 		return domain.RetrievalResult{}, err
 	}
-	if err = Authorize(p, "retrieval:read", []string{r.Scope.ProjectID}); err != nil {
+	if err = authorize(ctx, p, "retrieval:read", []string{r.Scope.ProjectID}); err != nil {
 		return domain.RetrievalResult{}, err
 	}
 	clean := r
@@ -142,7 +142,7 @@ func (s *RetrievalService) Retrieve(ctx context.Context, p domain.Principal, inp
 		if e != nil {
 			return e
 		}
-		if e = Authorize(snap.Principal, "retrieval:read", []string{r.Scope.ProjectID}); e != nil {
+		if e = authorize(ctx, snap.Principal, "retrieval:read", []string{r.Scope.ProjectID}); e != nil {
 			return e
 		}
 		if r.Scope.TaskID != "" && snap.TaskOwner != "" && snap.TaskOwner != p.ClientID {
@@ -483,14 +483,14 @@ func (s *RetrievalService) authorizeFetch(ctx context.Context, tx Tx, p domain.P
 		return fetchAuthority{}, domain.ErrForbidden
 	}
 	project := []string{a.Scope.ProjectID}
-	if Authorize(p, "retrieval:read", project) != nil || Authorize(p, "evidence:read", project) != nil {
+	if authorize(ctx, p, "retrieval:read", project) != nil || authorize(ctx, p, "evidence:read", project) != nil {
 		return fetchAuthority{}, domain.ErrForbidden
 	}
 	snap, e := s.repo.Snapshot(ctx, tx, p, scope)
 	if e != nil {
 		return fetchAuthority{}, e
 	}
-	if Authorize(snap.Principal, "retrieval:read", project) != nil || Authorize(snap.Principal, "evidence:read", project) != nil {
+	if authorize(ctx, snap.Principal, "retrieval:read", project) != nil || authorize(ctx, snap.Principal, "evidence:read", project) != nil {
 		return fetchAuthority{}, domain.ErrForbidden
 	}
 	if r.Mode == domain.FetchWorking && snap.TaskOwner != p.ClientID {

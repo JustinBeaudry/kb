@@ -316,6 +316,8 @@ func TestExpiredCredentialStopsAuthenticating(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, f.clients["short"].ExpiresAt)
 	assert.Equal(t, clock.Add(time.Hour), *f.clients["short"].ExpiresAt)
+	require.NotNil(t, short.ExpiresAt, "the credential reports its own expiry")
+	assert.Equal(t, clock.Add(time.Hour), *short.ExpiresAt)
 
 	clock = clock.Add(time.Hour - time.Nanosecond)
 	_, err = s.Authenticate(t.Context(), short.Bearer)
@@ -357,6 +359,8 @@ func TestRotateReplacesBearerAndKeepsGrants(t *testing.T) {
 	assert.Equal(t, before.Capabilities, after.Capabilities)
 	assert.Greater(t, after.AuthEpoch, before.AuthEpoch)
 	require.NotNil(t, f.clients["client"].ExpiresAt)
+	require.NotNil(t, rotated.ExpiresAt)
+	assert.Equal(t, *f.clients["client"].ExpiresAt, *rotated.ExpiresAt)
 
 	require.NoError(t, s.RevokeHost(t.Context(), "client"))
 	_, err = s.RotateHost(t.Context(), "client", 0)

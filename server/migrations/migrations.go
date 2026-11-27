@@ -41,3 +41,8 @@ var Lessons string
 //
 //go:embed 011_supersede_backfill.cypher
 var SupersedeBackfill string
+
+// Access holds the access audit rollup schema.
+//
+//go:embed 012_access.cypher
+var Access string
