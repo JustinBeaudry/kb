@@ -23,12 +23,12 @@ kb is both the authorization server and the resource server, served by the exist
 
 | Endpoint | Standard | Notes |
 | --- | --- | --- |
-| `GET /.well-known/oauth-protected-resource` (and `/mcp` appended) | RFC 9728 | `resource` = `https://<public host>/mcp`. `authorization_servers` = the same origin, added in phase 2. Served before the public guard: constant, credential-free, no graph work. |
+| `GET /.well-known/oauth-protected-resource/mcp` | RFC 9728 | The address §3.1 derives from `resource` = `https://<public host>/mcp`. The root address is not served, because §3.3 would make its `resource` the origin. `authorization_servers` = the same origin, added in phase 2. Served before the public guard: constant, credential-free, no graph work. |
 | `401` on `/mcp` | RFC 9728 §5.1 | Adds `WWW-Authenticate: Bearer resource_metadata="…"`. Bearer clients see no other change. |
 | `GET /.well-known/oauth-authorization-server` | RFC 8414 | `code` grant and `refresh_token` only; `S256` only; `token_endpoint_auth_methods_supported: ["none"]`. Ships with phase 2, never before the endpoints it names exist. |
 | `POST /oauth/register` | RFC 7591 | Public clients only. Exact redirect URIs: `https://`, or `http://127.0.0.1`/`[::1]` with any port for native apps. Unapproved registrations expire after 24 hours; at most 256 pending. |
 | `GET /oauth/authorize` | OAuth 2.1 | Requires `code_challenge` (S256), `state`, `resource`, and a registered `redirect_uri`. Creates a pending request and shows the approval page. |
-| `GET /oauth/requests/{id}` | kb | Polled by the approval page; returns only pending, approved or denied. |
+| `GET /oauth/requests/{id}` | kb | Polled by the approval page. Returns pending until the owner decides, then, once, the URL to send the browser to: the redirect URI with the code and `state`, or with `error=access_denied` and `state`. Answers only the browser that started the request (see Owner approval). |
 | `POST /oauth/token` | OAuth 2.1 | Code exchange with PKCE verifier, and refresh with rotation. |
 | `POST /oauth/revoke` | RFC 7009 | Revokes the whole grant from either token. |
 
@@ -48,16 +48,19 @@ The owner approves on the host:
 kb-admin oauth-approve CODE --project demo --capability retrieval:read --ttl 30d
 ```
 
-The command runs over the existing owner-only Unix socket. The owner chooses the final grant: projects and capabilities may be narrowed from the request and never widened beyond it, and `--ttl` is capped at 90 days. `kb-admin oauth-deny CODE` refuses it. The page polls the request and, once approved, redirects the browser to the registered redirect URI with the code and the original `state`.
+The command runs over the existing owner-only Unix socket. The owner chooses the final grant: projects and capabilities may be narrowed from the request and never widened beyond it, and `--ttl` is capped at 90 days. `kb-admin oauth-deny CODE` refuses it. The page polls the request. Once the owner approves, the poll returns the registered redirect URI with the code and the original `state`, and the page sends the browser there. Once the owner denies, or the request expires, it returns the same redirect URI with `error=access_denied` and `state` (RFC 6749 §4.1.2.1), so the connector stops waiting.
+
+The poll answers only the browser that opened the request. `/oauth/authorize` sets a random request cookie (`HttpOnly`, `Secure`, `SameSite=Strict`, path `/oauth/requests/`), and the service keeps only its digest with the request. A poll without the matching cookie gets `404`, and the redirect URL is released once. So a code reaches the browser that started the flow, and the client still has to present the code verifier and the same redirect URI to use it.
 
 Phase 3 adds approval in the browser with a NIP-07 signer: the page asks the extension to sign an `OwnerChallenge` whose digest binds the request ID, the exact grant and the redirect URI, and the service verifies it against the enrolled owner key, exactly as decision challenges are verified today.
 
 ## Grants and tokens
 
-- **Approval** creates the client `oauth-<grant id>` through the same enrollment path as `kb-admin enroll`, with the chosen grant and expiry, plus an `OAuthGrant` node holding the registration ID, redirect URI and refresh-token digest.
+- **Approval** creates the client `oauth-<grant id>` through the same enrollment path as `kb-admin enroll`, with the chosen grant, plus an `OAuthGrant` node holding the registration ID, redirect URI, the grant's own expiry, the current refresh-token digest and the digests of refresh tokens already used.
+- **The grant's expiry is fixed at approval** and stored only on the `OAuthGrant`. Each token response sets the client's bearer expiry to one hour from now or the grant's expiry, whichever is sooner, so refreshing can never carry a grant past its limit. Code exchange and refresh refuse a grant past its expiry, and expiry removes the client record.
 - **Authorization codes** are single use, live 60 seconds, and are bound to the redirect URI and code challenge. A second use of a code revokes the grant (OAuth 2.1 §4.1.2).
-- **Access tokens** are the client's bearer, rotated by each token response with a 1-hour expiry. `Authenticate` needs no change.
-- **Refresh tokens** rotate on every use. Presenting a refresh token that was already used revokes the grant, because it means a copy is in someone else's hands.
+- **Access tokens** are the client's bearer, rotated by each token response. They are bound to `/mcp`: the client record carries `resource: mcp`, `Authenticate` puts it on the principal, and every route other than `/mcp` refuses a principal bound to a resource. A test sends an OAuth access token to `/v1/exports` and expects `401`.
+- **Refresh tokens** rotate on every use. The used token's digest moves to the grant's used list, which is kept until the grant ends, so an old token still finds its grant. Presenting one that was already used revokes the grant, because it means a copy is in someone else's hands (RFC 9700 §4.14).
 - **Revocation** by `kb-admin revoke oauth-<id>`, `/oauth/revoke`, or grant expiry all remove the client record, so the next request fails.
 
 ## What the owner sees
@@ -70,7 +73,7 @@ Phase 3 adds approval in the browser with a NIP-07 signer: the page asks the ext
 
 | Case | Handling |
 | --- | --- |
-| Registration flood | Public guard limits; pending registrations capped and expired. |
+| Registration flood | The bearer guard cannot serve routes used before a token exists, so phase 2 adds an unauthenticated guard for `/oauth/*`: a small global rate and concurrency bound plus a per-source limit, applied before any graph work. Pending registrations and requests are capped and expired. |
 | Phishing the owner with a look-alike client | The page shows the redirect host and marks the name unverified; the owner types the grant on the host, so a click alone grants nothing. |
 | Stolen authorization code | PKCE; 60-second life; reuse revokes. |
 | Stolen refresh token | Rotation with reuse detection revokes the grant. |
@@ -90,6 +93,10 @@ Each phase is its own pull request and ships behind no flag: phase 1 is inert wi
 ## Tests that must exist before phase 2 merges
 
 - A grant can never carry a project or capability the request did not ask for.
+- A grant that keeps refreshing still ends at its own expiry.
+- An OAuth access token is refused on every route other than `/mcp`.
+- A denied or expired request redirects with `error=access_denied` and the original `state`.
+- A poll without the request cookie learns nothing.
 - A code works once, only with its verifier and redirect URI, and only within 60 seconds.
 - A reused refresh token revokes the grant, and the next MCP call fails.
 - A token request naming any `resource` other than kb's own MCP endpoint is refused.
