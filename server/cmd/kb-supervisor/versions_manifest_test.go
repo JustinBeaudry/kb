@@ -49,3 +49,30 @@ func TestVersionsManifestMatchesGoModule(t *testing.T) {
 		assert.Equal(t, version, required[module], "deploy/versions.json pins %s; go.mod requires %q", pin, required[module])
 	}
 }
+
+// Dependabot also bumps the base images in deploy/Dockerfile.*. Each image a
+// Dockerfile builds from must be the one the manifest records, so an image bump
+// fails here until deploy/versions.json moves with it.
+func TestVersionsManifestMatchesDockerfiles(t *testing.T) {
+	raw, err := os.ReadFile("../../../deploy/versions.json")
+	require.NoError(t, err)
+	var manifest struct {
+		Graph struct {
+			Image string `json:"image"`
+		} `json:"graph"`
+		BuildImage   string `json:"build_image"`
+		RuntimeImage string `json:"api_worker_runtime_image"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &manifest))
+	recorded := map[string]bool{manifest.Graph.Image: true, manifest.BuildImage: true, manifest.RuntimeImage: true}
+	from := regexp.MustCompile(`(?m)^FROM\s+(?:--platform=\S+\s+)?(\S+)`)
+	for _, name := range []string{"Dockerfile.api", "Dockerfile.worker", "Dockerfile.graph", "Dockerfile.fixture-proxy"} {
+		dockerfile, err := os.ReadFile("../../../deploy/" + name)
+		require.NoError(t, err)
+		images := from.FindAllStringSubmatch(string(dockerfile), -1)
+		require.NotEmpty(t, images, name)
+		for _, m := range images {
+			assert.True(t, recorded[m[1]], "%s builds from %s, which deploy/versions.json does not record", name, m[1])
+		}
+	}
+}

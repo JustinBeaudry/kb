@@ -31,6 +31,8 @@ updates:
     directories: [/deploy]
     schedule:
       interval: weekly
+    # Base images recorded in deploy/versions.json fail
+    # TestVersionsManifestMatchesDockerfiles until the manifest moves with them.
     ignore:
       # Neo4j upgrades change the backup format and are pinned together with
       # deploy/versions.json; upgrade them deliberately, never automatically.
