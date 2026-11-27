@@ -83,7 +83,7 @@ func TestWorkerCompositionGracefulStop(t *testing.T) {
 	t.Run("missing external head refuses work", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 		t.Cleanup(cancel)
-		err := runCapture(ctx, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+		err := runCapture(ctx, slog.New(slog.NewJSONHandler(io.Discard, nil)), captureOptions{})
 		require.Error(t, err)
 		assert.NotErrorIs(t, err, context.DeadlineExceeded)
 	})
@@ -144,7 +144,9 @@ func TestWorkerCompositionGracefulStop(t *testing.T) {
 		require.Equal(t, "purge_pending", receipt.State)
 		workerCtx, stopWorker := context.WithTimeout(t.Context(), 30*time.Second)
 		result := make(chan error, 1)
-		go func() { result <- runCapture(workerCtx, slog.New(slog.NewJSONHandler(io.Discard, nil))) }()
+		go func() {
+			result <- runCapture(workerCtx, slog.New(slog.NewJSONHandler(io.Discard, nil)), captureOptions{})
+		}()
 		t.Cleanup(func() { stopWorker(); require.NoError(t, <-result) })
 		require.Eventually(t, func() bool {
 			status, err := lifecycle.DeletionStatusHost(t.Context(), receipt.ID)
@@ -162,10 +164,10 @@ func TestWorkerCompositionGracefulStop(t *testing.T) {
 	t.Setenv("KB_S3_BUCKET", "evidence")
 	t.Setenv("KB_S3_ACCESS_KEY", "fixture")
 	t.Setenv("KB_S3_SECRET_KEY", "fixture-only")
-	assert.ErrorIs(t, runCapture(t.Context(), slog.New(slog.NewJSONHandler(io.Discard, nil))), domain.ErrInvalidInput)
+	assert.ErrorIs(t, runCapture(t.Context(), slog.New(slog.NewJSONHandler(io.Discard, nil)), captureOptions{}), domain.ErrInvalidInput)
 }
 
 func TestCaptureWorkerMissingConfiguration(t *testing.T) {
 	t.Setenv("KB_GRAPH_URI", "")
-	assert.ErrorIs(t, runCapture(t.Context(), slog.New(slog.NewJSONHandler(io.Discard, nil))), domain.ErrInvalidInput)
+	assert.ErrorIs(t, runCapture(t.Context(), slog.New(slog.NewJSONHandler(io.Discard, nil)), captureOptions{}), domain.ErrInvalidInput)
 }

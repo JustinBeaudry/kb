@@ -25,11 +25,37 @@ func main() {
 	defer func() { _ = telemetry.Shutdown(context.Background()) }()
 	http.DefaultTransport = telemetry.HTTPClientTransport(http.DefaultTransport)
 	logger := telemetry.Logger()
-	if err := runCapture(context.Background(), logger, telemetry); err != nil {
-		logger.Error("worker_stopped", "reason", "configuration_or_handlers_unavailable")
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	// The liveness listener outlives every startup attempt, so a worker that is
+	// deliberately waiting out a graph restart still answers /livez.
+	health, err := startWorkerHealth(ctx)
+	if err != nil {
+		err = platform.AtStage("health", err)
+	} else {
+		attempt := func(ctx context.Context, hooks startupHooks) error {
+			return runCapture(ctx, logger, captureOptions{health: health, admission: hooks.admission, admitted: hooks.admitted, ready: hooks.ready, telemetry: telemetry})
+		}
+		err = superviseStartup(ctx, logger, defaultStartupRetry, attempt)
+		_ = health.Close()
+	}
+	if err != nil {
+		logger.Error("worker_stopped", "reason", "configuration_or_handlers_unavailable", "stage", platform.FailureStage(err), "error_class", platform.ErrorClass(err))
+		stop()
 		os.Exit(1)
 	}
 }
+
+// captureOptions carries what main owns across startup attempts. A zero value
+// starts a private liveness listener, which is what the composition tests use.
+type captureOptions struct {
+	health    *workerHealth
+	admission context.Context // bounds only the admission wait when set
+	admitted  func()          // called once maintenance admission is granted
+	ready     func()
+	telemetry *platform.Telemetry
+}
+
 func run(parent context.Context, logger *slog.Logger, handlers map[string]platform.RunJob) error {
 	if len(handlers) == 0 {
 		return domain.ErrUnavailable
@@ -113,48 +139,62 @@ func run(parent context.Context, logger *slog.Logger, handlers map[string]platfo
 
 // runCapture composes durable capture and lifecycle handlers. Intelligence owns
 // evidence.extract later; it is deliberately absent from the claimed kinds.
-func runCapture(parent context.Context, logger *slog.Logger, telemetry ...*platform.Telemetry) error {
+func runCapture(parent context.Context, logger *slog.Logger, opts captureOptions) error {
 	cfg, err := platform.LoadConfig()
 	if err != nil {
-		return err
+		return platform.AtStage("config", err)
 	}
 	objectConfig, err := platform.LoadObjectConfig()
 	if err != nil {
-		return err
+		return platform.AtStage("config", err)
 	}
 	objects, err := gateway.NewS3(objectConfig)
 	if err != nil {
-		return err
+		return platform.AtStage("objects", err)
 	}
 	journalConfig, err := platform.LoadJournalConfig()
 	if err != nil {
-		return err
+		return platform.AtStage("config", err)
 	}
 	journal, err := gateway.NewS3DeletionJournal(journalConfig)
 	if err != nil {
-		return err
+		return platform.AtStage("journal", err)
 	}
 	mc, err := platform.LoadMaintenanceConfig()
 	if err != nil {
-		return err
+		return platform.AtStage("config", err)
 	}
 	admission, err := gateway.NewMaintenanceHTTPClient(mc.Endpoint, mc.Secret, mc.InstanceID)
 	if err != nil {
-		return err
+		return platform.AtStage("maintenance", err)
 	}
 	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	health, err := startWorkerHealth(ctx)
-	if err != nil {
-		return err
+	health := opts.health
+	if health == nil {
+		if health, err = startWorkerHealth(ctx); err != nil {
+			return platform.AtStage("health", err)
+		}
+		defer func() { _ = health.Close() }()
 	}
-	defer func() { _ = health.Close() }()
-	permit, err := platform.WaitForAdmission(ctx, admission, mc.InstanceID, "worker-startup")
+	// /readyz reports starting again whenever this attempt ends.
+	defer health.Unready()
+	// Only the admission wait observes the startup deadline; work under a
+	// granted permit runs on ctx.
+	admissionCtx, stopAdmission := context.WithCancel(ctx)
+	defer stopAdmission()
+	if opts.admission != nil {
+		defer context.AfterFunc(opts.admission, stopAdmission)()
+	}
+	permit, err := platform.WaitForAdmission(admissionCtx, admission, mc.InstanceID, "worker-startup")
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil
 		}
-		return err
+		return platform.AtStage("admission", err)
+	}
+	if opts.admitted != nil {
+		opts.admitted()
 	}
 	startupCtx := domain.WithOperationOutcome(ctx)
 	startupFinished := false
@@ -169,10 +209,10 @@ func runCapture(parent context.Context, logger *slog.Logger, telemetry ...*platf
 	}()
 	store, err := graph.Connect(startupCtx, cfg.Graph)
 	if err != nil {
-		return err
+		return platform.AtStage("graph_connect", err)
 	}
-	if len(telemetry) > 0 {
-		store.SetTrace(telemetry[0].TraceIO)
+	if opts.telemetry != nil {
+		store.SetTrace(opts.telemetry.TraceIO)
 	}
 	defer func() {
 		cleanup, cancel := context.WithTimeout(context.WithoutCancel(startupCtx), 5*time.Second)
@@ -184,13 +224,16 @@ func runCapture(parent context.Context, logger *slog.Logger, telemetry ...*platf
 	jobs := service.NewJobsService(store, jobsRepo)
 	lifecycle := service.NewLifecycleService(store, repository.NewLifecycleRepository(store), repository.NewIdentityRepository(store), jobsRepo, objects, journal, time.Now)
 	if err = lifecycle.Recover(startupCtx); err != nil {
-		return err
+		return platform.AtStage("lifecycle_recover", err)
 	}
 	if err = platform.FinishOperation(startupCtx, admission, permit, nil); err != nil {
-		return err
+		return platform.AtStage("finish_operation", err)
 	}
 	startupFinished = true
 	health.Ready(service.NewHealthService(admission, store, objects, journal, 5*time.Second, mc.InstanceID))
+	if opts.ready != nil {
+		opts.ready()
+	}
 	capture := service.NewCaptureService(store, repo, jobsRepo, objects)
 	handlers := map[string]platform.RunJob{"capture.reconcile": func(ctx context.Context, job domain.Job, lease domain.Lease) error {
 		return capture.Reconcile(ctx, job, lease, jobs)
@@ -200,12 +243,12 @@ func runCapture(parent context.Context, logger *slog.Logger, telemetry ...*platf
 		return lifecycle.ReconcilePolicy(ctx, job, lease, jobs)
 	}}
 	var recorder gateway.GenerationRecorder
-	if len(telemetry) > 0 {
-		recorder = telemetry[0]
+	if opts.telemetry != nil {
+		recorder = opts.telemetry
 	}
 	dreaming, err := composeDreaming(store, jobs, jobsRepo, recorder)
 	if err != nil {
-		return err
+		return platform.AtStage("dreaming", err)
 	}
 	handlers[service.DreamJobKind] = dreaming.Process
 	dreams := &dreamScheduler{dreaming: dreaming}
@@ -228,21 +271,22 @@ func runCapture(parent context.Context, logger *slog.Logger, telemetry ...*platf
 					stop()
 					continue
 				}
-				err = lifecycle.Recover(checkCtx)
+				err = platform.AtStage("lifecycle_recover", lifecycle.Recover(checkCtx))
 				if err == nil {
-					_, err = lifecycle.Expire(checkCtx, time.Now().UTC())
+					_, expireErr := lifecycle.Expire(checkCtx, time.Now().UTC())
+					err = platform.AtStage("lifecycle_expire", expireErr)
 				}
 				if err == nil {
-					err = capture.Sweep(checkCtx, 100)
+					err = platform.AtStage("capture_sweep", capture.Sweep(checkCtx, 100))
 				}
 				if err == nil {
 					// Dream scheduling never blocks capture reconciliation.
 					_ = dreams.tick(checkCtx, time.Now().UTC())
 				}
-				err = platform.FinishOperation(checkCtx, admission, sweepPermit, err)
+				err = platform.AtStage("finish_operation", platform.FinishOperation(checkCtx, admission, sweepPermit, err))
 				stop()
 				if err != nil {
-					logger.Warn("capture_reconciliation_incomplete", "reason", "objects_or_policy_unavailable")
+					logger.Warn("capture_reconciliation_incomplete", "reason", "objects_or_policy_unavailable", "stage", platform.FailureStage(err), "error_class", platform.ErrorClass(err))
 				}
 			}
 		}
@@ -250,5 +294,5 @@ func runCapture(parent context.Context, logger *slog.Logger, telemetry ...*platf
 	err = worker.Run(ctx)
 	cancel()
 	<-stopped
-	return err
+	return platform.AtStage("worker_run", err)
 }
