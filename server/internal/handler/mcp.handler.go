@@ -37,18 +37,27 @@ type StatusReader interface {
 	Status(context.Context) (domain.Status, error)
 }
 
-// MCPServer is a transport-independent MCP tool dispatcher. Only stdio framing
-// is implemented; remote HTTP MCP stays unadvertised until independently
-// authenticated and qualified.
+// MCPServer is a transport-independent MCP tool dispatcher. ServeStdio frames
+// it for the local kb-mcp bridge; RemoteMCPHandler serves it over Streamable
+// HTTP on the authoritative API.
 type MCPServer struct {
 	retrieval   RetrievalReader
 	memory      CandidateWriter
 	checkpoints CheckpointWriter
 	status      StatusReader
 	cursorKey   [32]byte
+	// transportGaps are appended to memory_status capability gaps. The stdio
+	// bridge cannot tell whether the server it talks to offers remote MCP.
+	transportGaps []string
 }
 
 func NewMCPServer(retrieval RetrievalReader, memory CandidateWriter, checkpoints CheckpointWriter, status StatusReader) *MCPServer {
+	s := newMCPServer(retrieval, memory, checkpoints, status)
+	s.transportGaps = []string{mcpTransportGap}
+	return s
+}
+
+func newMCPServer(retrieval RetrievalReader, memory CandidateWriter, checkpoints CheckpointWriter, status StatusReader) *MCPServer {
 	s := &MCPServer{retrieval: retrieval, memory: memory, checkpoints: checkpoints, status: status}
 	// An unpredictable per-server key protects the outer frame budget from
 	// modification. Cursors are deliberately invalidated on server restart.
@@ -60,6 +69,8 @@ func NewMCPServer(retrieval RetrievalReader, memory CandidateWriter, checkpoints
 
 const (
 	mcpMaxFrame = 1 << 20
+	// mcpMaxBatch bounds the work one frame can start.
+	mcpMaxBatch = 16
 	// Bound the encoded ID as well as the input: JSON encoding can expand U+2028/U+2029.
 	mcpMaxIDBytes        = 256
 	mcpContinuation      = "mcp2."
@@ -190,8 +201,44 @@ func (s *MCPServer) handle(ctx context.Context, line []byte, oversized bool) ([]
 	}
 	trimmed := bytes.TrimSpace(line)
 	if len(trimmed) > 0 && trimmed[0] == '[' {
-		return failure(nil, mcpInvalidRequest, "Batch requests are not supported."), true
+		return s.handleBatch(ctx, trimmed)
 	}
+	return s.handleOne(ctx, trimmed)
+}
+
+// handleBatch answers a JSON-RPC batch, which protocol 2025-03-26 allows. Each
+// member is handled as its own request, with its own authorization and budget.
+// Members that are notifications get no entry; a batch of only notifications
+// gets no response at all.
+func (s *MCPServer) handleBatch(ctx context.Context, frame []byte) ([]byte, bool) {
+	var members []json.RawMessage
+	if err := json.Unmarshal(frame, &members); err != nil {
+		return failure(nil, mcpParseError, "Parse error."), true
+	}
+	if len(members) == 0 {
+		return failure(nil, mcpInvalidRequest, "Empty batch."), true
+	}
+	if len(members) > mcpMaxBatch {
+		return failure(nil, mcpInvalidRequest, "Batch too large."), true
+	}
+	responses := make([]json.RawMessage, 0, len(members))
+	for _, member := range members {
+		member = bytes.TrimSpace(member)
+		if len(member) > 0 && member[0] == '[' {
+			responses = append(responses, failure(nil, mcpInvalidRequest, "Invalid request."))
+			continue
+		}
+		if response, ok := s.handleOne(ctx, member); ok {
+			responses = append(responses, response)
+		}
+	}
+	if len(responses) == 0 {
+		return nil, false
+	}
+	return encode(responses), true
+}
+
+func (s *MCPServer) handleOne(ctx context.Context, trimmed []byte) ([]byte, bool) {
 	var request rpcRequest
 	if err := json.Unmarshal(trimmed, &request); err != nil {
 		return failure(nil, mcpParseError, "Parse error."), true
@@ -470,7 +517,7 @@ func (s *MCPServer) call(ctx context.Context, id json.RawMessage, name string, r
 		if err != nil {
 			return toolFrame(id, budget, nil, err), nil
 		}
-		gaps := append(slices.Clone(st.CapabilityGaps), mcpTransportGap)
+		gaps := nonNil(append(slices.Clone(st.CapabilityGaps), s.transportGaps...))
 		return toolFrame(id, budget, map[string]any{"schema_version": "3", "connection_state": st.ConnectionState, "authorized_project_ids": nonNil(st.AuthorizedProjectIDs), "authorized_capabilities": nonNil(st.AuthorizedCapabilities), "capability_gaps": gaps}, nil), nil
 	}
 	return nil, errInvalidArguments
