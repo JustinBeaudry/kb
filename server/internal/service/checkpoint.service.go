@@ -29,7 +29,7 @@ func (s *CheckpointService) Put(ctx context.Context, p domain.Principal, expecte
 	if domain.ValidateIDs(c.ID, c.Scope.ProjectID, c.Scope.TaskID, c.Objective) != nil || len(c.EvidenceRevisionIDs) > 50 {
 		return domain.Checkpoint{}, domain.ErrInvalidInput
 	}
-	if err := Authorize(p, "checkpoint:write", []string{c.Scope.ProjectID}); err != nil {
+	if err := authorize(ctx, p, "checkpoint:write", []string{c.Scope.ProjectID}); err != nil {
 		return domain.Checkpoint{}, err
 	}
 	err := s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
@@ -40,7 +40,7 @@ func (s *CheckpointService) Put(ctx context.Context, p domain.Principal, expecte
 		if e != nil {
 			return e
 		}
-		if e = Authorize(snap.Principal, "checkpoint:write", []string{c.Scope.ProjectID}); e != nil {
+		if e = authorize(ctx, snap.Principal, "checkpoint:write", []string{c.Scope.ProjectID}); e != nil {
 			return e
 		}
 		owner, err := s.repo.TaskOwner(ctx, tx, c.Scope)
@@ -129,7 +129,7 @@ func (s *CheckpointService) Latest(ctx context.Context, p domain.Principal, scop
 	return c, nil
 }
 func (s *CheckpointService) authorizeRead(ctx context.Context, tx Tx, p domain.Principal, scope domain.Scope) error {
-	if e := Authorize(p, "retrieval:read", []string{scope.ProjectID}); e != nil {
+	if e := authorize(ctx, p, "retrieval:read", []string{scope.ProjectID}); e != nil {
 		return e
 	}
 	if s.auth == nil {
@@ -139,7 +139,7 @@ func (s *CheckpointService) authorizeRead(ctx context.Context, tx Tx, p domain.P
 	if e != nil {
 		return e
 	}
-	if e = Authorize(snap.Principal, "retrieval:read", []string{scope.ProjectID}); e != nil {
+	if e = authorize(ctx, snap.Principal, "retrieval:read", []string{scope.ProjectID}); e != nil {
 		return e
 	}
 	if snap.TaskOwner != p.ClientID {

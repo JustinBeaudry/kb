@@ -475,7 +475,7 @@ func (s *MCPServer) call(ctx context.Context, id json.RawMessage, name string, r
 			return nil, errInvalidArguments
 		}
 		if err := mutationPreflight(ctx, s.memory, id, budget); err != nil {
-			return mutationPreflightFrame(id, budget, err), nil
+			return mutationPreflightFrame(id, budget, refused(ctx, err)), nil
 		}
 		refs := make([]domain.EvidenceRef, 0, len(a.Evidence))
 		for _, e := range a.Evidence {
@@ -483,7 +483,7 @@ func (s *MCPServer) call(ctx context.Context, id json.RawMessage, name string, r
 		}
 		c, err := s.memory.Submit(ctx, domain.CandidateInput{ClaimID: a.ClaimID, ExpectedRevision: a.ExpectedRevision, Text: a.Text, Kind: a.Kind, Scope: domain.Scope{ProjectID: a.ProjectID, TaskID: a.TaskID, SessionID: a.SessionID}, Evidence: refs, DependsOn: a.DependsOn, EntityIDs: a.EntityIDs, Applicability: a.Applicability.domain()})
 		if err != nil {
-			return toolFrame(id, budget, nil, err), nil
+			return toolFrame(id, budget, nil, refused(ctx, err)), nil
 		}
 		// A compact receipt: the submitted text is not echoed back.
 		return mutationFrame(id, budget, c.Revision, map[string]any{"schema_version": "3", "claim_id": c.ClaimID, "revision": c.Revision, "claim_status": c.Status, "origin_trust": domain.TrustSubmitted, "scope": scopeValue(c.Scope), "warnings": []string{"unverified_task_candidate"}}), nil
@@ -497,11 +497,11 @@ func (s *MCPServer) call(ctx context.Context, id json.RawMessage, name string, r
 			return nil, errInvalidArguments
 		}
 		if err := mutationPreflight(ctx, s.checkpoints, id, budget); err != nil {
-			return mutationPreflightFrame(id, budget, err), nil
+			return mutationPreflightFrame(id, budget, refused(ctx, err)), nil
 		}
 		c, err := s.checkpoints.PutCheckpoint(ctx, a.ExpectedRevision, domain.Checkpoint{ID: a.CheckpointID, Scope: domain.Scope{ProjectID: a.ProjectID, TaskID: a.TaskID, SessionID: a.SessionID}, Objective: a.Objective, Completed: nonNil(a.Completed), Pending: nonNil(a.Pending), Questions: nonNil(a.Questions), EvidenceRevisionIDs: nonNil(a.EvidenceRevisionIDs)})
 		if err != nil {
-			return toolFrame(id, budget, nil, err), nil
+			return toolFrame(id, budget, nil, refused(ctx, err)), nil
 		}
 		return mutationFrame(id, budget, c.Revision, map[string]any{"schema_version": "3", "label": "task_state", "checkpoint": map[string]any{"id": c.ID, "revision": c.Revision, "scope": scopeValue(c.Scope), "updated_at": c.UpdatedAt}}), nil
 	case "memory_status":
@@ -515,7 +515,7 @@ func (s *MCPServer) call(ctx context.Context, id json.RawMessage, name string, r
 		}
 		st, err := s.status.Status(ctx)
 		if err != nil {
-			return toolFrame(id, budget, nil, err), nil
+			return toolFrame(id, budget, nil, refused(ctx, err)), nil
 		}
 		gaps := nonNil(append(slices.Clone(st.CapabilityGaps), s.transportGaps...))
 		return toolFrame(id, budget, map[string]any{"schema_version": "3", "connection_state": st.ConnectionState, "authorized_project_ids": nonNil(st.AuthorizedProjectIDs), "authorized_capabilities": nonNil(st.AuthorizedCapabilities), "capability_gaps": gaps}, nil), nil
@@ -750,7 +750,7 @@ func (s *MCPServer) bounded(ctx context.Context, id json.RawMessage, budget int,
 			err, tooLarge = domain.ErrBudget, true
 		}
 		if !errors.Is(err, domain.ErrBudget) {
-			return toolFrame(id, budget, nil, err)
+			return toolFrame(id, budget, nil, refused(ctx, err))
 		}
 		if cursor != "" {
 			return paginationErrorFrame(id, budget, true)

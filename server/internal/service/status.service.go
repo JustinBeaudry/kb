@@ -45,7 +45,7 @@ func NewStatusService(tx Transactor, grants StatusGrants, gaps ...string) *Statu
 	return &StatusService{tx: tx, grants: grants, gaps: append([]string{"recovery_unavailable"}, gaps...)}
 }
 func (s *StatusService) Status(ctx context.Context, p domain.Principal) (domain.Status, error) {
-	if err := Authorize(p, "status:read", nil); err != nil {
+	if err := authorize(ctx, p, "status:read", nil); err != nil {
 		return domain.Status{}, err
 	}
 	var current domain.Principal
@@ -56,7 +56,7 @@ func (s *StatusService) Status(ctx context.Context, p domain.Principal) (domain.
 		if err != nil {
 			return err
 		}
-		if err = Authorize(snap.Principal, "status:read", nil); err != nil {
+		if err = authorize(ctx, snap.Principal, "status:read", nil); err != nil {
 			return err
 		}
 		current = snap.Principal

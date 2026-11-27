@@ -146,7 +146,7 @@ func (s *MaintenanceService) AdmitRecovery(ctx context.Context, f domain.Mainten
 }
 func recoveryKind(kind string) bool {
 	switch kind {
-	case "startup-recovery", "backup-recovery", "restore-recovery", "host-admin:setup", "host-admin:journal-init", "host-admin:journal-check", "host-admin:policy", "host-admin:policy-update", "host-admin:enroll", "host-admin:revoke", "host-admin:list", "host-admin:delete", "host-admin:deletion-status":
+	case "startup-recovery", "backup-recovery", "restore-recovery", "host-admin:setup", "host-admin:journal-init", "host-admin:journal-check", "host-admin:policy", "host-admin:policy-update", "host-admin:enroll", "host-admin:revoke", "host-admin:list", "host-admin:access", "host-admin:delete", "host-admin:deletion-status":
 		return true
 	}
 	return false

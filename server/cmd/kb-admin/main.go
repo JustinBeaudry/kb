@@ -45,6 +45,11 @@ duration between 1h and 8784h (366 days), for example 2160h for 90 days. Without
 it the bearer does not expire. rotate issues a fresh bearer for an active client
 with the same grants; the old bearer stops working at once. list shows ExpiresAt.
 kb-admin list [--limit 50] [--after ID]
+kb-admin access [--client-id ID] [--project PROJECT] [--since YYYY-MM-DD] [--limit 100] [--after CURSOR]
+Prints the access audit trail: per client, project, capability and UTC day, how
+many requests were allowed and denied, and when the first and last came. A
+project of "*" means one the client was never granted. The default window is
+the last 30 days; rollups are kept for 400 days. Pass next as --after to page.
 kb-admin verify [--preview] [--input PATH|-]
 kb-admin reject [--preview] [--input PATH|-]
 kb-admin invalidate [--preview] [--input PATH|-]
@@ -149,6 +154,9 @@ func safeError(err error) string {
 	}
 }
 
+type hostAccess interface {
+	ListHost(context.Context, domain.AccessQuery) (domain.AccessPage, error)
+}
 type hostIdentity interface {
 	Setup(context.Context, domain.OwnerIdentity, service.EnrollInput) (service.ClientCredential, error)
 	EnrollHost(context.Context, service.EnrollInput) (service.ClientCredential, error)
@@ -170,6 +178,7 @@ type administration struct {
 	lifecycle    hostLifecycle
 	recovery     hostRecovery
 	decisions    hostDecisions
+	access       hostAccess
 }
 type adminFactory func(context.Context, bool) (administration, func(), error)
 
@@ -191,7 +200,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	}
 	if err != nil && len(args) > 0 {
 		switch args[0] {
-		case "setup", "enroll", "rotate", "revoke", "list", "verify", "reject", "invalidate", "verify-check", "lesson-publish", "recover", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-request", "decision-sync", "decision-challenge", "decision-approve":
+		case "setup", "enroll", "rotate", "revoke", "list", "access", "verify", "reject", "invalidate", "verify-check", "lesson-publish", "recover", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-request", "decision-sync", "decision-challenge", "decision-approve":
 			return commandError{command: args[0], cause: err}
 		}
 	}
@@ -213,13 +222,13 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 		return domain.ErrUnavailable
 	}
 	switch command {
-	case "setup", "enroll", "rotate", "revoke", "list", "verify", "reject", "invalidate", "verify-check", "lesson-publish", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-request", "decision-sync", "decision-challenge", "decision-approve":
+	case "setup", "enroll", "rotate", "revoke", "list", "access", "verify", "reject", "invalidate", "verify-check", "lesson-publish", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-request", "decision-sync", "decision-challenge", "decision-approve":
 	default:
 		return domain.ErrInvalidInput
 	}
 	flags := flag.NewFlagSet(command, flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	var ownerID, key, project, role, capabilities, clientID, after, inputPath, ttlText string
+	var ownerID, key, project, role, capabilities, clientID, after, inputPath, ttlText, since string
 	var fd, limit int
 	var preview bool
 	switch command {
@@ -244,6 +253,12 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 		flags.StringVar(&clientID, "client-id", "", "client ID")
 	case "list":
 		flags.IntVar(&limit, "limit", 50, "page size")
+		flags.StringVar(&after, "after", "", "cursor")
+	case "access":
+		flags.StringVar(&clientID, "client-id", "", "only this client")
+		flags.StringVar(&project, "project", "", "only this project")
+		flags.StringVar(&since, "since", "", "first UTC day, YYYY-MM-DD (default 30 days ago)")
+		flags.IntVar(&limit, "limit", 100, "page size")
 		flags.StringVar(&after, "after", "", "cursor")
 	case "journal-init", "journal-check":
 	default:
@@ -272,6 +287,9 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 		defer func() { _ = credentialFile.Close() }()
 	}
 	if command == "list" && (limit < 1 || limit > 100) {
+		return domain.ErrInvalidInput
+	}
+	if command == "access" && (limit < 1 || limit > 500 || (since != "" && !domain.ValidAccessDay(since))) {
 		return domain.ErrInvalidInput
 	}
 	if (command == "revoke" || command == "rotate") && domain.ValidateIDs(clientID) != nil {
@@ -338,7 +356,7 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 		}
 	}
 	if route != nil {
-		request := domain.HostAdminRequest{Version: 1, Action: command, Options: domain.HostAdminOptions{OwnerID: ownerID, PublicKey: key, ProjectID: project, Role: role, Capabilities: capabilities, ClientID: clientID, After: after, Limit: limit, Preview: preview, TTL: ttlText}}
+		request := domain.HostAdminRequest{Version: 1, Action: command, Options: domain.HostAdminOptions{OwnerID: ownerID, PublicKey: key, ProjectID: project, Role: role, Capabilities: capabilities, ClientID: clientID, After: after, Limit: limit, Preview: preview, TTL: ttlText, Since: since}}
 		var input any
 		switch {
 		case lifecycleCommand(command) && command != "journal-init" && command != "journal-check":
@@ -421,6 +439,15 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 			return err
 		}
 		return json.NewEncoder(output).Encode(page)
+	case "access":
+		if admin.access == nil {
+			return domain.ErrUnavailable
+		}
+		page, err := admin.access.ListHost(ctx, domain.AccessQuery{ClientID: clientID, ProjectID: project, Since: since, Limit: limit, After: after})
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(output).Encode(page)
 	case "invalidate":
 		if preview {
 			confirmation, err := admin.adjudication.PreviewInvalidationHost(ctx, invalidationPreview.Revision)
@@ -480,7 +507,7 @@ func composeAdministration(ctx context.Context, withObjects bool) (administratio
 		_ = store.Close(closeCtx)
 	}
 	identities := repository.NewIdentityRepository(store)
-	admin := administration{identity: service.NewIdentityService(store, identities, gateway.NostrIdentity{})}
+	admin := administration{identity: service.NewIdentityService(store, identities, gateway.NostrIdentity{}), access: service.NewAccessService(store, repository.NewAccessRepository(store), identities, time.Now, nil)}
 	if withObjects {
 		objectConfig, err := platform.LoadObjectConfig()
 		if err != nil {
