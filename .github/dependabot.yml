@@ -1,0 +1,29 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /server
+    schedule:
+      interval: weekly
+    groups:
+      go-minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: bun
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: uv
+    directory: /integrations/hermes
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directories: [/deploy]
+    schedule:
+      interval: weekly
+    ignore:
+      # Neo4j upgrades change the backup format and are pinned together with
+      # deploy/versions.json; upgrade them deliberately, never automatically.
+      - dependency-name: neo4j

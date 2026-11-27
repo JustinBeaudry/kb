@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { resolveVaultPath, checkVaultState, scaffoldVault } from "../src/lib/vault";
 import { DEFAULT_VAULT_PATH, VAULT_DIRS, VAULT_FILES, VERSION } from "../src/lib/constants";
 import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from "node:fs";
