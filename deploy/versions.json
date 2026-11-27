@@ -12,7 +12,7 @@
       "linux/amd64"
     ]
   },
-  "echo": "github.com/labstack/echo/v4@v4.16.2",
+  "echo": "github.com/labstack/echo/v4@v4.16.3",
   "generator": "github.com/oapi-codegen/oapi-codegen/v2@v2.8.1",
   "validator": "github.com/oapi-codegen/echo-middleware@v1.2.1",
   "testcontainers": "github.com/testcontainers/testcontainers-go@v0.44.0",
@@ -22,7 +22,7 @@
   "build_image": "golang:1.27.4-bookworm@sha256:ce59b41415e2524ae99926fe1f37ce48ba8c194dcbd2a56a65436cdcefa2bd34",
   "api_worker_runtime_image": "debian:bookworm-slim@sha256:99c0b25c46d0214d5a2091092e7908907dcaecd6a962cde0ac700acee222b6f3",
   "encryption": "filippo.io/age@v1.3.2",
-  "otel": "go.opentelemetry.io/otel/sdk@v1.45.0",
+  "otel": "go.opentelemetry.io/otel/sdk@v1.47.0",
   "bun": "1.4.3",
   "fixture_object_image": "chrislusf/seaweedfs:4.51@sha256:f7a49e3f3972ebed5be2ed4befa4a0c68eb7bdddba6e692d42729ceb545134b8",
   "deployment_target_platform": "linux/amd64",

@@ -4,6 +4,9 @@ updates:
     directory: /server
     schedule:
       interval: weekly
+    # Modules recorded in deploy/versions.json fail TestVersionsManifestMatchesGoModule
+    # until the manifest is updated in the same PR, because the manifest feeds the
+    # backup restore digest.
     groups:
       go-minor-and-patch:
         update-types: [minor, patch]
@@ -15,6 +18,11 @@ updates:
     directory: /integrations/hermes
     schedule:
       interval: weekly
+    ignore:
+      # Runtime pins equal Hermes Agent's own pins, so installing the provider
+      # never changes Hermes' environment. Move them only with Hermes.
+      - dependency-name: httpx
+      - dependency-name: pydantic
   - package-ecosystem: github-actions
     directory: /
     schedule:
