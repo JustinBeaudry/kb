@@ -1,0 +1,55 @@
+name: CodeQL
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '41 8 * * 3'
+permissions:
+  contents: read
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  analyze:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Workflows themselves: injection, unpinned or over-privileged actions.
+          - language: actions
+            build-mode: none
+          # The memory service. Built manually so CodeQL sees the pinned toolchain.
+          - language: go
+            build-mode: manual
+          # The CLI, hooks, gateways and the deploy scripts.
+          - language: javascript-typescript
+            build-mode: none
+          # The Hermes memory provider.
+          - language: python
+            build-mode: none
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - if: matrix.language == 'go'
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: '1.27.4'
+          cache-dependency-path: server/go.sum
+      - uses: github/codeql-action/init@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: security-extended
+      - if: matrix.language == 'go'
+        name: Build the memory service
+        working-directory: server
+        run: go build ./...
+      - uses: github/codeql-action/analyze@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        with:
+          category: /language:${{ matrix.language }}
