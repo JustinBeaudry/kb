@@ -25,29 +25,35 @@ func discoveryAPI(reached *atomic.Int64) http.Handler {
 func TestProtectedResourceMetadataIsServedBeforeTheGuard(t *testing.T) {
 	var reached atomic.Int64
 	api := discoveryAPI(&reached)
-	for _, path := range []string{ProtectedResourcePath, ProtectedResourcePath + RemoteMCPPath} {
-		rec := httptest.NewRecorder()
-		api.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
-		require.Equal(t, http.StatusOK, rec.Code, path)
-		assert.Equal(t, "application/json", rec.Header().Get("Content-Type"))
-		assert.Equal(t, "*", rec.Header().Get("Access-Control-Allow-Origin"))
-		assert.Equal(t, "nosniff", rec.Header().Get("X-Content-Type-Options"))
-		var doc map[string]any
-		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &doc))
-		assert.Equal(t, "https://kb.example.com/mcp", doc["resource"])
-		assert.Equal(t, []any{"header"}, doc["bearer_methods_supported"])
-		// No authorization server is advertised until kb can issue grants.
-		assert.NotContains(t, doc, "authorization_servers")
-	}
+	rec := httptest.NewRecorder()
+	api.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/.well-known/oauth-protected-resource/mcp", nil))
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "application/json", rec.Header().Get("Content-Type"))
+	assert.Equal(t, "*", rec.Header().Get("Access-Control-Allow-Origin"))
+	assert.Equal(t, "nosniff", rec.Header().Get("X-Content-Type-Options"))
+	var doc map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &doc))
+	// RFC 9728 §3.3: the resource must be the identifier the address was
+	// derived from.
+	assert.Equal(t, "https://kb.example.com/mcp", doc["resource"])
+	assert.Equal(t, []any{"header"}, doc["bearer_methods_supported"])
+	// No authorization server is advertised until kb can issue grants.
+	assert.NotContains(t, doc, "authorization_servers")
 	assert.Zero(t, reached.Load(), "metadata never reaches admission or authentication")
 
+	// The root address would describe the origin, not /mcp, so it is not
+	// served and goes through the guard like any other path.
+	root := httptest.NewRecorder()
+	api.ServeHTTP(root, httptest.NewRequest(http.MethodGet, "/.well-known/oauth-protected-resource", nil))
+	assert.Equal(t, http.StatusUnauthorized, root.Code)
+
 	head := httptest.NewRecorder()
-	api.ServeHTTP(head, httptest.NewRequest(http.MethodHead, ProtectedResourcePath, nil))
+	api.ServeHTTP(head, httptest.NewRequest(http.MethodHead, MCPResourceMetadataPath, nil))
 	assert.Equal(t, http.StatusOK, head.Code)
 	assert.Empty(t, head.Body.Bytes())
 
 	post := httptest.NewRecorder()
-	api.ServeHTTP(post, httptest.NewRequest(http.MethodPost, ProtectedResourcePath, nil))
+	api.ServeHTTP(post, httptest.NewRequest(http.MethodPost, MCPResourceMetadataPath, nil))
 	assert.Equal(t, http.StatusMethodNotAllowed, post.Code)
 	assert.Equal(t, "GET, HEAD, OPTIONS", post.Header().Get("Allow"))
 }
@@ -100,6 +106,6 @@ func TestOAuthDiscoveryIsOffWithoutAPublicOrigin(t *testing.T) {
 	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusTeapot) })
 	api := WithOAuthDiscovery(inner, "")
 	rec := httptest.NewRecorder()
-	api.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, ProtectedResourcePath, nil))
+	api.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, MCPResourceMetadataPath, nil))
 	assert.Equal(t, http.StatusTeapot, rec.Code)
 }

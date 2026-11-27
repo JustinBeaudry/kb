@@ -5,10 +5,12 @@ import (
 	"net/http"
 )
 
-// ProtectedResourcePath is where OAuth protected resource metadata (RFC 9728)
-// is served. The path with /mcp appended is the address RFC 9728 derives for
-// the /mcp resource; both answer with the same document.
-const ProtectedResourcePath = "/.well-known/oauth-protected-resource"
+// MCPResourceMetadataPath is where OAuth protected resource metadata (RFC 9728)
+// for the /mcp resource is served: the address RFC 9728 §3.1 derives from the
+// resource identifier https://<origin>/mcp. The root well-known address is not
+// served, because its document would have to name the origin itself as the
+// resource (§3.3), and kb protects only /mcp with this metadata.
+const MCPResourceMetadataPath = "/.well-known/oauth-protected-resource" + RemoteMCPPath
 
 type protectedResourceMetadata struct {
 	Resource               string   `json:"resource"`
@@ -30,7 +32,7 @@ func WithOAuthDiscovery(next http.Handler, origin string) http.Handler {
 	if origin == "" {
 		return next
 	}
-	metadataURL := origin + ProtectedResourcePath + RemoteMCPPath
+	metadataURL := origin + MCPResourceMetadataPath
 	body, err := json.Marshal(protectedResourceMetadata{
 		Resource:               origin + RemoteMCPPath,
 		BearerMethodsSupported: []string{"header"},
@@ -51,7 +53,7 @@ type oauthDiscovery struct {
 
 func (d *oauthDiscovery) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
-	case ProtectedResourcePath, ProtectedResourcePath + RemoteMCPPath:
+	case MCPResourceMetadataPath:
 		d.serveMetadata(w, r)
 	case RemoteMCPPath:
 		d.next.ServeHTTP(&challengeWriter{ResponseWriter: w, challenge: d.challenge}, r)
