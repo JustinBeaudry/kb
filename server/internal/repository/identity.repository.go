@@ -169,6 +169,24 @@ func (r *IdentityRepository) PutOwner(ctx context.Context, tx domain.Tx, o domai
 	return nil
 }
 
+// ReplaceOwnerKey swaps the owner's public key if the current key is still
+// change.RetiredKey and the new key was never retired, and records the old key
+// as retired in the same transaction.
+func (r *IdentityRepository) ReplaceOwnerKey(ctx context.Context, tx domain.Tx, change domain.OwnerKeyChange) error {
+	rows, err := r.query(ctx, tx, `MATCH (o:OwnerState {id:'owner'})
+WHERE o.ownerID=$owner AND o.ownerPublicKey=$old AND NOT EXISTS {MATCH (:OwnerKeyRetired {key:$new})}
+SET o.ownerPublicKey=$new, o.ownerKeyChangedAt=$at, o.authEpoch=o.authEpoch+1
+CREATE (:OwnerKeyRetired {key:$old, ownerID:$owner, retiredAt:$at})
+RETURN o.id`, map[string]any{"owner": change.OwnerID, "old": change.RetiredKey, "new": change.PublicKey, "at": change.ChangedAt.UTC().UnixNano()})
+	if err != nil {
+		return err
+	}
+	if len(rows) != 1 {
+		return domain.ErrConflict
+	}
+	return nil
+}
+
 func (r *IdentityRepository) ListClients(ctx context.Context, tx domain.Tx, owner string, limit int, after string) ([]domain.ClientMetadata, error) {
 	if limit < 1 || limit > 101 {
 		return nil, domain.ErrInvalidInput

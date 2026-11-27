@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -121,6 +122,7 @@ type fakeHostIdentity struct {
 	revoked    string
 	rotated    string
 	rotatedTTL time.Duration
+	ownerKey   string
 }
 
 func (f *fakeHostIdentity) Setup(context.Context, domain.OwnerIdentity, service.EnrollInput) (service.ClientCredential, error) {
@@ -133,6 +135,10 @@ func (f *fakeHostIdentity) EnrollHost(_ context.Context, input service.EnrollInp
 func (f *fakeHostIdentity) RotateHost(_ context.Context, id string, ttl time.Duration) (service.ClientCredential, error) {
 	f.rotated, f.rotatedTTL = id, ttl
 	return f.credential, nil
+}
+func (f *fakeHostIdentity) ReplaceOwnerKeyHost(_ context.Context, key string) (domain.OwnerKeyChange, error) {
+	f.ownerKey = key
+	return domain.OwnerKeyChange{OwnerID: "owner", RetiredKey: "old", PublicKey: key}, nil
 }
 func (f *fakeHostIdentity) RevokeHost(_ context.Context, id string) error { f.revoked = id; return nil }
 func (f *fakeHostIdentity) ListHost(context.Context, int, string) (service.ClientPage, error) {
@@ -366,5 +372,23 @@ func TestHostAdminAccessPrintsRollups(t *testing.T) {
 		})
 		require.Error(t, err, args)
 		assert.False(t, called, args)
+	}
+}
+
+func TestOwnerRotateReplacesTheOwnerKeyAndPrintsOnlyPublicKeys(t *testing.T) {
+	f := &fakeHostIdentity{}
+	factory := func(context.Context, bool) (administration, func(), error) {
+		return administration{identity: f, recovery: &fakeHostRecovery{}}, func() {}, nil
+	}
+	key := strings.Repeat("c", 64)
+	var out strings.Builder
+	require.NoError(t, runAdmin(t.Context(), []string{"owner-rotate", "--owner-public-key", key}, &out, strings.NewReader(""), factory))
+	assert.Equal(t, key, f.ownerKey)
+	var change domain.OwnerKeyChange
+	require.NoError(t, json.Unmarshal([]byte(out.String()), &change))
+	assert.Equal(t, key, change.PublicKey)
+	assert.Equal(t, "old", change.RetiredKey)
+	for _, args := range [][]string{{"owner-rotate", "--owner-public-key", key, "extra"}, {"owner-rotate", "--private-key", key}} {
+		assert.ErrorIs(t, runAdmin(t.Context(), args, &out, strings.NewReader(""), factory), domain.ErrInvalidInput, args)
 	}
 }

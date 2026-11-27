@@ -223,4 +223,24 @@ func TestIdentityRealGraph(t *testing.T) {
 		_, err = identity.RotateHost(t.Context(), credential.ClientID, 0)
 		assert.ErrorIs(t, err, domain.ErrForbidden, "a revoked client cannot be rotated back to life")
 	})
+	t.Run("owner key replacement retires the old key for good", func(t *testing.T) {
+		const replacement = "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5"
+		change, err := identity.ReplaceOwnerKeyHost(t.Context(), replacement)
+		require.NoError(t, err)
+		assert.Equal(t, owner.PublicKey, change.RetiredKey)
+		require.NoError(t, store.Within(t.Context(), func(ctx context.Context, tx domain.Tx) error {
+			current, err := repo.Owner(ctx, tx)
+			require.NoError(t, err)
+			assert.Equal(t, domain.OwnerIdentity{ID: owner.ID, PublicKey: replacement}, current)
+			// A stale compare-and-swap and a retired key are both refused.
+			assert.ErrorIs(t, repo.ReplaceOwnerKey(ctx, tx, domain.OwnerKeyChange{OwnerID: owner.ID, RetiredKey: owner.PublicKey, PublicKey: "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9", ChangedAt: time.Now()}), domain.ErrConflict)
+			assert.ErrorIs(t, repo.ReplaceOwnerKey(ctx, tx, domain.OwnerKeyChange{OwnerID: owner.ID, RetiredKey: replacement, PublicKey: owner.PublicKey, ChangedAt: time.Now()}), domain.ErrConflict)
+			current, err = repo.Owner(ctx, tx)
+			require.NoError(t, err)
+			assert.Equal(t, replacement, current.PublicKey)
+			return nil
+		}))
+		_, err = identity.ReplaceOwnerKeyHost(t.Context(), owner.PublicKey)
+		assert.ErrorIs(t, err, domain.ErrConflict, "the retired key can never be the owner key again")
+	})
 }
