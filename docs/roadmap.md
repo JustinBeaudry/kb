@@ -37,7 +37,7 @@ Status as of 2026-11-27. Items are in priority order within each tier. Linear tr
 2. **Protect `main`:** require the Memory service and Security checks before merge.
 3. **Credential lifetime:** done. Optional expiry on client credentials (`kb-admin --ttl`, HTTP `ttl_seconds`, reported as `expires_at`) and `kb-admin rotate`, which issues a new bearer and revokes the old one in one step.
 4. **Access audit trail** (done): every authorization decision an authenticated client causes is counted per client, project, capability and UTC day, and flushed every 30 seconds to `AccessRollup` nodes in the graph, kept 400 days. The owner reads it on the host with `kb-admin access`. Requests for projects outside a client's grant are recorded under `*`, so a client can't write arbitrary names into the trail, and the closed log schema stays closed.
-5. **Threat model document** covering prompt injection through stored memory, cross-project leakage, credential theft and a compromised client, with the test that covers each.
+5. **Threat model** (done): [docs/threat-model.md](threat-model.md) covers prompt injection through stored memory, cross-project leakage, credential theft, a compromised client, owner key loss and storage exposure, names the test behind each defense, and lists the open gaps.
 
 ## Tier 2: retrieval quality
 
