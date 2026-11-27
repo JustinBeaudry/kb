@@ -154,12 +154,16 @@ func (h *IdentityHandler) EnrollClient(ctx context.Context, request EnrollClient
 	for i, capability := range body.Capabilities {
 		capabilities[i] = string(capability)
 	}
-	credential, err := h.identity.Enroll(ctx, principal(ctx), service.EnrollInput{ClientID: body.Id, Role: domain.Role(body.Role), ProjectIDs: body.ProjectIds, Capabilities: capabilities})
+	var ttl time.Duration
+	if body.TtlSeconds != nil {
+		ttl = time.Duration(*body.TtlSeconds) * time.Second
+	}
+	credential, err := h.identity.Enroll(ctx, principal(ctx), service.EnrollInput{ClientID: body.Id, Role: domain.Role(body.Role), ProjectIDs: body.ProjectIds, Capabilities: capabilities, TTL: ttl})
 	if err != nil {
 		return nil, err
 	}
 	p := credential.Principal
-	return EnrollClient201JSONResponse{SchemaVersion: "3", Bearer: credential.Bearer, Client: Client{Id: p.ClientID, Role: Role(p.Role), ProjectIds: p.ProjectIDs, Capabilities: p.Capabilities, AuthEpoch: int64(p.AuthEpoch)}}, nil
+	return EnrollClient201JSONResponse{SchemaVersion: "3", Bearer: credential.Bearer, Client: Client{Id: p.ClientID, Role: Role(p.Role), ProjectIds: p.ProjectIDs, Capabilities: p.Capabilities, AuthEpoch: int64(p.AuthEpoch), ExpiresAt: credential.ExpiresAt}}, nil
 }
 func (h *IdentityHandler) RevokeClient(ctx context.Context, request RevokeClientRequestObject) (RevokeClientResponseObject, error) {
 	if err := h.identity.Revoke(ctx, principal(ctx), request.Id); err != nil {

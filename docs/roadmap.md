@@ -35,7 +35,7 @@ Status as of 2026-11-27. Items are in priority order within each tier. Linear tr
 
 1. **Supply chain**: govulncheck, bun audit and Dependabot (kb#18); every action pinned to a commit, release included (kb#20); CodeQL with the security-extended queries for Go, TypeScript, Python and the workflows themselves. Secret scanning with push protection is on in the repository settings.
 2. **Protect `main`:** require the Memory service and Security checks before merge.
-3. **Credential lifetime:** optional expiry on client credentials and a rotate command that issues a new bearer and revokes the old one in one step. Required before OAuth grants exist.
+3. **Credential lifetime:** done. Optional expiry on client credentials (`kb-admin --ttl`, HTTP `ttl_seconds`, reported as `expires_at`) and `kb-admin rotate`, which issues a new bearer and revokes the old one in one step.
 4. **Access audit trail:** a durable, owner-readable record of which client read or wrote which project, kept in the graph rather than in logs, so the closed log schema stays closed.
 5. **Threat model document** covering prompt injection through stored memory, cross-project leakage, credential theft and a compromised client, with the test that covers each.
 
