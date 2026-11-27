@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -54,9 +55,20 @@ func (i guardIdentity) Authenticate(ctx context.Context, bearer string) (domain.
 	return i.authenticate(ctx, bearer)
 }
 func guardLogger() *slog.Logger { return slog.New(slog.NewJSONHandler(io.Discard, nil)) }
+
+// guardPrefix is shared by every fixture bearer, so tests can assert that no
+// bearer reaches a response or a log.
+var guardPrefix = strings.Repeat("a", 48)
+var guardBearers atomic.Int64
+
+// guardRequest presents a fresh credential, so shared-capacity tests are not
+// limited by one credential's share.
 func guardRequest() *http.Request {
+	return guardRequestAs(guardPrefix + fmt.Sprintf("%016x", guardBearers.Add(1)))
+}
+func guardRequestAs(bearer string) *http.Request {
 	r := httptest.NewRequest("GET", "/v1/status", nil)
-	r.Header.Set("Authorization", "Bearer "+strings.Repeat("a", 64))
+	r.Header.Set("Authorization", "Bearer "+bearer)
 	return r
 }
 
@@ -151,14 +163,14 @@ func TestPublicGuardBoundsBurstAndRefillsEightPerSecond(t *testing.T) {
 		assert.Equal(t, ProblemSchemaVersion("3"), p.SchemaVersion)
 		assert.Equal(t, ProblemCode("unavailable"), p.Code)
 		assert.Equal(t, p.RequestId, response.Header().Get("X-Request-Id"))
-		assert.NotContains(t, response.Body.String(), strings.Repeat("a", 64))
+		assert.NotContains(t, response.Body.String(), guardPrefix)
 	}
 	assert.Equal(t, int64(16), a.admitted.Load())
 	assert.Equal(t, int64(16), a.finished.Load())
 	assert.Contains(t, logs.String(), `"status":429`)
 	assert.Contains(t, logs.String(), `"request_id":`)
 	assert.NotContains(t, logs.String(), "attacker-controlled")
-	assert.NotContains(t, logs.String(), strings.Repeat("a", 64))
+	assert.NotContains(t, logs.String(), guardPrefix)
 	now = now.Add(125 * time.Millisecond)
 	response := httptest.NewRecorder()
 	h.ServeHTTP(response, guardRequest())
@@ -277,4 +289,79 @@ func TestPublicGuardDoesNotSettleUncertainWork(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
 	t.Cleanup(cancel)
 	assert.Error(t, maintenance.WaitDrained(ctx, fence))
+}
+
+func TestPublicGuardGivesEachCredentialHalfTheCapacity(t *testing.T) {
+	now := time.Unix(100, 0)
+	a := &guardAdmission{}
+	h := newPublicAPIGuard(platform.AdmittedHandler(a, "api", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(204) })), guardLogger(), func() time.Time { return now })
+	noisy := strings.Repeat("b", 64)
+	serve := func(r *http.Request) int {
+		response := httptest.NewRecorder()
+		h.ServeHTTP(response, r)
+		return response.Code
+	}
+	for range credentialRequestBurst {
+		require.Equal(t, 204, serve(guardRequestAs(noisy)))
+	}
+	assert.Equal(t, 429, serve(guardRequestAs(noisy)), "one credential's burst is half the shared burst")
+	assert.Equal(t, 204, serve(guardRequestAs(strings.Repeat("c", 64))), "other clients keep the rest")
+
+	// The share refills at half the shared rate.
+	now = now.Add(time.Second / credentialRequestsPerSecond)
+	assert.Equal(t, 204, serve(guardRequestAs(noisy)))
+	assert.Equal(t, 429, serve(guardRequestAs(noisy)))
+}
+
+func TestPublicGuardBoundsOneCredentialsConcurrentRequests(t *testing.T) {
+	entered := make(chan struct{}, publicConcurrentRequests)
+	release := make(chan struct{})
+	a := &guardAdmission{}
+	now := time.Unix(100, 0)
+	h := newPublicAPIGuard(platform.AdmittedHandler(a, "api", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		entered <- struct{}{}
+		<-release
+		w.WriteHeader(204)
+	})), guardLogger(), func() time.Time { return now })
+	noisy := strings.Repeat("d", 64)
+	done := make(chan int, credentialConcurrentRequests)
+	for range credentialConcurrentRequests {
+		go func() {
+			response := httptest.NewRecorder()
+			h.ServeHTTP(response, guardRequestAs(noisy))
+			done <- response.Code
+		}()
+	}
+	for range credentialConcurrentRequests {
+		select {
+		case <-entered:
+		case <-time.After(time.Second):
+			close(release)
+			t.Fatal("requests did not start")
+		}
+	}
+	response := httptest.NewRecorder()
+	h.ServeHTTP(response, guardRequestAs(noisy))
+	assert.Equal(t, 429, response.Code, "a fifth concurrent request from one credential waits for none")
+	other := httptest.NewRecorder()
+	otherDone := make(chan struct{})
+	go func() { h.ServeHTTP(other, guardRequestAs(strings.Repeat("e", 64))); close(otherDone) }()
+	close(release)
+	<-otherDone
+	assert.Equal(t, 204, other.Code, "another client still has slots")
+	for range credentialConcurrentRequests {
+		assert.Equal(t, 204, <-done)
+	}
+}
+
+func TestPublicGuardCredentialTableStaysBounded(t *testing.T) {
+	now := time.Unix(100, 0)
+	g := newPublicAPIGuard(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(204) }), guardLogger(), func() time.Time { return now }).(*publicAPIGuard)
+	for i := range maxTrackedCredentials + 10 {
+		now = now.Add(time.Second) // keep the shared bucket full
+		response := httptest.NewRecorder()
+		g.ServeHTTP(response, guardRequest())
+		require.Equal(t, 204, response.Code, i)
+	}
+	assert.LessOrEqual(t, len(g.byKey), maxTrackedCredentials)
 }
