@@ -21,3 +21,24 @@ export function commandArgs(command: string, argv: string[] = process.argv): str
   }
   return out;
 }
+
+/**
+ * Splits short options written as `-p=value` into `-p value`. citty 0.2 parses
+ * with node's util.parseArgs, which reads `-p=value` as the value "=value";
+ * kb has always accepted the inline form, so it is normalized before parsing.
+ * Tokens after a `--` terminator are left alone.
+ */
+export function normalizeShortInlineValues(args: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!;
+    if (arg === "--") {
+      out.push(...args.slice(i));
+      break;
+    }
+    const match = /^-([A-Za-z])=(.*)$/s.exec(arg);
+    if (match) out.push(`-${match[1]}`, match[2]!);
+    else out.push(arg);
+  }
+  return out;
+}
