@@ -16,7 +16,15 @@ type HostAdminOptions struct {
 	After        string `json:"after,omitempty"`
 	Limit        int    `json:"limit,omitempty"`
 	Preview      bool   `json:"preview,omitempty"`
+	TTL          string `json:"ttl,omitempty"`
 }
+
+// HostAdminIssuesCredential reports whether an action mints a bearer, which
+// is written only to a protected credential descriptor, never to output.
+func HostAdminIssuesCredential(action string) bool {
+	return action == "setup" || action == "enroll" || action == "rotate"
+}
+
 type HostAdminRequest struct {
 	Version   int              `json:"version"`
 	RequestID string           `json:"request_id"`

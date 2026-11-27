@@ -27,6 +27,12 @@ Neo4j initial authentication uses a small helper compiled against the exact pinn
 
 The host Unix path is owner-only and validates the peer UID and fixed child execution handshake. `kb-admin setup` or `enroll` writes a scoped bearer to an already-open owner-only file/pipe descriptor. Import through the client credential adapter; never copy it through terminal stdout. If a host-exec channel cannot preserve a pipe descriptor, use an owner-only host file, protected transfer/import and cleanup. Qualify that channel before claiming live enrollment.
 
+Client bearers can expire and be rotated:
+
+- `kb-admin setup`, `enroll` and `rotate` take `--ttl DURATION`, a Go duration between `1h` and `8784h` (366 days). The bearer stops authenticating at that instant; the next request gets `401`. Without `--ttl` the bearer does not expire, which is the previous behavior. Prefer `--ttl 2160h` (90 days) for agents.
+- `kb-admin rotate --client-id ID --credential-fd 3 [--ttl DURATION]` issues a fresh bearer for an active client and writes it to the descriptor, like `enroll`. Grants are unchanged. The old bearer stops working in the same transaction, and the auth epoch advances, so export cursors and other state bound to it are stale. A revoked client cannot be rotated; enroll a new one.
+- `kb-admin list` shows `ExpiresAt` for each client. Rotate before that time, then import the new bearer on the client with `kb remote credential-set`.
+
 Rotate keys by adding new named keys while explicitly retaining old journal authentication keys, backup authority keys and age identities needed by retained evidence/backups. Verify both old and new archive reads, then verify that an old archive fails closed without its retained identity. Removing keys is deliberate data loss after retention, not routine rotation. Do not change journal namespace or reset sequence to recover capacity. A 9000 warning requires extension planning; sequence10000 closes admission.
 
 ## Provider guarantees to measure

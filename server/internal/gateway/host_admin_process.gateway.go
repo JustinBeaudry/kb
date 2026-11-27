@@ -88,6 +88,11 @@ func childArguments(r domain.HostAdminRequest) ([]string, error) {
 		add("--project", o.ProjectID)
 		add("--role", o.Role)
 		add("--capabilities", o.Capabilities)
+		add("--ttl", o.TTL)
+		args = append(args, "--credential-fd", "3")
+	case "rotate":
+		add("--client-id", o.ClientID)
+		add("--ttl", o.TTL)
 		args = append(args, "--credential-fd", "3")
 	case "revoke":
 		add("--client-id", o.ClientID)
@@ -135,7 +140,7 @@ func (e *HostAdminProcessExecutor) Execute(ctx context.Context, r domain.HostAdm
 	if len(r.InputJSON) > 1<<20 {
 		return result, domain.ErrInvalidInput
 	}
-	needsSink := r.Action == "setup" || r.Action == "enroll"
+	needsSink := domain.HostAdminIssuesCredential(r.Action)
 	if needsSink != (files.CredentialSink != nil) {
 		return result, domain.ErrInvalidInput
 	}

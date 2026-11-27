@@ -37,8 +37,13 @@ No private key is accepted. No owner bearer is minted. Normal clients cannot adm
 Host recovery: enroll, revoke and list use the persisted owner identity.
 Host backup/restore uses kb-supervisor; recovery_unavailable reports an unavailable administration transport.
 
-kb-admin enroll --project PROJECT --credential-fd FD [--client-id ID] [--role agent] [--capabilities LIST]
+kb-admin enroll --project PROJECT --credential-fd FD [--client-id ID] [--role agent] [--capabilities LIST] [--ttl DURATION]
+kb-admin rotate --client-id ID --credential-fd FD [--ttl DURATION]
 kb-admin revoke --client-id ID
+--ttl (setup, enroll, rotate) sets when the bearer stops authenticating, as a Go
+duration between 1h and 8784h (366 days), for example 2160h for 90 days. Without
+it the bearer does not expire. rotate issues a fresh bearer for an active client
+with the same grants; the old bearer stops working at once. list shows ExpiresAt.
 kb-admin list [--limit 50] [--after ID]
 kb-admin verify [--preview] [--input PATH|-]
 kb-admin reject [--preview] [--input PATH|-]
@@ -148,6 +153,7 @@ type hostIdentity interface {
 	Setup(context.Context, domain.OwnerIdentity, service.EnrollInput) (service.ClientCredential, error)
 	EnrollHost(context.Context, service.EnrollInput) (service.ClientCredential, error)
 	RevokeHost(context.Context, string) error
+	RotateHost(context.Context, string, time.Duration) (service.ClientCredential, error)
 	ListHost(context.Context, int, string) (service.ClientPage, error)
 }
 type hostAdjudication interface {
@@ -185,7 +191,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	}
 	if err != nil && len(args) > 0 {
 		switch args[0] {
-		case "setup", "enroll", "revoke", "list", "verify", "reject", "invalidate", "verify-check", "lesson-publish", "recover", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-request", "decision-sync", "decision-challenge", "decision-approve":
+		case "setup", "enroll", "rotate", "revoke", "list", "verify", "reject", "invalidate", "verify-check", "lesson-publish", "recover", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-request", "decision-sync", "decision-challenge", "decision-approve":
 			return commandError{command: args[0], cause: err}
 		}
 	}
@@ -207,13 +213,13 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 		return domain.ErrUnavailable
 	}
 	switch command {
-	case "setup", "enroll", "revoke", "list", "verify", "reject", "invalidate", "verify-check", "lesson-publish", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-request", "decision-sync", "decision-challenge", "decision-approve":
+	case "setup", "enroll", "rotate", "revoke", "list", "verify", "reject", "invalidate", "verify-check", "lesson-publish", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-request", "decision-sync", "decision-challenge", "decision-approve":
 	default:
 		return domain.ErrInvalidInput
 	}
 	flags := flag.NewFlagSet(command, flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	var ownerID, key, project, role, capabilities, clientID, after, inputPath string
+	var ownerID, key, project, role, capabilities, clientID, after, inputPath, ttlText string
 	var fd, limit int
 	var preview bool
 	switch command {
@@ -229,6 +235,11 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 		if command == "enroll" {
 			flags.StringVar(&clientID, "client-id", "", "client ID")
 		}
+		flags.StringVar(&ttlText, "ttl", "", "credential lifetime")
+	case "rotate":
+		flags.StringVar(&clientID, "client-id", "", "client ID")
+		flags.StringVar(&ttlText, "ttl", "", "credential lifetime")
+		flags.IntVar(&fd, "credential-fd", 0, "protected output descriptor")
 	case "revoke":
 		flags.StringVar(&clientID, "client-id", "", "client ID")
 	case "list":
@@ -244,8 +255,15 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 	if err := flags.Parse(args[1:]); err != nil || flags.NArg() != 0 {
 		return domain.ErrInvalidInput
 	}
+	var ttl time.Duration
+	if ttlText != "" {
+		var err error
+		if ttl, err = time.ParseDuration(ttlText); err != nil || ttl <= 0 {
+			return domain.ErrInvalidInput
+		}
+	}
 	var credentialFile *os.File
-	if command == "setup" || command == "enroll" {
+	if domain.HostAdminIssuesCredential(command) {
 		var err error
 		credentialFile, err = protectedDescriptor(ctx, fd)
 		if err != nil {
@@ -256,7 +274,7 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 	if command == "list" && (limit < 1 || limit > 100) {
 		return domain.ErrInvalidInput
 	}
-	if command == "revoke" && domain.ValidateIDs(clientID) != nil {
+	if (command == "revoke" || command == "rotate") && domain.ValidateIDs(clientID) != nil {
 		return domain.ErrInvalidInput
 	}
 	var draft service.AdjudicationDraft
@@ -320,7 +338,7 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 		}
 	}
 	if route != nil {
-		request := domain.HostAdminRequest{Version: 1, Action: command, Options: domain.HostAdminOptions{OwnerID: ownerID, PublicKey: key, ProjectID: project, Role: role, Capabilities: capabilities, ClientID: clientID, After: after, Limit: limit, Preview: preview}}
+		request := domain.HostAdminRequest{Version: 1, Action: command, Options: domain.HostAdminOptions{OwnerID: ownerID, PublicKey: key, ProjectID: project, Role: role, Capabilities: capabilities, ClientID: clientID, After: after, Limit: limit, Preview: preview, TTL: ttlText}}
 		var input any
 		switch {
 		case lifecycleCommand(command) && command != "journal-init" && command != "journal-check":
@@ -376,13 +394,20 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 	}
 	switch command {
 	case "setup", "enroll":
-		enrollment := service.EnrollInput{ClientID: clientID, Role: domain.Role(role), ProjectIDs: []string{project}, Capabilities: strings.Split(capabilities, ",")}
+		enrollment := service.EnrollInput{ClientID: clientID, Role: domain.Role(role), ProjectIDs: []string{project}, Capabilities: strings.Split(capabilities, ","), TTL: ttl}
 		var credential service.ClientCredential
 		if command == "setup" {
 			credential, err = admin.identity.Setup(ctx, domain.OwnerIdentity{ID: ownerID, PublicKey: key}, enrollment)
 		} else {
 			credential, err = admin.identity.EnrollHost(ctx, enrollment)
 		}
+		if err != nil {
+			return err
+		}
+		_, err = io.WriteString(credentialFile, credential.Bearer+"\n")
+		return err
+	case "rotate":
+		credential, err := admin.identity.RotateHost(ctx, clientID, ttl)
 		if err != nil {
 			return err
 		}

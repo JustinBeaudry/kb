@@ -32,7 +32,7 @@ func (r *IdentityRepository) query(ctx context.Context, tx domain.Tx, statement 
 	return rows, nil
 }
 func (r *IdentityRepository) FindToken(ctx context.Context, tx domain.Tx, digest string) (domain.ClientRecord, error) {
-	rows, err := r.query(ctx, tx, `MATCH (o:OwnerState {id:'owner'}), (c:Client {tokenDigest:$digest}) RETURN c.id,c.ownerID,c.role,c.projectIDs,c.capabilities,o.authEpoch,c.revokedAt`, map[string]any{"digest": digest})
+	rows, err := r.query(ctx, tx, `MATCH (o:OwnerState {id:'owner'}), (c:Client {tokenDigest:$digest}) RETURN c.id,c.ownerID,c.role,c.projectIDs,c.capabilities,o.authEpoch,c.revokedAt,c.expiresAt`, map[string]any{"digest": digest})
 	if err != nil {
 		return domain.ClientRecord{}, err
 	}
@@ -50,15 +50,33 @@ func (r *IdentityRepository) FindToken(ctx context.Context, tx domain.Tx, digest
 		return domain.ClientRecord{}, domain.ErrUnavailable
 	}
 	record := domain.ClientRecord{Principal: domain.Principal{ClientID: id, OwnerID: owner, Role: domain.Role(role), ProjectIDs: projects, Capabilities: caps, AuthEpoch: uint64(epoch)}, TokenDigest: digest}
-	if v[6] != nil {
-		stamp, ok := v[6].(int64)
-		if !ok {
-			return domain.ClientRecord{}, domain.ErrUnavailable
-		}
-		revoked := time.Unix(0, stamp).UTC()
-		record.RevokedAt = &revoked
+	var ok bool
+	if record.RevokedAt, ok = optionalInstant(v[6]); !ok {
+		return domain.ClientRecord{}, domain.ErrUnavailable
+	}
+	if record.ExpiresAt, ok = optionalInstant(v[7]); !ok {
+		return domain.ClientRecord{}, domain.ErrUnavailable
 	}
 	return record, nil
+}
+
+// optionalInstant decodes a nullable UTC nanosecond timestamp property.
+func optionalInstant(value any) (*time.Time, bool) {
+	if value == nil {
+		return nil, true
+	}
+	stamp, ok := value.(int64)
+	if !ok {
+		return nil, false
+	}
+	at := time.Unix(0, stamp).UTC()
+	return &at, true
+}
+func optionalNanos(at *time.Time) any {
+	if at == nil {
+		return nil
+	}
+	return at.UTC().UnixNano()
 }
 func stringList(value any) ([]string, bool) {
 	values, ok := value.([]any)
@@ -86,11 +104,31 @@ func (r *IdentityRepository) PutClient(ctx context.Context, tx domain.Tx, c doma
 	if len(rows) > 0 {
 		return domain.ErrConflict
 	}
-	_, err = r.query(ctx, tx, `CREATE (:Client {id:$id,ownerID:$owner,role:$role,projectIDs:$projects,capabilities:$caps,tokenDigest:$digest})`, map[string]any{"id": c.Principal.ClientID, "owner": c.Principal.OwnerID, "role": string(c.Principal.Role), "projects": c.Principal.ProjectIDs, "caps": c.Principal.Capabilities, "digest": c.TokenDigest})
+	_, err = r.query(ctx, tx, `CREATE (c:Client {id:$id,ownerID:$owner,role:$role,projectIDs:$projects,capabilities:$caps,tokenDigest:$digest}) SET c.expiresAt=$expires`, map[string]any{"id": c.Principal.ClientID, "owner": c.Principal.OwnerID, "role": string(c.Principal.Role), "projects": c.Principal.ProjectIDs, "caps": c.Principal.Capabilities, "digest": c.TokenDigest, "expires": optionalNanos(c.ExpiresAt)})
 	return err
 }
 func (r *IdentityRepository) RevokeClient(ctx context.Context, tx domain.Tx, id string) error {
 	rows, err := r.query(ctx, tx, `MATCH (o:OwnerState {id:'owner'}),(c:Client {id:$id}) SET c.revokedAt=coalesce(c.revokedAt,$now),o.authEpoch=o.authEpoch+1 RETURN c.id`, map[string]any{"id": id, "now": time.Now().UTC().UnixNano()})
+	if err != nil {
+		return err
+	}
+	if len(rows) != 1 {
+		return domain.ErrForbidden
+	}
+	return nil
+}
+func (r *IdentityRepository) RotateClient(ctx context.Context, tx domain.Tx, id, digest string, expiresAt *time.Time) error {
+	if strings.HasPrefix(id, "host-owner:") {
+		return domain.ErrInvalidInput
+	}
+	taken, err := r.query(ctx, tx, "MATCH (c:Client {tokenDigest:$digest}) RETURN c.id LIMIT 1", map[string]any{"digest": digest})
+	if err != nil {
+		return err
+	}
+	if len(taken) > 0 {
+		return domain.ErrConflict
+	}
+	rows, err := r.query(ctx, tx, `MATCH (o:OwnerState {id:'owner'}),(c:Client {id:$id}) WHERE c.revokedAt IS NULL SET c.tokenDigest=$digest,c.expiresAt=$expires,c.rotatedAt=$now,o.authEpoch=o.authEpoch+1 RETURN c.id`, map[string]any{"id": id, "digest": digest, "expires": optionalNanos(expiresAt), "now": time.Now().UTC().UnixNano()})
 	if err != nil {
 		return err
 	}
@@ -135,7 +173,7 @@ func (r *IdentityRepository) ListClients(ctx context.Context, tx domain.Tx, owne
 	if limit < 1 || limit > 101 {
 		return nil, domain.ErrInvalidInput
 	}
-	rows, err := r.query(ctx, tx, `MATCH (c:Client {ownerID:$owner}),(o:OwnerState {id:'owner'}) WHERE c.id>$after RETURN c.id,c.role,c.projectIDs,c.capabilities,c.revokedAt,o.authEpoch ORDER BY c.id LIMIT $limit`, map[string]any{"owner": owner, "after": after, "limit": limit})
+	rows, err := r.query(ctx, tx, `MATCH (c:Client {ownerID:$owner}),(o:OwnerState {id:'owner'}) WHERE c.id>$after RETURN c.id,c.role,c.projectIDs,c.capabilities,c.revokedAt,o.authEpoch,c.expiresAt ORDER BY c.id LIMIT $limit`, map[string]any{"owner": owner, "after": after, "limit": limit})
 	if err != nil {
 		return nil, err
 	}
@@ -151,13 +189,12 @@ func (r *IdentityRepository) ListClients(ctx context.Context, tx domain.Tx, owne
 			return nil, domain.ErrUnavailable
 		}
 		m := domain.ClientMetadata{Principal: domain.Principal{ClientID: id, OwnerID: owner, Role: domain.Role(role), ProjectIDs: projects, Capabilities: caps, AuthEpoch: uint64(epoch)}}
-		if v[4] != nil {
-			stamp, ok := v[4].(int64)
-			if !ok {
-				return nil, domain.ErrUnavailable
-			}
-			now := time.Unix(0, stamp).UTC()
-			m.RevokedAt = &now
+		var ok bool
+		if m.RevokedAt, ok = optionalInstant(v[4]); !ok {
+			return nil, domain.ErrUnavailable
+		}
+		if m.ExpiresAt, ok = optionalInstant(v[6]); !ok {
+			return nil, domain.ErrUnavailable
 		}
 		out = append(out, m)
 	}
