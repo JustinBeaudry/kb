@@ -173,7 +173,7 @@ It needs the same registered remote credential, an authorized running memory
 API, and a separately built `kb-mcp` executable on the launcher's `PATH`. The
 release installer does not install this Go bridge. A source checkout also
 needs Bun and its installed dependencies; building the bridge needs the Go
-version required by `server/go.mod` (currently Go 1.27.3 or a compatible newer
+version required by `server/go.mod` (currently Go 1.27.4 or a compatible newer
 toolchain). Build from the repository root on a supported Unix-like host:
 
 ```sh
