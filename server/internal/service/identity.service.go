@@ -354,6 +354,7 @@ func (s *IdentityService) RotateHost(ctx context.Context, id string, ttl time.Du
 	}
 	return c, nil
 }
+
 // ReplaceOwnerKeyHost replaces the owner's public signing key on the service
 // host, for a lost or stolen key. Signatures by the old key stop verifying at
 // once, so pending decision challenges signed with it fail. The old key is

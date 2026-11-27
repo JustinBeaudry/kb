@@ -417,6 +417,8 @@ func TestRefusedBearersAreAttributedInTheAccessAudit(t *testing.T) {
 
 	_, err = s.EnrollHost(t.Context(), EnrollInput{ClientID: domain.AccessOutsideGrant, Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"status:read"}})
 	assert.ErrorIs(t, err, domain.ErrInvalidInput, "no client may take the unknown-client marker as its ID")
+}
+
 // Two more valid BIP-340 x-only keys: the x coordinates of 2G and 3G.
 const (
 	replacementOwnerKey = "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5"
