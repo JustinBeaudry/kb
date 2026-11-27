@@ -46,3 +46,8 @@ var SupersedeBackfill string
 //
 //go:embed 012_access.cypher
 var Access string
+
+// OwnerKeys holds the retired owner key history.
+//
+//go:embed 013_owner_keys.cypher
+var OwnerKeys string

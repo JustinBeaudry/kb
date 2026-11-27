@@ -34,6 +34,20 @@ Client bearers can expire and be rotated:
 - `kb-admin rotate --client-id ID --credential-fd 3 [--ttl DURATION]` issues a fresh bearer for an active client and writes it to the descriptor, like `enroll`. Grants are unchanged. The old bearer stops working in the same transaction, and the auth epoch advances, so export cursors and other state bound to it are stale. A revoked client cannot be rotated; enroll a new one.
 - `kb-admin list` shows `ExpiresAt` for each client. Rotate before that time, then import the new bearer on the client with `kb remote credential-set`.
 
+## Owner key loss or theft
+
+The owner's Nostr key is the only signer of verified knowledge. kb holds only its public half. If the private key is lost, decisions can no longer be approved by signature. If it is stolen, whoever holds it can approve decisions as the owner. Replace it on the host:
+
+1. Generate a new key on a device you control, in your Nostr signer or Buzz. Never move a private key to the service host.
+2. On the service host, run `kb-admin owner-rotate --owner-public-key NEW_64_HEX`. It prints the owner ID, the retired key, the new key and the time, and nothing secret.
+3. From that moment, every signature by the old key fails: pending decision challenges and Buzz replies signed with it are refused, and the old key is kept as retired so it can never be enrolled again. Client bearers and grants are unchanged.
+4. If the key was stolen, review what was approved while it was out of your hands. Owner judgments record the signing key and time; run `kb-admin decisions` for open decisions, and use `kb-admin invalidate` on any verified claim you did not mean to approve.
+5. Re-run `kb-admin decision-challenge` for anything that was waiting on your signature and sign it with the new key.
+
+Drill it once on a test instance: rotate to a new key, confirm a challenge signed with the old key is refused and one signed with the new key is accepted, then confirm that rotating back to the old key fails.
+
+Host access is a separate authority. Anyone who can run `kb-admin` on the host can already enroll clients and adjudicate, so `owner-rotate` adds no power the host did not have. Protect host access as you would the key itself.
+
 ## Access audit trail
 
 The api counts every authorization decision an authenticated client causes: one row per client, project, capability and UTC day, with allowed and denied counts and the first and last time seen. It records counts and times only, never request content, queries, bearers or source addresses. Rows are buffered in memory and written to the graph every 30 seconds and on clean shutdown, and rows older than 400 days are pruned.
