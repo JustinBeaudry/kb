@@ -163,6 +163,24 @@ func TestRemoteMCPRunsToolsAsTheAuthenticatedClient(t *testing.T) {
 	}
 }
 
+func TestRemoteMCPAnswersBatches(t *testing.T) {
+	e, services := remoteMCPServer(t, WithRemoteMCP())
+	headers := map[string]string{"MCP-Protocol-Version": "2025-03-26"}
+
+	rec := mcpPost(e, `[{"jsonrpc":"2.0","id":1,"method":"ping"},`+toolCall("memory_status", `{}`)+`]`, headers)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var replies []map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &replies))
+	require.Len(t, replies, 2)
+	assert.EqualValues(t, 1, replies[0]["id"])
+	assert.Nil(t, replies[1]["error"])
+	assert.Equal(t, []string{"agent-a"}, services.principals, "each member runs as the authenticated client")
+
+	rec = mcpPost(e, `[{"jsonrpc":"2.0","method":"notifications/initialized"}]`, headers)
+	assert.Equal(t, http.StatusAccepted, rec.Code)
+	assert.Empty(t, rec.Body.String())
+}
+
 func TestRemoteMCPEnforcesProjectAndCapabilityScopes(t *testing.T) {
 	e, _ := remoteMCPServer(t, WithRemoteMCP())
 	for name, args := range map[string]string{

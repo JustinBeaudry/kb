@@ -461,7 +461,8 @@ func TestMCPProtocolFraming(t *testing.T) {
 		code          int
 	}{
 		{"parse error", `{"jsonrpc":`, -32700},
-		{"batch", `[{"jsonrpc":"2.0","id":1,"method":"ping"}]`, -32600},
+		{"empty batch", `[]`, -32600},
+		{"oversized batch", `[` + strings.TrimSuffix(strings.Repeat(`{"jsonrpc":"2.0","id":1,"method":"ping"},`, 17), ",") + `]`, -32600},
 		{"wrong version", `{"jsonrpc":"1.0","id":1,"method":"ping"}`, -32600},
 		{"unknown method", `{"jsonrpc":"2.0","id":1,"method":"resources/list"}`, -32601},
 		{"oversized", `{"jsonrpc":"2.0","id":1,"method":"ping","params":{"x":"` + strings.Repeat("a", 1<<20) + `"}}`, -32600},
@@ -478,6 +479,24 @@ func TestMCPProtocolFraming(t *testing.T) {
 			assert.JSONEq(t, `{"jsonrpc":"2.0","id":9,"result":{}}`, lines[1])
 		})
 	}
+}
+
+func TestMCPBatchAnswersEachRequest(t *testing.T) {
+	b := &mcpBackend{}
+
+	lines := exchange(t, b,
+		`[{"jsonrpc":"2.0","id":1,"method":"ping"},{"jsonrpc":"2.0","method":"notifications/initialized"},{"jsonrpc":"2.0","id":2,"method":"resources/list"},[]]`,
+		`[{"jsonrpc":"2.0","method":"notifications/initialized"}]`,
+		`{"jsonrpc":"2.0","id":9,"method":"ping"}`)
+
+	require.Len(t, lines, 2, "a batch of only notifications gets no response")
+	var replies []map[string]any
+	require.NoError(t, json.Unmarshal([]byte(lines[0]), &replies))
+	require.Len(t, replies, 3)
+	assert.Equal(t, map[string]any{}, replies[0]["result"])
+	assert.EqualValues(t, -32601, replies[1]["error"].(map[string]any)["code"])
+	assert.EqualValues(t, -32600, replies[2]["error"].(map[string]any)["code"])
+	assert.JSONEq(t, `{"jsonrpc":"2.0","id":9,"result":{}}`, lines[1])
 }
 
 func TestMCPServeStdioStopsOnContextCancel(t *testing.T) {

@@ -69,6 +69,8 @@ func newMCPServer(retrieval RetrievalReader, memory CandidateWriter, checkpoints
 
 const (
 	mcpMaxFrame = 1 << 20
+	// mcpMaxBatch bounds the work one frame can start.
+	mcpMaxBatch = 16
 	// Bound the encoded ID as well as the input: JSON encoding can expand U+2028/U+2029.
 	mcpMaxIDBytes        = 256
 	mcpContinuation      = "mcp2."
@@ -199,8 +201,44 @@ func (s *MCPServer) handle(ctx context.Context, line []byte, oversized bool) ([]
 	}
 	trimmed := bytes.TrimSpace(line)
 	if len(trimmed) > 0 && trimmed[0] == '[' {
-		return failure(nil, mcpInvalidRequest, "Batch requests are not supported."), true
+		return s.handleBatch(ctx, trimmed)
 	}
+	return s.handleOne(ctx, trimmed)
+}
+
+// handleBatch answers a JSON-RPC batch, which protocol 2025-03-26 allows. Each
+// member is handled as its own request, with its own authorization and budget.
+// Members that are notifications get no entry; a batch of only notifications
+// gets no response at all.
+func (s *MCPServer) handleBatch(ctx context.Context, frame []byte) ([]byte, bool) {
+	var members []json.RawMessage
+	if err := json.Unmarshal(frame, &members); err != nil {
+		return failure(nil, mcpParseError, "Parse error."), true
+	}
+	if len(members) == 0 {
+		return failure(nil, mcpInvalidRequest, "Empty batch."), true
+	}
+	if len(members) > mcpMaxBatch {
+		return failure(nil, mcpInvalidRequest, "Batch too large."), true
+	}
+	responses := make([]json.RawMessage, 0, len(members))
+	for _, member := range members {
+		member = bytes.TrimSpace(member)
+		if len(member) > 0 && member[0] == '[' {
+			responses = append(responses, failure(nil, mcpInvalidRequest, "Invalid request."))
+			continue
+		}
+		if response, ok := s.handleOne(ctx, member); ok {
+			responses = append(responses, response)
+		}
+	}
+	if len(responses) == 0 {
+		return nil, false
+	}
+	return encode(responses), true
+}
+
+func (s *MCPServer) handleOne(ctx context.Context, trimmed []byte) ([]byte, bool) {
 	var request rpcRequest
 	if err := json.Unmarshal(trimmed, &request); err != nil {
 		return failure(nil, mcpParseError, "Parse error."), true

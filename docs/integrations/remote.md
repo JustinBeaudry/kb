@@ -192,7 +192,7 @@ What the endpoint guarantees:
   revoked without touching the others.
 - **Stateless.** One JSON-RPC message per POST, one JSON response, no session
   ID and no server-initiated stream (`GET` and `DELETE` return 405).
-  Notifications return 202 with no body. Batches are refused.
+  Notifications return 202 with no body. Batches of up to 16 requests, which protocol 2025-03-26 allows, get one array of replies, or 202 when they hold only notifications.
 - **No browsers.** Any request with an `Origin` header is refused with 403,
   which blocks DNS rebinding and cross-site use of a credential.
 - **Bounded.** Request bodies are limited to 64 KiB and requests share the
