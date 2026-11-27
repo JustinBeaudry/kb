@@ -33,10 +33,10 @@ Status as of 2026-11-27. Items are in priority order within each tier. Linear tr
 
 ## Tier 1: security hardening
 
-1. **Supply chain** (kb#18): govulncheck, bun audit and Dependabot. Next: pin `.github/workflows/release.yml`, which still uses tag-referenced actions and `bun-version: latest` when it publishes binaries; CodeQL for Go and TypeScript; and secret scanning with push protection (repository settings).
+1. **Supply chain** (kb#18): govulncheck, bun audit and Dependabot. The release workflow is pinned to action digests and an exact Bun version. Next: CodeQL for Go and TypeScript, and secret scanning with push protection (repository settings).
 2. **Protect `main`:** require the Memory service and Security checks before merge.
 3. **Credential lifetime:** optional expiry on client credentials and a rotate command that issues a new bearer and revokes the old one in one step. Required before OAuth grants exist.
-4. **Access audit trail:** a durable, owner-readable record of which client read or wrote which project, kept in the graph rather than in logs, so the closed log schema stays closed.
+4. **Access audit trail** (done): every authorization decision an authenticated client causes is counted per client, project, capability and UTC day, and flushed every 30 seconds to `AccessRollup` nodes in the graph, kept 400 days. The owner reads it on the host with `kb-admin access`. Requests for projects outside a client's grant are recorded under `*`, so a client can't write arbitrary names into the trail, and the closed log schema stays closed.
 5. **Threat model document** covering prompt injection through stored memory, cross-project leakage, credential theft and a compromised client, with the test that covers each.
 
 ## Tier 2: retrieval quality

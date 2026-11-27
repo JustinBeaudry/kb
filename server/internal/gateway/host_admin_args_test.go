@@ -49,3 +49,13 @@ func TestChildArgumentsForCredentialCommands(t *testing.T) {
 		assert.False(t, domain.HostAdminIssuesCredential(action), action)
 	}
 }
+
+func TestChildArgumentsForAccessAudit(t *testing.T) {
+	args, err := childArguments(domain.HostAdminRequest{Version: 1, Action: "access", Options: domain.HostAdminOptions{ClientID: "agent", Since: "2026-11-01", Limit: 50, After: "cursor"}})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"access", "--client-id", "agent", "--since", "2026-11-01", "--limit", "50", "--after", "cursor"}, args)
+	args, err = childArguments(domain.HostAdminRequest{Version: 1, Action: "access"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"access"}, args)
+	assert.False(t, domain.HostAdminIssuesCredential("access"))
+}

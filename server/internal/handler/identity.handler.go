@@ -36,6 +36,7 @@ type IdentityHandler struct {
 	transfer    TransferService
 	decisions   DecisionService
 	remoteMCP   bool
+	access      AccessRecorder
 }
 
 var _ StrictServerInterface = (*IdentityHandler)(nil)
@@ -62,6 +63,10 @@ func configuredServer(identity IdentityService, capture CaptureService, checkpoi
 	spec, err := GetSpec()
 	if err != nil {
 		return nil, domain.ErrUnavailable
+	}
+	impl := &IdentityHandler{identity: identity, capture: capture, checkpoints: checkpoints, memory: memory, retrieval: retrieval, policy: policy, status: status, transfer: transfer}
+	for _, opt := range opts {
+		opt(impl)
 	}
 	e := echo.New()
 	e.HideBanner = true
@@ -92,7 +97,7 @@ func configuredServer(identity IdentityService, capture CaptureService, checkpoi
 			}
 			return small(c)
 		}
-	}, middleware.ContextTimeout(10*time.Second), Authentication(identity))
+	}, middleware.ContextTimeout(10*time.Second), authentication(identity, impl.access))
 	// Authentication runs before validation. kin-openapi must not re-interpret the
 	// already authenticated principal or treat submitted fields as authority.
 	// /mcp carries JSON-RPC, which the OpenAPI document does not describe; the
@@ -103,10 +108,6 @@ func configuredServer(identity IdentityService, capture CaptureService, checkpoi
 		}
 		return invalidInputProblem(c, validationField(he.Internal))
 	}}))
-	impl := &IdentityHandler{identity: identity, capture: capture, checkpoints: checkpoints, memory: memory, retrieval: retrieval, policy: policy, status: status, transfer: transfer}
-	for _, opt := range opts {
-		opt(impl)
-	}
 	strict := NewStrictHandler(impl, nil)
 
 	wrapper := ServerInterfaceWrapper{Handler: strict}

@@ -194,7 +194,7 @@ func (h *safeLogHandler) Enabled(ctx context.Context, l slog.Level) bool {
 }
 func (h *safeLogHandler) Handle(ctx context.Context, r slog.Record) error {
 	message := r.Message
-	if !oneOf(message, "telemetry_export_failed", "http_request", "job_lease_lost", "job_failed", "worker_stopped", "worker_startup_retry", "server_stopped", "capture_reconciliation_incomplete", "supervisor_stopped", "backup_completed", "backup_failed", "backup_schedule_unsaved", "restore_failed", "maintenance_closed") {
+	if !oneOf(message, "telemetry_export_failed", "http_request", "job_lease_lost", "job_failed", "worker_stopped", "worker_startup_retry", "server_stopped", "capture_reconciliation_incomplete", "supervisor_stopped", "backup_completed", "backup_failed", "backup_schedule_unsaved", "restore_failed", "maintenance_closed", "access_audit_flush_failed", "access_audit_dropped") {
 		message = "event"
 	}
 	cleaned := slog.NewRecord(r.Time, r.Level, message, r.PC)
@@ -224,7 +224,7 @@ func safeLogAttr(a slog.Attr) (slog.Attr, bool) {
 	// Do not resolve arbitrary LogValuer values, which may execute code or leak
 	// typed vendor errors. Groups/Any values never cross this boundary.
 	switch a.Key {
-	case "status", "duration_ms", "journal_sequence", "journal_capacity", "backup_age_seconds", "active_operations", "unknown_operations":
+	case "status", "duration_ms", "journal_sequence", "journal_capacity", "backup_age_seconds", "active_operations", "unknown_operations", "dropped_records":
 		if a.Value.Kind() == slog.KindInt64 && a.Value.Int64() >= 0 {
 			return a, true
 		}

@@ -91,7 +91,7 @@ func verifierAuthority(ctx context.Context, tx Tx, principals VerifierPrincipals
 	if snap.Principal.Role != domain.RoleVerifier || p.Role != domain.RoleVerifier {
 		return domain.ErrForbidden
 	}
-	return Authorize(snap.Principal, "verification:write", []string{project})
+	return authorize(ctx, snap.Principal, "verification:write", []string{project})
 }
 
 // plan authenticates every evidence reference under the lock. Origin trust is

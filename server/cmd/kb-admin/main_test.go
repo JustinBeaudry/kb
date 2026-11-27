@@ -340,3 +340,31 @@ func TestHostAdminRotateWritesBearerOnlyToDescriptor(t *testing.T) {
 		assert.ErrorIs(t, runAdmin(t.Context(), args, &out, strings.NewReader(""), factory), domain.ErrInvalidInput, args)
 	}
 }
+
+type fakeHostAccess struct{ query domain.AccessQuery }
+
+func (f *fakeHostAccess) ListHost(_ context.Context, q domain.AccessQuery) (domain.AccessPage, error) {
+	f.query = q
+	return domain.AccessPage{Rollups: []domain.AccessRollup{{ClientID: "agent", ProjectID: "p", Capability: "retrieval:read", Day: "2026-11-27", Allowed: 2}}, Next: "next"}, nil
+}
+
+func TestHostAdminAccessPrintsRollups(t *testing.T) {
+	f := &fakeHostAccess{}
+	var out bytes.Buffer
+	require.NoError(t, runAdmin(t.Context(), []string{"access", "--client-id", "agent", "--since", "2026-11-01", "--limit", "5"}, &out, strings.NewReader(""), func(context.Context, bool) (administration, func(), error) {
+		return administration{access: f, recovery: &fakeHostRecovery{}}, func() {}, nil
+	}))
+	assert.Equal(t, domain.AccessQuery{ClientID: "agent", Since: "2026-11-01", Limit: 5}, f.query)
+	assert.Contains(t, out.String(), `"capability":"retrieval:read"`)
+	assert.Contains(t, out.String(), `"next":"next"`)
+
+	for _, args := range [][]string{{"access", "--limit", "501"}, {"access", "--since", "yesterday"}, {"access", "--preview"}} {
+		called := false
+		err := runAdmin(t.Context(), args, io.Discard, strings.NewReader(""), func(context.Context, bool) (administration, func(), error) {
+			called = true
+			return administration{access: f}, func() {}, nil
+		})
+		require.Error(t, err, args)
+		assert.False(t, called, args)
+	}
+}

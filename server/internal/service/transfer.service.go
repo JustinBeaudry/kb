@@ -153,7 +153,7 @@ func (s *TransferService) Export(ctx context.Context, p domain.Principal, scope 
 	if domain.ValidateIDs(scope.ProjectID) != nil || (scope.TaskID != "" && domain.ValidateIDs(scope.TaskID) != nil) || (scope.SessionID != "" && domain.ValidateIDs(scope.SessionID) != nil) {
 		return ExportManifest{}, domain.ErrInvalidInput
 	}
-	if err := Authorize(p, exportCapability, []string{scope.ProjectID}); err != nil {
+	if err := authorize(ctx, p, exportCapability, []string{scope.ProjectID}); err != nil {
 		return ExportManifest{}, err
 	}
 	after, err := s.decodeCursor(continuation, p, scope)
@@ -167,7 +167,7 @@ func (s *TransferService) Export(ctx context.Context, p domain.Principal, scope 
 		if err != nil {
 			return err
 		}
-		if err = Authorize(snapshot.Principal, exportCapability, []string{scope.ProjectID}); err != nil {
+		if err = authorize(ctx, snapshot.Principal, exportCapability, []string{scope.ProjectID}); err != nil {
 			return err
 		}
 		heads, err := s.repo.ExportPage(ctx, tx, scope, after, ExportPageSize+1)

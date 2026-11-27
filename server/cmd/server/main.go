@@ -33,6 +33,9 @@ func main() {
 	}
 }
 
+// accessFlushInterval is how often access audit rollups reach the graph.
+const accessFlushInterval = 30 * time.Second
+
 type serverRuntime struct {
 	api, health http.Handler
 	readiness   readinessProbe
@@ -205,10 +208,32 @@ func composeRuntime(ctx context.Context, cfg platform.Config, key []byte, object
 	if err != nil {
 		return nil, err
 	}
-	e, err := handler.NewServer(service.NewIdentityService(store, repository.NewIdentityRepository(store), gateway.NostrIdentity{}), capture, checkpoints, memory, retrieval, service.NewPolicyService(store, evidenceRepo, retrievalRepo), status, transfer, logger, handler.WithRemoteMCP(), handler.WithDecisions(service.NewDecisionService(store, repository.NewDecisionRepository(store), repository.NewVerificationRepository(store), evidenceRepo, repository.NewIdentityRepository(store), nil, gateway.NostrVerifier{}, time.Now)))
+	access := service.NewAccessService(store, repository.NewAccessRepository(store), repository.NewIdentityRepository(store), time.Now, logger)
+	e, err := handler.NewServer(service.NewIdentityService(store, repository.NewIdentityRepository(store), gateway.NostrIdentity{}), capture, checkpoints, memory, retrieval, service.NewPolicyService(store, evidenceRepo, retrievalRepo), status, transfer, logger, handler.WithRemoteMCP(), handler.WithAccessAudit(access), handler.WithDecisions(service.NewDecisionService(store, repository.NewDecisionRepository(store), repository.NewVerificationRepository(store), evidenceRepo, repository.NewIdentityRepository(store), nil, gateway.NostrVerifier{}, time.Now)))
 	if err != nil {
 		return nil, err
 	}
 	complete = true
-	return &serverRuntime{api: handler.GuardPublicAPI(platform.AdmittedHandler(admission, instance, e), logger), readiness: service.NewHealthService(admission, store, objects, journal, 5*time.Second, instance), close: closeStore}, nil
+	// The audit flusher runs for the process lifetime as its own admitted
+	// operation per flush, so maintenance drains it like any request. close
+	// stops it, waits for the final flush, then closes the graph.
+	auditCtx, stopAudit := context.WithCancel(context.Background())
+	auditDone := make(chan struct{})
+	go func() {
+		defer close(auditDone)
+		access.Run(auditCtx, accessFlushInterval, func(ctx context.Context) error {
+			ctx = domain.WithOperationOutcome(ctx)
+			permit, err := admission.Admit(ctx, instance, "access-audit")
+			if err != nil {
+				return err
+			}
+			return platform.FinishOperation(ctx, admission, permit, access.Flush(ctx))
+		})
+	}()
+	closeRuntime := func() {
+		stopAudit()
+		<-auditDone
+		closeStore()
+	}
+	return &serverRuntime{api: handler.GuardPublicAPI(platform.AdmittedHandler(admission, instance, e), logger), readiness: service.NewHealthService(admission, store, objects, journal, 5*time.Second, instance), close: closeRuntime}, nil
 }
