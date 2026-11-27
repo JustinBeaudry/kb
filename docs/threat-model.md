@@ -77,7 +77,7 @@ An attacker obtains a client bearer from a log, a terminal, a config file or the
 | A stolen bearer can never act as the owner. | `TestHostOwnerCannotAuthenticateAsBearer` |
 | Browsers cannot use a bearer against `/mcp`: any request with an `Origin` header is refused, which closes DNS rebinding and cross-site use. | `TestRemoteMCPRefusesUnauthenticatedAndMalformedRequests` |
 
-After a suspected theft: `kb-admin access --client-id ID` shows what the client touched per day, then `kb-admin rotate` or `revoke`. Afterwards, `auth:revoked` or `auth:expired` rows for that client mean the stolen copy is still being tried. Bearers that name no client are counted under `*` as `auth:unknown`. See [credentials](runbooks/credentials.md).
+After a suspected theft: `kb-admin access --client-id ID` shows what the client touched per day, then `kb-admin rotate` or `revoke`. Afterwards, `auth:revoked` or `auth:expired` rows for that client mean the stolen copy is still being tried. Well-formed bearers that name no client are counted under `*` as `auth:unknown`; requests with no bearer or a malformed one are refused by the public guard and appear only as `401` counts in request logs. See [credentials](runbooks/credentials.md).
 
 ### A compromised client
 

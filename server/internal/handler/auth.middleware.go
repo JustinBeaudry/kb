@@ -76,6 +76,8 @@ func authentication(identity Authenticator, access AccessRecorder) echo.Middlewa
 			}()
 			bearer, ok := bearerHeader(c.Request().Header)
 			if !ok {
+				// In the deployed server the public guard refuses these first;
+				// this covers Echo served without it.
 				domain.ObserveAuthFailure(ctx, "", domain.AccessAuthUnknown)
 				return problem(c, domain.ErrUnauthorized)
 			}
