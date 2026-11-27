@@ -90,6 +90,7 @@ An agent, its host or its tools are fully controlled by an attacker who holds a 
 | It cannot enroll, revoke, adjudicate or reach host administration. | `TestMCPToolCannotRequestOwnerCapability`, `TestOwnerAdjudicationRejectsClientAndVerifierAuthority`, `TestHostOwnerCannotAuthenticateAsBearer` |
 | Its activity is counted in the access audit trail, including denials. | `TestAccessAuditRecordsEachAuthenticatedRequestOnce` |
 | Revoking it stops it at the next request. | `TestRevokedTokenFailsNextRequest` |
+| It cannot starve other clients: the public guard bounds the api to 8 requests a second and 8 in flight before any graph work, and each credential to half of that (kb#41). | `TestPublicGuardBoundsBurstAndRefillsEightPerSecond`, `TestPublicGuardGivesEachCredentialHalfTheCapacity` |
 
 ### Owner key compromise
 
@@ -107,9 +108,8 @@ Evidence and backups are encrypted with age keyrings before upload, authenticate
 
 ## Open gaps
 
-1. **No rate limiting.** An authenticated client can send requests as fast as the api serves them. Bearers are unguessable, so this is availability, not access. Add a per-client limit at the api.
-2. **Failed authentication is not attributed.** Requests with a bad bearer appear only as `401` counts in request logs, not in the access audit trail. Add a bounded counter of failed attempts per source.
-3. **Tool descriptions do not tell agents to treat stored text as data.** kb deliberately sends no instructions, but each retrieval tool's description could say that returned text is stored content, not instructions, without adding a server voice. Decide and test.
-4. **OAuth grants** (roadmap Tier 1) will add a new path to a bearer. Each grant must expire, be owner-approved with the owner's key, and appear in the access audit trail before it ships.
-5. **Owner key recovery.** Write the runbook for replacing a lost or stolen owner key and reviewing what the old key signed, with a drill.
-6. **Branch protection on `main`** (roadmap security item 2): require the Memory service and Security checks before merge.
+1. **Failed authentication is not attributed.** Requests with a bad bearer appear only as `401` counts in request logs, not in the access audit trail. Add a bounded counter of failed attempts per source.
+2. **Tool descriptions do not tell agents to treat stored text as data.** kb deliberately sends no instructions, but each retrieval tool's description could say that returned text is stored content, not instructions, without adding a server voice. Decide and test.
+3. **OAuth grants** (roadmap Tier 1) will add a new path to a bearer. Each grant must expire, be owner-approved with the owner's key, and appear in the access audit trail before it ships.
+4. **Owner key recovery.** Write the runbook for replacing a lost or stolen owner key and reviewing what the old key signed, with a drill.
+5. **Branch protection on `main`** (roadmap security item 2): require the Memory service and Security checks before merge.
