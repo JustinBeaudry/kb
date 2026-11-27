@@ -27,7 +27,7 @@ func (s *PolicyService) Get(ctx context.Context, p domain.Principal, projectID s
 	if domain.ValidateIDs(projectID) != nil {
 		return domain.Policy{}, domain.ErrInvalidInput
 	}
-	if err := Authorize(p, "policy:read", []string{projectID}); err != nil {
+	if err := authorize(ctx, p, "policy:read", []string{projectID}); err != nil {
 		return domain.Policy{}, err
 	}
 	var policy domain.Policy
@@ -36,7 +36,7 @@ func (s *PolicyService) Get(ctx context.Context, p domain.Principal, projectID s
 		if err != nil {
 			return err
 		}
-		if err = Authorize(current.Principal, "policy:read", []string{projectID}); err != nil {
+		if err = authorize(ctx, current.Principal, "policy:read", []string{projectID}); err != nil {
 			return err
 		}
 		policy, err = s.repo.Policy(ctx, tx, projectID)

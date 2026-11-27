@@ -44,7 +44,7 @@ func newRuntimeSnapshot(c supervisorConfig, o *gateway.S3, j *gateway.S3Deletion
 		return nil, domain.ErrInvalidInput
 	}
 	digest := func(b []byte) string { v := sha256.Sum256(b); return hex.EncodeToString(v[:]) }
-	schema := migrations.Identity + "\n" + migrations.Clients + "\n" + migrations.Jobs + "\n" + migrations.Evidence + "\n" + migrations.Memory + "\n" + migrations.Verification + "\n" + migrations.Decisions + "\n" + migrations.Dreaming + "\n" + migrations.Lifecycle + "\n" + migrations.Lessons + "\n" + migrations.SupersedeBackfill
+	schema := migrations.Identity + "\n" + migrations.Clients + "\n" + migrations.Jobs + "\n" + migrations.Evidence + "\n" + migrations.Memory + "\n" + migrations.Verification + "\n" + migrations.Decisions + "\n" + migrations.Dreaming + "\n" + migrations.Lifecycle + "\n" + migrations.Lessons + "\n" + migrations.SupersedeBackfill + "\n" + migrations.Access
 	key, e := platform.LoadRetrievalKey()
 	if e != nil {
 		return nil, e
