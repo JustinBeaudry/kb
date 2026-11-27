@@ -23,9 +23,9 @@ kb is both the authorization server and the resource server, served by the exist
 
 | Endpoint | Standard | Notes |
 | --- | --- | --- |
-| `GET /.well-known/oauth-protected-resource` | RFC 9728 | `resource` = `https://<public host>/mcp`, `authorization_servers` = the same origin. |
+| `GET /.well-known/oauth-protected-resource` (and `/mcp` appended) | RFC 9728 | `resource` = `https://<public host>/mcp`. `authorization_servers` = the same origin, added in phase 2. Served before the public guard: constant, credential-free, no graph work. |
 | `401` on `/mcp` | RFC 9728 §5.1 | Adds `WWW-Authenticate: Bearer resource_metadata="…"`. Bearer clients see no other change. |
-| `GET /.well-known/oauth-authorization-server` | RFC 8414 | `code` grant and `refresh_token` only; `S256` only; `token_endpoint_auth_methods_supported: ["none"]`. |
+| `GET /.well-known/oauth-authorization-server` | RFC 8414 | `code` grant and `refresh_token` only; `S256` only; `token_endpoint_auth_methods_supported: ["none"]`. Ships with phase 2, never before the endpoints it names exist. |
 | `POST /oauth/register` | RFC 7591 | Public clients only. Exact redirect URIs: `https://`, or `http://127.0.0.1`/`[::1]` with any port for native apps. Unapproved registrations expire after 24 hours; at most 256 pending. |
 | `GET /oauth/authorize` | OAuth 2.1 | Requires `code_challenge` (S256), `state`, `resource`, and a registered `redirect_uri`. Creates a pending request and shows the approval page. |
 | `GET /oauth/requests/{id}` | kb | Polled by the approval page; returns only pending, approved or denied. |
@@ -80,8 +80,8 @@ Phase 3 adds approval in the browser with a NIP-07 signer: the page asks the ext
 
 ## Phases
 
-1. **Discovery.** Protected resource metadata, the `WWW-Authenticate` header on `401`, authorization server metadata. No change for bearer clients. Needs a public base URL setting on the api service.
-2. **Grants.** Registration, authorize, host approval, token exchange, refresh rotation, revocation. Real-graph tests for every row in the abuse table, and an end-to-end test that drives the flow with a scripted client.
+1. **Discovery.** Protected resource metadata and the `WWW-Authenticate` header on `401` from `/mcp`. No change for bearer clients. The public origin comes from `KB_PUBLIC_URL`, or Railway's `RAILWAY_PUBLIC_DOMAIN`, never from request headers. The metadata names no authorization server yet, so clients are not sent to endpoints that do not exist.
+2. **Grants.** Authorization server metadata and `authorization_servers` in the resource metadata, registration, authorize, host approval, token exchange, refresh rotation, revocation. Real-graph tests for every row in the abuse table, and an end-to-end test that drives the flow with a scripted client.
 3. **Browser approval** with a NIP-07 signer.
 4. **Client ID Metadata Documents.**
 
