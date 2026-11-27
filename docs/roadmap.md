@@ -8,14 +8,15 @@ Status as of 2026-11-27. Items are in priority order within each tier. Linear tr
 
 - **Strong already:** scoped client credentials (256-bit bearers stored only as SHA-256 digests, revocable, limited to projects and capabilities), owner actions signed with the owner's key and never reachable by a bearer, a closed log schema that drops anything not on an allowlist, encrypted evidence with key rotation, budgeted retrieval with citations, candidate claims kept apart from verified knowledge, backup and restore drills, and pinned CI actions and base images.
 - **Running:** Railway project `kb-memory` (api, worker, graph, four buckets). The api and worker run the 2026-11-01 build. Five merged server PRs (kb#7, #8, #9, #10, #14) are not deployed. Deploys are manual.
-- **Not yet true:** production holds no real knowledge; only stdio MCP exists, so web and desktop AI apps can't connect; remote memory can't be read in Obsidian; no dependency scanning or update automation before kb#18; the worker exited on every graph restart before kb#17.
+- **Not yet true:** production holds no real knowledge; only stdio MCP exists, so web and desktop AI apps can't connect; remote memory can't be read in Obsidian; no dependency scanning before kb#18, which found and patched four reachable vulnerabilities; the worker exited on every graph restart before kb#17.
 
 ## Tier 0: run reliably
 
 1. **Worker survives dependency restarts** (kb#17). Retry transient startup failures, and log the failing stage and error class from a closed vocabulary.
 2. **Deploy main and take a backup straight after.** Migrations 007, 008, 010 and 011 change the backup schema digest, so the first backup after deploy is the new restore baseline. Keep graph deployment `5ed3e589` for restoring older backups. Needs the owner's go-ahead.
 3. **Deploy from CI, not from a laptop.** Connect the three services to GitHub with "wait for CI", so main deploys only after the Memory service and Security workflows pass.
-4. **Alerts.** Railway monitors on api readiness, worker restarts and backup age, matching the thresholds in `docs/runbooks/observability.md`.
+4. **Keep security patches from breaking restore.** Restore refuses any backup whose tool-versions digest differs, and that digest covers the Go build image, so every Go patch release starts a new restore boundary. Narrow the check to what changes the backup format (Neo4j version and schema), with a test that restores across a Go patch bump.
+5. **Alerts.** Railway monitors on api readiness, worker restarts and backup age, matching the thresholds in `docs/runbooks/observability.md`.
 
 ## Tier 1: any AI provider can share one memory
 
