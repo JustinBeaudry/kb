@@ -144,7 +144,9 @@ func TestWorkerCompositionGracefulStop(t *testing.T) {
 		require.Equal(t, "purge_pending", receipt.State)
 		workerCtx, stopWorker := context.WithTimeout(t.Context(), 30*time.Second)
 		result := make(chan error, 1)
-		go func() { result <- runCapture(workerCtx, slog.New(slog.NewJSONHandler(io.Discard, nil)), captureOptions{}) }()
+		go func() {
+			result <- runCapture(workerCtx, slog.New(slog.NewJSONHandler(io.Discard, nil)), captureOptions{})
+		}()
 		t.Cleanup(func() { stopWorker(); require.NoError(t, <-result) })
 		require.Eventually(t, func() bool {
 			status, err := lifecycle.DeletionStatusHost(t.Context(), receipt.ID)

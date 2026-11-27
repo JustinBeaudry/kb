@@ -33,8 +33,8 @@ func main() {
 	if err != nil {
 		err = platform.AtStage("health", err)
 	} else {
-		attempt := func(ctx context.Context, ready func()) error {
-			return runCapture(ctx, logger, captureOptions{health: health, ready: ready, telemetry: telemetry})
+		attempt := func(ctx context.Context, hooks startupHooks) error {
+			return runCapture(ctx, logger, captureOptions{health: health, admitted: hooks.admitted, ready: hooks.ready, telemetry: telemetry})
 		}
 		err = superviseStartup(ctx, logger, defaultStartupRetry, attempt)
 		_ = health.Close()
@@ -50,9 +50,11 @@ func main() {
 // starts a private liveness listener, which is what the composition tests use.
 type captureOptions struct {
 	health    *workerHealth
+	admitted  func() // called once maintenance admission is granted
 	ready     func()
 	telemetry *platform.Telemetry
 }
+
 func run(parent context.Context, logger *slog.Logger, handlers map[string]platform.RunJob) error {
 	if len(handlers) == 0 {
 		return domain.ErrUnavailable
@@ -182,6 +184,9 @@ func runCapture(parent context.Context, logger *slog.Logger, opts captureOptions
 			return nil
 		}
 		return platform.AtStage("admission", err)
+	}
+	if opts.admitted != nil {
+		opts.admitted()
 	}
 	startupCtx := domain.WithOperationOutcome(ctx)
 	startupFinished := false

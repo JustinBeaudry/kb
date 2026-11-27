@@ -24,20 +24,30 @@ var defaultStartupRetry = startupRetry{initial: time.Second, max: 30 * time.Seco
 
 const (
 	attemptStarting int32 = iota
+	attemptAdmitted
 	attemptReady
 	attemptTimedOut
 )
+
+// startupHooks lets an attempt report its progress. admitted disarms the
+// startup deadline once maintenance admission is granted, so the work that
+// runs under the permit (graph connection, lifecycle recovery and releasing
+// the permit) is never cancelled part way. ready marks the worker serving.
+type startupHooks struct {
+	admitted func()
+	ready    func()
+}
 
 // superviseStartup runs attempt until it returns nil, the context ends, it
 // fails with a non-transient error, or transient failures continue for longer
 // than giveUp. Before this, one graph restart stopped the worker process and
 // relied on the platform restart budget to bring it back.
 //
-// attempt calls ready once it is serving. Until then the attempt is bounded by
-// what is left of the failure window, so a dependency that blocks forever
-// (admission retries indefinitely on its own) still ends in worker_stopped.
+// Until an attempt reports admitted (or ready), it is bounded by what is left
+// of the failure window, so an admission wait that blocks forever (admission
+// retries indefinitely on its own) still ends in worker_stopped.
 // The window and backoff reset only after an attempt served for healthy.
-func superviseStartup(ctx context.Context, logger *slog.Logger, policy startupRetry, attempt func(context.Context, func()) error) error {
+func superviseStartup(ctx context.Context, logger *slog.Logger, policy startupRetry, attempt func(context.Context, startupHooks) error) error {
 	backoff := policy.initial
 	var failingSince time.Time
 	for n := 1; ; n++ {
@@ -84,17 +94,19 @@ func superviseStartup(ctx context.Context, logger *slog.Logger, policy startupRe
 type attemptResult struct {
 	err      error
 	readyAt  time.Time // zero when the attempt never became ready
-	timedOut bool      // the deadline passed before ready
+	timedOut bool      // the deadline passed before admission or ready
 }
 
-// runAttempt cancels the attempt at deadline unless it has called ready first.
-func runAttempt(ctx context.Context, deadline time.Time, attempt func(context.Context, func()) error) attemptResult {
+// runAttempt cancels the attempt at deadline unless it was admitted or became
+// ready first.
+func runAttempt(ctx context.Context, deadline time.Time, attempt func(context.Context, startupHooks) error) attemptResult {
 	attemptCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	var state atomic.Int32
 	var readyAt atomic.Pointer[time.Time]
+	admitted := func() { state.CompareAndSwap(attemptStarting, attemptAdmitted) }
 	ready := func() {
-		if state.CompareAndSwap(attemptStarting, attemptReady) {
+		if state.CompareAndSwap(attemptStarting, attemptReady) || state.CompareAndSwap(attemptAdmitted, attemptReady) {
 			now := time.Now()
 			readyAt.Store(&now)
 		}
@@ -105,7 +117,7 @@ func runAttempt(ctx context.Context, deadline time.Time, attempt func(context.Co
 		}
 	})
 	defer timer.Stop()
-	err := attempt(attemptCtx, ready)
+	err := attempt(attemptCtx, startupHooks{admitted: admitted, ready: ready})
 	var at time.Time
 	if p := readyAt.Load(); p != nil {
 		at = *p
