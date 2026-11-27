@@ -77,7 +77,7 @@ async function runCli(
   env: TestEnv,
   args: string[],
   options: { input?: string; env?: Record<string, string>; onSpawn?: (pid: number) => void } = {}
-): Promise<{ exitCode: number; signalCode: NodeJS.Signals | null; stdout: string; stderr: string; finishedAt: number }> {
+): Promise<{ exitCode: number; signalCode: NodeJS.Signals | number | null; stdout: string; stderr: string; finishedAt: number }> {
   const proc = Bun.spawn([process.execPath, CLI, ...args], {
     cwd: env.root,
     // Isolate the fixture caller so an incorrect process-group signal cannot
