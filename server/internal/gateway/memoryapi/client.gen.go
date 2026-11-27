@@ -845,6 +845,9 @@ type Client struct {
 	AuthEpoch    int64    `json:"auth_epoch"`
 	Capabilities []string `json:"capabilities"`
 
+	// ExpiresAt When the bearer stops authenticating. Absent for a bearer without expiry.
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+
 	// Id Nonempty opaque identifier. Never a database elementId.
 	Id         OpaqueID   `json:"id"`
 	ProjectIds []OpaqueID `json:"project_ids"`
@@ -871,6 +874,9 @@ type ClientInput struct {
 	Id         OpaqueID        `json:"id"`
 	ProjectIds []OpaqueID      `json:"project_ids"`
 	Role       ClientInputRole `json:"role"`
+
+	// TtlSeconds Seconds until the bearer stops authenticating, from one hour to 366 days. Omit for a bearer without expiry; kb-admin rotate issues a replacement before it lapses.
+	TtlSeconds *int64 `json:"ttl_seconds,omitempty"`
 }
 
 // ClientInputCapabilities defines model for ClientInput.Capabilities.
