@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -84,4 +85,186 @@ func CanonicalClientName(raw string) (string, error) {
 		}
 	}
 	return name, nil
+}
+
+const (
+	// OAuthRequestTTL is how long the owner has to approve a grant request.
+	OAuthRequestTTL = 10 * time.Minute
+	// OAuthCodeTTL is how long an authorization code can be exchanged.
+	OAuthCodeTTL = time.Minute
+	// MaxPendingOAuthRequests bounds grant requests waiting for the owner.
+	MaxPendingOAuthRequests = 64
+	// MaxOAuthGrantTTL is the longest a grant may live before the owner must
+	// approve it again.
+	MaxOAuthGrantTTL = 90 * 24 * time.Hour
+	// DefaultOAuthGrantTTL is used when the owner names no lifetime.
+	DefaultOAuthGrantTTL = 30 * 24 * time.Hour
+	// MaxOAuthStateLength bounds the client's opaque state.
+	MaxOAuthStateLength = 512
+	// OAuthApprovalCodeAlphabet has no characters that look alike (0/O, 1/I/L).
+	OAuthApprovalCodeAlphabet = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+	// OAuthApprovalCodeLength is the length of the code the owner types.
+	OAuthApprovalCodeLength = 8
+	// OAuthProjectScopePrefix marks a project in an OAuth scope string.
+	OAuthProjectScopePrefix = "project:"
+)
+
+// OAuthGrantCapabilities are the capabilities an OAuth grant may carry: those
+// of an agent client, and nothing an owner, collector or verifier holds.
+var OAuthGrantCapabilities = []string{"policy:read", "status:read", "retrieval:read", "evidence:read", "candidate:write", "checkpoint:write", "memory:export"}
+
+// OAuthRequestStatus is where a grant request stands.
+type OAuthRequestStatus string
+
+const (
+	OAuthRequestPending  OAuthRequestStatus = "pending"
+	OAuthRequestApproved OAuthRequestStatus = "approved"
+	OAuthRequestDenied   OAuthRequestStatus = "denied"
+)
+
+// OAuthScope is what a client asks for, or what the owner grants: projects and
+// capabilities. A request may name neither, leaving the choice to the owner.
+type OAuthScope struct {
+	Projects     []string `json:"projects"`
+	Capabilities []string `json:"capabilities"`
+}
+
+// OAuthRequest is one authorization request waiting for, or decided by, the
+// owner. The browser cookie and the authorization code are kept only as
+// SHA-256 digests.
+type OAuthRequest struct {
+	ID            string             `json:"id"`
+	ApprovalCode  string             `json:"approval_code"`
+	ClientID      string             `json:"client_id"`
+	ClientName    string             `json:"client_name"`
+	RedirectURI   string             `json:"redirect_uri"`
+	State         string             `json:"-"`
+	CodeChallenge string             `json:"-"`
+	Requested     OAuthScope         `json:"requested"`
+	Status        OAuthRequestStatus `json:"status"`
+	Granted       OAuthScope         `json:"granted"`
+	GrantTTL      time.Duration      `json:"-"`
+	CookieDigest  string             `json:"-"`
+	CodeDigest    string             `json:"-"`
+	CodeExpiresAt time.Time          `json:"-"`
+	Released      bool               `json:"-"`
+	CreatedAt     time.Time          `json:"created_at"`
+	ExpiresAt     time.Time          `json:"expires_at"`
+}
+
+// ParseOAuthScope reads a space-separated scope: project:<id> tokens and
+// capability names. An empty scope asks for nothing in particular.
+func ParseOAuthScope(raw string) (OAuthScope, error) {
+	scope := OAuthScope{Projects: []string{}, Capabilities: []string{}}
+	if len(raw) > 2048 {
+		return OAuthScope{}, ErrInvalidInput
+	}
+	for token := range strings.FieldsSeq(raw) {
+		if project, ok := strings.CutPrefix(token, OAuthProjectScopePrefix); ok {
+			if !validScopeProject(project) {
+				return OAuthScope{}, ErrInvalidInput
+			}
+			if !slices.Contains(scope.Projects, project) {
+				scope.Projects = append(scope.Projects, project)
+			}
+			continue
+		}
+		if !slices.Contains(OAuthGrantCapabilities, token) {
+			return OAuthScope{}, ErrInvalidInput
+		}
+		if !slices.Contains(scope.Capabilities, token) {
+			scope.Capabilities = append(scope.Capabilities, token)
+		}
+	}
+	if len(scope.Projects) > 50 {
+		return OAuthScope{}, ErrInvalidInput
+	}
+	return scope, nil
+}
+
+// String renders the scope in the form ParseOAuthScope reads.
+func (s OAuthScope) String() string {
+	tokens := make([]string, 0, len(s.Projects)+len(s.Capabilities))
+	for _, p := range s.Projects {
+		tokens = append(tokens, OAuthProjectScopePrefix+p)
+	}
+	return strings.Join(append(tokens, s.Capabilities...), " ")
+}
+
+// Within reports whether grant asks for nothing beyond s. An empty side of the
+// request leaves that side to the owner.
+func (s OAuthScope) Within(grant OAuthScope) bool {
+	for _, p := range grant.Projects {
+		if len(s.Projects) > 0 && !slices.Contains(s.Projects, p) {
+			return false
+		}
+	}
+	for _, c := range grant.Capabilities {
+		if !slices.Contains(OAuthGrantCapabilities, c) || (len(s.Capabilities) > 0 && !slices.Contains(s.Capabilities, c)) {
+			return false
+		}
+	}
+	return true
+}
+
+// ValidCodeChallenge reports whether c is a PKCE S256 challenge: the
+// unpadded base64url encoding of a SHA-256 digest (RFC 7636 §4.2).
+func ValidCodeChallenge(c string) bool {
+	if len(c) != 43 {
+		return false
+	}
+	for _, r := range c {
+		if !(r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' || r == '_') {
+			return false
+		}
+	}
+	return true
+}
+
+// ValidOAuthState reports whether a client's state can be echoed back safely.
+func ValidOAuthState(s string) bool {
+	if s == "" || len(s) > MaxOAuthStateLength {
+		return false
+	}
+	for _, r := range s {
+		if r < 0x20 || r > 0x7e {
+			return false
+		}
+	}
+	return true
+}
+
+// NormalizeApprovalCode uppercases a typed approval code and drops spaces and
+// dashes, and reports whether the result is a well-formed code.
+func NormalizeApprovalCode(raw string) (string, bool) {
+	code := strings.Map(func(r rune) rune {
+		if r == ' ' || r == '-' {
+			return -1
+		}
+		return unicode.ToUpper(r)
+	}, raw)
+	if len(code) != OAuthApprovalCodeLength {
+		return "", false
+	}
+	for _, r := range code {
+		if !strings.ContainsRune(OAuthApprovalCodeAlphabet, r) {
+			return "", false
+		}
+	}
+	return code, true
+}
+
+// validScopeProject accepts the project IDs a scope may name: short, and made
+// only of letters, digits, dot, dash and underscore, so they render plainly on
+// the approval page.
+func validScopeProject(p string) bool {
+	if p == "" || len(p) > 128 {
+		return false
+	}
+	for _, r := range p {
+		if !(r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '.' || r == '-' || r == '_') {
+			return false
+		}
+	}
+	return true
 }

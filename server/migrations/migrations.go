@@ -56,3 +56,8 @@ var OwnerKeys string
 //
 //go:embed 014_oauth.cypher
 var OAuth string
+
+// OAuthRequests holds OAuth grant requests waiting for the owner.
+//
+//go:embed 015_oauth_requests.cypher
+var OAuthRequests string
