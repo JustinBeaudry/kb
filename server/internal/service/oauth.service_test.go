@@ -90,6 +90,9 @@ func (f *oauthRepoFake) DecideRequest(_ context.Context, _ Tx, id string, status
 		return domain.ErrConflict
 	}
 	r.Status, r.Granted, r.GrantTTL = status, granted, ttl
+	if status == domain.OAuthRequestApproved {
+		r.GrantExpiresAt = now.Add(ttl)
+	}
 	f.requests[id] = r
 	return nil
 }
