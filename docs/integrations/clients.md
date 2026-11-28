@@ -130,7 +130,8 @@ keep that directory readable only by you. Run `hermes mcp login kb` to sign
 in again after `kb-admin revoke` or when the grant ends.
 
 To use an enrolled bearer instead, put `KB_MEMORY_BEARER=...` in
-`~/.hermes/.env` and name the variable in the header:
+`~/.hermes/.env` and name the variable in the header. Make that file readable
+only by you first (`chmod 600 ~/.hermes/.env`):
 
 ```yaml
 mcp_servers:
@@ -146,7 +147,7 @@ expired, or the variable was not set where Hermes reads it. Run
 `/reload-mcp` in a session, or restart Hermes, after editing the file.
 
 `tools.include` limits which kb tools Hermes sees, for example
-`include: [memory_status, memory_orient, memory_search, memory_query, memory_fetch]` for an
+`include: [memory_status, memory_orient, memory_search, memory_fetch]` for an
 agent that should only read. That only hides tools; the credential's
 capabilities are what kb enforces.
 
