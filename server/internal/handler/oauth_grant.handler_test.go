@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/JustinBeaudry/kb/server/internal/domain"
 	"github.com/JustinBeaudry/kb/server/internal/service"
@@ -76,6 +77,8 @@ func TestOAuthAuthorizeShowsALockedDownApprovalPage(t *testing.T) {
 	assert.True(t, c.Secure)
 	assert.True(t, c.HttpOnly)
 	assert.Equal(t, http.SameSiteStrictMode, c.SameSite)
+	assert.Greater(t, c.MaxAge, int(domain.OAuthRequestTTL.Seconds()), "the cookie outlives the request, so the poll after expiry still reaches kb")
+	assert.LessOrEqual(t, c.MaxAge, int((domain.OAuthRequestTTL + 5*time.Minute).Seconds()))
 
 	body := w.Body.String()
 	assert.Contains(t, body, "app.example", "the page names where the browser will be sent")

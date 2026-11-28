@@ -15,6 +15,12 @@ import (
 	"github.com/JustinBeaudry/kb/server/internal/service"
 )
 
+// oauthRequestCookieGrace keeps the polling cookie a little past the
+// request's expiry, so the page's next poll still reaches kb and learns of a
+// last-second approval or of the expiry itself. Expired requests are kept for
+// an hour, so the poll still finds them.
+const oauthRequestCookieGrace = 2 * time.Minute
+
 const (
 	// OAuthAuthorizePath starts a grant request and shows the approval page.
 	OAuthAuthorizePath = OAuthPathPrefix + "authorize"
@@ -127,7 +133,7 @@ func (h *oauthHandler) authorize(w http.ResponseWriter, r *http.Request, grants 
 	if u, err := url.Parse(req.RedirectURI); err == nil {
 		host = u.Host
 	}
-	http.SetCookie(w, &http.Cookie{Name: OAuthRequestCookie, Value: a.Cookie, Path: OAuthRequestsPath + req.ID, MaxAge: int(domain.OAuthRequestTTL.Seconds()), Secure: true, HttpOnly: true, SameSite: http.SameSiteStrictMode})
+	http.SetCookie(w, &http.Cookie{Name: OAuthRequestCookie, Value: a.Cookie, Path: OAuthRequestsPath + req.ID, MaxAge: int((domain.OAuthRequestTTL + oauthRequestCookieGrace).Seconds()), Secure: true, HttpOnly: true, SameSite: http.SameSiteStrictMode})
 	code := req.ApprovalCode
 	if len(code) == domain.OAuthApprovalCodeLength {
 		code = code[:4] + "-" + code[4:]
