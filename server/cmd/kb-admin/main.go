@@ -83,6 +83,11 @@ SharingScope, Applicability, Counterexamples, SupportRevisions) and returns its 
 State, Reasons and Digest without writing. Publish the same lesson JSON with
 ExpectedDigest set to Digest; a changed lesson, head or support state fails stale.
 kb-admin decisions [--input PATH|-]           {"Limit":50}
+kb-admin judgments [--signer 64_HEX] [--since YYYY-MM-DD] [--limit 100] [--after CURSOR]
+Lists owner judgments oldest first: when each decision was approved or rejected,
+by which signing key, for which project and candidate revision. current_key is
+false for a key that is no longer enrolled. After owner-rotate, pass the retired
+key it printed as --signer to see everything that key signed. Pass next as --after.
 kb-admin decision-request --preview [--input PATH|-]  {"CandidateRevision":"REV","RequestedAction":"publish"}
 kb-admin decision-request [--input PATH|-]    {"CandidateRevision":"REV","RequestedAction":"publish","ExpectedEvidenceDigest":"64_HEX"}
 kb-admin decision-sync [--input PATH|-]       {"Limit":50}
@@ -213,6 +218,9 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	if len(args) > 0 && decisionCommand(args[0]) {
 		factory = composeDecisionAdministration
 	}
+	if len(args) > 0 && args[0] == "judgments" {
+		factory = composeJudgmentAdministration
+	}
 	route, complete := productionAdminRoute(ctx, output)
 	err := runAdminRouted(ctx, args, output, os.Stdin, factory, route)
 	if completionErr := complete(err); completionErr != nil {
@@ -220,7 +228,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	}
 	if err != nil && len(args) > 0 {
 		switch args[0] {
-		case "setup", "enroll", "rotate", "revoke", "owner-rotate", "oauth-requests", "oauth-approve", "oauth-deny", "list", "access", "verify", "reject", "invalidate", "verify-check", "lesson-publish", "recover", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-request", "decision-sync", "decision-challenge", "decision-approve":
+		case "setup", "enroll", "rotate", "revoke", "owner-rotate", "oauth-requests", "oauth-approve", "oauth-deny", "list", "access", "verify", "reject", "invalidate", "verify-check", "lesson-publish", "recover", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-request", "decision-sync", "decision-challenge", "decision-approve", "judgments":
 			return commandError{command: args[0], cause: err}
 		}
 	}
@@ -242,13 +250,13 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 		return domain.ErrUnavailable
 	}
 	switch command {
-	case "setup", "enroll", "rotate", "revoke", "owner-rotate", "oauth-requests", "oauth-approve", "oauth-deny", "list", "access", "verify", "reject", "invalidate", "verify-check", "lesson-publish", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-request", "decision-sync", "decision-challenge", "decision-approve":
+	case "setup", "enroll", "rotate", "revoke", "owner-rotate", "oauth-requests", "oauth-approve", "oauth-deny", "list", "access", "verify", "reject", "invalidate", "verify-check", "lesson-publish", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-request", "decision-sync", "decision-challenge", "decision-approve", "judgments":
 	default:
 		return domain.ErrInvalidInput
 	}
 	flags := flag.NewFlagSet(command, flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	var ownerID, key, project, role, capabilities, clientID, after, inputPath, ttlText, since, code string
+	var ownerID, key, project, role, capabilities, clientID, after, inputPath, ttlText, since, code, signer string
 	var fd, limit int
 	var preview bool
 	switch command {
@@ -290,6 +298,11 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 		flags.StringVar(&since, "since", "", "first UTC day, YYYY-MM-DD (default 30 days ago)")
 		flags.IntVar(&limit, "limit", 100, "page size")
 		flags.StringVar(&after, "after", "", "cursor")
+	case "judgments":
+		flags.StringVar(&signer, "signer", "", "only judgments signed by this public key")
+		flags.StringVar(&since, "since", "", "first UTC day, YYYY-MM-DD")
+		flags.IntVar(&limit, "limit", 100, "page size")
+		flags.StringVar(&after, "after", "", "cursor")
 	case "journal-init", "journal-check":
 	default:
 		flags.StringVar(&inputPath, "input", "-", "JSON file or stdin")
@@ -320,6 +333,9 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 		return domain.ErrInvalidInput
 	}
 	if command == "access" && (limit < 1 || limit > 500 || (since != "" && !domain.ValidAccessDay(since))) {
+		return domain.ErrInvalidInput
+	}
+	if command == "judgments" && (limit < 1 || limit > domain.MaxJudgmentPage || (since != "" && !domain.ValidAccessDay(since))) {
 		return domain.ErrInvalidInput
 	}
 	if (command == "revoke" || command == "rotate") && domain.ValidateIDs(clientID) != nil {
@@ -386,7 +402,7 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 		}
 	}
 	if route != nil {
-		request := domain.HostAdminRequest{Version: 1, Action: command, Options: domain.HostAdminOptions{OwnerID: ownerID, PublicKey: key, ProjectID: project, Role: role, Capabilities: capabilities, ClientID: clientID, After: after, Limit: limit, Preview: preview, TTL: ttlText, Since: since, Code: code}}
+		request := domain.HostAdminRequest{Version: 1, Action: command, Options: domain.HostAdminOptions{OwnerID: ownerID, PublicKey: key, ProjectID: project, Role: role, Capabilities: capabilities, ClientID: clientID, After: after, Limit: limit, Preview: preview, TTL: ttlText, Since: since, Code: code, Signer: signer}}
 		var input any
 		switch {
 		case lifecycleCommand(command) && command != "journal-init" && command != "journal-check":
@@ -490,6 +506,15 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 		return json.NewEncoder(output).Encode(change)
 	case "list":
 		page, err := admin.identity.ListHost(ctx, limit, after)
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(output).Encode(page)
+	case "judgments":
+		if admin.decisions == nil {
+			return domain.ErrUnavailable
+		}
+		page, err := admin.decisions.JudgmentsHost(ctx, domain.JudgmentQuery{Signer: signer, Since: since, Limit: limit, After: after})
 		if err != nil {
 			return err
 		}

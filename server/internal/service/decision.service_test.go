@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/hex"
 	"slices"
+	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -99,6 +101,28 @@ func (f *decisionRepoFake) PutJudgment(_ context.Context, _ Tx, j domain.OwnerJu
 	}
 	f.judgments = append(f.judgments, j)
 	return nil
+}
+func (f *decisionRepoFake) ListJudgments(_ context.Context, _ Tx, signer string, sinceAt, afterAt int64, afterID string, limit int) ([]domain.JudgmentRecord, error) {
+	// Mirrors the graph query: filter, order by recorded time then ID, limit.
+	out := make([]domain.JudgmentRecord, 0, len(f.judgments))
+	for _, j := range f.judgments {
+		at := j.RecordedAt.UnixNano()
+		if (signer != "" && strings.ToLower(j.SignerID) != signer) || at < sinceAt || at < afterAt || (at == afterAt && j.ID <= afterID) {
+			continue
+		}
+		d := f.decisions[j.DecisionID]
+		out = append(out, domain.JudgmentRecord{ID: j.ID, RecordedAt: j.RecordedAt, SignerID: j.SignerID, Action: j.Action, ProjectID: d.ProjectID, DecisionID: j.DecisionID, RequestedAction: d.RequestedAction, CandidateRevision: j.CandidateRevision, EvidenceDigest: j.EvidenceDigest, OwnerID: j.OwnerID, EventID: j.EventID, Channel: j.Channel})
+	}
+	sort.Slice(out, func(a, b int) bool {
+		if !out[a].RecordedAt.Equal(out[b].RecordedAt) {
+			return out[a].RecordedAt.Before(out[b].RecordedAt)
+		}
+		return out[a].ID < out[b].ID
+	})
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
 }
 func (f *decisionRepoFake) Cursor(context.Context, Tx) (string, error) { return f.cursor, nil }
 func (f *decisionRepoFake) PutCursor(_ context.Context, _ Tx, c string) error {
@@ -675,4 +699,79 @@ func TestHostDecisionRequestUsesPersistedOwner(t *testing.T) {
 	assert.ErrorIs(t, err, domain.ErrForbidden)
 	_, err = h.svc.RequestHost(t.Context(), draft)
 	assert.ErrorIs(t, err, domain.ErrForbidden)
+}
+
+func TestJudgmentsHostListsWhatEachKeySigned(t *testing.T) {
+	h := newDecisionHarness(t)
+	d := h.request(t)
+	_, err := h.svc.Respond(t.Context(), signedReply(d, "approve", "evt-old", decisionOwnerKey))
+	require.NoError(t, err)
+
+	// The owner then replaces the key; later judgments carry the new one.
+	h.graph.owner.PublicKey = decisionAgentKey
+	id := func(n int) string { return strings.Repeat(strconv.Itoa(n), 64) }
+	for i, at := range []time.Time{h.now.Add(48 * time.Hour), h.now.Add(24 * time.Hour), h.now.Add(24 * time.Hour)} {
+		h.repo.judgments = append(h.repo.judgments, domain.OwnerJudgment{ID: id(i + 1), DecisionID: d.ID, CandidateRevision: d.CandidateRevision, Action: "reject", OwnerID: "owner", SignerID: decisionAgentKey, EventID: "evt-new", Channel: "api", RecordedAt: at})
+	}
+
+	all, err := h.svc.JudgmentsHost(t.Context(), domain.JudgmentQuery{})
+	require.NoError(t, err)
+	require.Len(t, all.Judgments, 4)
+	first := all.Judgments[0]
+	assert.Equal(t, decisionOwnerKey, first.SignerID, "oldest first")
+	assert.False(t, first.CurrentKey, "a replaced key is no longer current")
+	assert.Equal(t, "approve", first.Action)
+	assert.Equal(t, "demo", first.ProjectID)
+	assert.Equal(t, "publish", first.RequestedAction)
+	assert.Equal(t, d.CandidateRevision, first.CandidateRevision)
+	assert.Equal(t, []string{id(2), id(3), id(1)}, []string{all.Judgments[1].ID, all.Judgments[2].ID, all.Judgments[3].ID}, "same time orders by ID")
+	assert.True(t, all.Judgments[1].CurrentKey)
+	assert.Empty(t, all.Next)
+
+	retired, err := h.svc.JudgmentsHost(t.Context(), domain.JudgmentQuery{Signer: strings.ToUpper(decisionOwnerKey)})
+	require.NoError(t, err)
+	require.Len(t, retired.Judgments, 1)
+	assert.Equal(t, "evt-old", retired.Judgments[0].EventID)
+
+	recent, err := h.svc.JudgmentsHost(t.Context(), domain.JudgmentQuery{Since: h.now.Add(48 * time.Hour).Format(time.DateOnly)})
+	require.NoError(t, err)
+	require.Len(t, recent.Judgments, 1)
+	assert.Equal(t, id(1), recent.Judgments[0].ID)
+
+	var paged []string
+	q := domain.JudgmentQuery{Limit: 1}
+	for range 5 {
+		page, err := h.svc.JudgmentsHost(t.Context(), q)
+		require.NoError(t, err)
+		for _, j := range page.Judgments {
+			paged = append(paged, j.ID)
+		}
+		if page.Next == "" {
+			break
+		}
+		q.After = page.Next
+	}
+	want := []string{first.ID, id(2), id(3), id(1)}
+	assert.Equal(t, want, paged, "pages cover every judgment once, in order")
+
+	for _, bad := range []domain.JudgmentQuery{
+		{Limit: domain.MaxJudgmentPage + 1},
+		{Limit: -1},
+		{Signer: "not-a-key"},
+		{Since: "2026-11"},
+		{Since: "2500-01-01"},
+		{After: "nope"},
+		{After: "1." + "zz"},
+	} {
+		_, err := h.svc.JudgmentsHost(t.Context(), bad)
+		assert.ErrorIs(t, err, domain.ErrInvalidInput, "%+v", bad)
+	}
+
+	early, err := h.svc.JudgmentsHost(t.Context(), domain.JudgmentQuery{Since: "0001-01-01"})
+	require.NoError(t, err)
+	assert.Len(t, early.Judgments, len(want), "a day before 1970 includes every judgment")
+
+	h.graph.owner = domain.OwnerIdentity{}
+	_, err = h.svc.JudgmentsHost(t.Context(), domain.JudgmentQuery{})
+	assert.ErrorIs(t, err, domain.ErrForbidden, "no listing before an owner is enrolled")
 }

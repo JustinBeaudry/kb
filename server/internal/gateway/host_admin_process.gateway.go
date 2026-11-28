@@ -119,6 +119,13 @@ func childArguments(r domain.HostAdminRequest) ([]string, error) {
 			args = append(args, "--limit", strconv.Itoa(o.Limit))
 		}
 		add("--after", o.After)
+	case "judgments":
+		add("--signer", o.Signer)
+		add("--since", o.Since)
+		if o.Limit != 0 {
+			args = append(args, "--limit", strconv.Itoa(o.Limit))
+		}
+		add("--after", o.After)
 	case "journal-init", "journal-check":
 	case "verify", "reject", "invalidate", "verify-check", "lesson-publish", "delete", "deletion-status", "policy", "policy-update", "decisions", "decision-request", "decision-sync", "decision-challenge", "decision-approve":
 		args = append(args, "--input", "-")

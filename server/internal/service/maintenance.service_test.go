@@ -118,6 +118,11 @@ func TestMaintenanceRecoveryAuthorityIsLocalAndSerial(t *testing.T) {
 	_, err = s.AdmitRecovery(ctx, st.Fence, "host", "host-admin:journal-init")
 	require.ErrorIs(t, err, domain.ErrMaintenance)
 	require.NoError(t, s.Finish(ctx, p))
+	// Reviewing owner judgments is read-only and is what a recovery after a
+	// stolen owner key needs, so it is admitted during recovery.
+	p, err = s.AdmitRecovery(ctx, st.Fence, "host", "host-admin:judgments")
+	require.NoError(t, err)
+	require.NoError(t, s.Finish(ctx, p))
 	bad := st.Fence
 	bad.Generation++
 	_, err = s.AdmitRecovery(ctx, bad, "host", "startup-recovery")

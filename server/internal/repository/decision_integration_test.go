@@ -5,13 +5,16 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/JustinBeaudry/kb/server/internal/domain"
 	"github.com/JustinBeaudry/kb/server/internal/gateway"
 	"github.com/JustinBeaudry/kb/server/internal/platform/graph"
 	"github.com/JustinBeaudry/kb/server/internal/repository"
 	"github.com/JustinBeaudry/kb/server/internal/service"
+	"github.com/JustinBeaudry/kb/server/migrations"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/stretchr/testify/assert"
@@ -138,5 +141,66 @@ func TestDecisionRoundTripOnRealGraph(t *testing.T) {
 			assert.Equal(t, "123", c)
 			return e
 		}))
+	})
+
+	t.Run("judgments list what each key signed, after the key is replaced", func(t *testing.T) {
+		page, err := decisions.JudgmentsHost(t.Context(), domain.JudgmentQuery{})
+		require.NoError(t, err)
+		require.Len(t, page.Judgments, 1)
+		j := page.Judgments[0]
+		assert.Equal(t, ownerPub, j.SignerID)
+		assert.True(t, j.CurrentKey)
+		assert.Equal(t, "approve", j.Action)
+		assert.Equal(t, "demo", j.ProjectID)
+		assert.Equal(t, "publish", j.RequestedAction)
+		assert.Equal(t, d.ID, j.DecisionID)
+		assert.Equal(t, "rev-1", j.CandidateRevision)
+		assert.False(t, j.RecordedAt.IsZero())
+
+		_, newPub := decisionKey("owner-2")
+		_, err = identity.ReplaceOwnerKeyHost(t.Context(), newPub)
+		require.NoError(t, err)
+
+		retired, err := decisions.JudgmentsHost(t.Context(), domain.JudgmentQuery{Signer: ownerPub})
+		require.NoError(t, err)
+		require.Len(t, retired.Judgments, 1)
+		assert.False(t, retired.Judgments[0].CurrentKey, "a replaced key's judgments are marked as no longer current")
+		none, err := decisions.JudgmentsHost(t.Context(), domain.JudgmentQuery{Signer: newPub})
+		require.NoError(t, err)
+		assert.Empty(t, none.Judgments)
+	})
+
+	t.Run("judgments written before kb kept signer and time as properties are backfilled", func(t *testing.T) {
+		before, err := decisions.JudgmentsHost(t.Context(), domain.JudgmentQuery{})
+		require.NoError(t, err)
+		require.Len(t, before.Judgments, 1)
+		run := func(q string) {
+			require.NoError(t, store.Within(t.Context(), func(ctx context.Context, tx domain.Tx) error {
+				native, e := store.Unwrap(tx)
+				if e != nil {
+					return e
+				}
+				_, e = native.Run(ctx, q, nil)
+				return e
+			}))
+		}
+		run(`MATCH (j:OwnerJudgment) REMOVE j.signerID, j.recordedAt`)
+		gone, err := decisions.JudgmentsHost(t.Context(), domain.JudgmentQuery{})
+		require.NoError(t, err)
+		assert.Empty(t, gone.Judgments, "the review reads the indexed properties, not the JSON")
+		for _, statement := range strings.Split(migrations.OwnerJudgmentReview, ";") {
+			if strings.HasPrefix(strings.TrimSpace(statement), "MATCH") {
+				run(statement)
+			}
+		}
+		after, err := decisions.JudgmentsHost(t.Context(), domain.JudgmentQuery{Signer: ownerPub})
+		require.NoError(t, err)
+		require.Len(t, after.Judgments, 1)
+		assert.Equal(t, before.Judgments[0].ID, after.Judgments[0].ID)
+		assert.True(t, before.Judgments[0].RecordedAt.Equal(after.Judgments[0].RecordedAt))
+		day := before.Judgments[0].RecordedAt.UTC().Format(time.DateOnly)
+		since, err := decisions.JudgmentsHost(t.Context(), domain.JudgmentQuery{Since: day})
+		require.NoError(t, err)
+		assert.Len(t, since.Judgments, 1, "the backfilled time is in Unix nanoseconds like new judgments")
 	})
 }

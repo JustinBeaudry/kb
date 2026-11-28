@@ -83,3 +83,14 @@ func TestChildArgumentsForOAuthDecisions(t *testing.T) {
 		assert.False(t, domain.HostAdminIssuesCredential(action), action)
 	}
 }
+
+func TestChildArgumentsForJudgmentReview(t *testing.T) {
+	key := strings.Repeat("ab", 32)
+	args, err := childArguments(domain.HostAdminRequest{Version: 1, Action: "judgments", Options: domain.HostAdminOptions{Signer: key, Since: "2026-11-01", Limit: 20, After: "1." + key}})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"judgments", "--signer", key, "--since", "2026-11-01", "--limit", "20", "--after", "1." + key}, args)
+	args, err = childArguments(domain.HostAdminRequest{Version: 1, Action: "judgments"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"judgments"}, args)
+	assert.False(t, domain.HostAdminIssuesCredential("judgments"))
+}
