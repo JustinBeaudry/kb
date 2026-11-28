@@ -86,7 +86,7 @@ func (f *oauthRepoFake) ListPendingRequests(_ context.Context, _ Tx, now time.Ti
 
 func (f *oauthRepoFake) DecideRequest(_ context.Context, _ Tx, id string, status domain.OAuthRequestStatus, granted domain.OAuthScope, ttl time.Duration, now time.Time) error {
 	r, ok := f.requests[id]
-	if !ok || r.Status != domain.OAuthRequestPending || !now.Before(r.ExpiresAt) {
+	if !ok || r.Status != domain.OAuthRequestPending || r.Released || !now.Before(r.ExpiresAt) {
 		return domain.ErrConflict
 	}
 	r.Status, r.Granted, r.GrantTTL = status, granted, ttl
@@ -99,7 +99,7 @@ func (f *oauthRepoFake) DecideRequest(_ context.Context, _ Tx, id string, status
 
 func (f *oauthRepoFake) ReleaseRequest(_ context.Context, _ Tx, id, digest string, expires time.Time) error {
 	r, ok := f.requests[id]
-	if !ok || r.Released {
+	if !ok || r.Released || (digest != "") != (r.Status == domain.OAuthRequestApproved) {
 		return domain.ErrConflict
 	}
 	r.Released, r.CodeDigest, r.CodeExpiresAt = true, digest, expires
