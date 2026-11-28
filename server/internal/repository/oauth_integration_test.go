@@ -394,3 +394,47 @@ func TestOAuthRegistrationsOutliveTheRequestsThatNeedThemRealGraph(t *testing.T)
 	assert.Equal(t, 1, prune(requestsOver))
 	assert.False(t, exists("oc_approved"))
 }
+
+func TestOAuthMetadataRegistrationsRealGraph(t *testing.T) {
+	store, _, _ := jobsGraph(t)
+	repo := repository.NewOAuthRepository(store)
+	ctx := t.Context()
+	at := time.Date(2026, 11, 28, 9, 0, 0, 0, time.UTC)
+	within := func(fn func(context.Context, domain.Tx) error) error { return store.Within(ctx, fn) }
+	const id = "https://app.example/oauth/client.json"
+	reg := func(id string, uris []string, name string, created time.Time) domain.OAuthRegistration {
+		return domain.OAuthRegistration{ID: id, RedirectURIs: uris, ClientName: name, CreatedAt: created, ExpiresAt: created.Add(domain.OAuthRegistrationTTL)}
+	}
+	put := func(r domain.OAuthRegistration, max int) error {
+		return within(func(ctx context.Context, tx domain.Tx) error { return repo.PutMetadataRegistration(ctx, tx, r, max) })
+	}
+	find := func(id string, now time.Time) (got domain.OAuthRegistration, err error) {
+		err = within(func(ctx context.Context, tx domain.Tx) (err error) {
+			got, err = repo.FindRegistration(ctx, tx, id, now)
+			return err
+		})
+		return got, err
+	}
+
+	require.NoError(t, within(func(ctx context.Context, tx domain.Tx) error {
+		return repo.AddRegistration(ctx, tx, reg("oc_dyn", []string{"https://dyn.example/cb"}, "Dyn", at), 10)
+	}))
+	require.NoError(t, put(reg(id, []string{"https://app.example/cb"}, "App", at), 2))
+	assert.ErrorIs(t, put(reg("https://other.example/c.json", []string{"https://other.example/cb"}, "Other", at), 2), domain.ErrBudget, "metadata clients share the registration cap")
+
+	later := at.Add(time.Hour)
+	require.NoError(t, put(reg(id, []string{"https://app.example/new"}, "App 2", later), 1), "refreshing a known client is never refused by the cap")
+	got, err := find(id, later)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"https://app.example/new"}, got.RedirectURIs, "the document's current redirect URIs replace the stored ones")
+	assert.Equal(t, "App 2", got.ClientName)
+	assert.Equal(t, at, got.CreatedAt, "the first sighting is kept")
+	assert.Equal(t, later.Add(domain.OAuthRegistrationTTL), got.ExpiresAt)
+
+	require.NoError(t, within(func(ctx context.Context, tx domain.Tx) error {
+		return repo.AddGrant(ctx, tx, domain.OAuthGrant{ID: "g1", ClientID: "oauth-g1", RegistrationID: id, RedirectURI: "https://app.example/new", RefreshDigest: "r", CreatedAt: later, ExpiresAt: later.Add(30 * 24 * time.Hour)})
+	}), "a grant attaches to the metadata registration like any other")
+	require.NoError(t, put(reg(id, []string{"https://app.example/new"}, "App 2", later), 1))
+	_, err = find(id, later.Add(48*time.Hour))
+	require.NoError(t, err, "a refresh keeps an approved registration approved")
+}

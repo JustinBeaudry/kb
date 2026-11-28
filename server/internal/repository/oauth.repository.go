@@ -53,6 +53,31 @@ RETURN reg.id`, map[string]any{"id": reg.ID, "uris": reg.RedirectURIs, "name": r
 	return nil
 }
 
+// PutMetadataRegistration stores or refreshes the registration for a client
+// ID metadata document, keyed by its URL. The document's current redirect
+// URIs and name replace the stored ones, an approved registration stays
+// approved, and the lifetime starts again. A new one counts against the same
+// maxPending cap as dynamic registrations (ErrBudget), under the same lock.
+func (r *OAuthRepository) PutMetadataRegistration(ctx context.Context, tx domain.Tx, reg domain.OAuthRegistration, maxPending int) error {
+	rows, err := r.query(ctx, tx, `MERGE (l:OAuthLimit {id:'registrations'}) SET l.at = $created
+WITH l
+OPTIONAL MATCH (p:OAuthRegistration) WHERE p.approved = false AND p.expiresAt > $created AND p.id <> $id
+WITH count(p) AS pending
+OPTIONAL MATCH (e:OAuthRegistration {id:$id})
+WITH pending, count(e) AS known WHERE known > 0 OR pending < $max
+MERGE (reg:OAuthRegistration {id:$id})
+ON CREATE SET reg.createdAt = $created, reg.approved = false
+SET reg.redirectURIs = $uris, reg.clientName = $name, reg.expiresAt = $expires, reg.metadataDocument = true
+RETURN reg.id`, map[string]any{"id": reg.ID, "uris": reg.RedirectURIs, "name": reg.ClientName, "created": reg.CreatedAt.UTC().UnixNano(), "expires": reg.ExpiresAt.UTC().UnixNano(), "max": int64(maxPending)})
+	if err != nil {
+		return err
+	}
+	if len(rows) != 1 {
+		return domain.ErrBudget
+	}
+	return nil
+}
+
 // FindRegistration returns a registration that is approved or has not yet
 // expired. An unknown or expired one is ErrUnauthorized, as an unknown client.
 func (r *OAuthRepository) FindRegistration(ctx context.Context, tx domain.Tx, id string, now time.Time) (domain.OAuthRegistration, error) {

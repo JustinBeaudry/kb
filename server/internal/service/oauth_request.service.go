@@ -62,10 +62,15 @@ func (s *OAuthService) Authorize(ctx context.Context, in OAuthAuthorizeInput) (O
 	}
 	now := s.now().UTC()
 	var reg domain.OAuthRegistration
-	err := s.tx.Within(ctx, func(ctx context.Context, tx Tx) (err error) {
-		reg, err = s.repo.FindRegistration(ctx, tx, in.ClientID, now)
-		return err
-	})
+	var err error
+	if domain.IsClientMetadataID(in.ClientID) {
+		reg, err = s.metadataRegistration(ctx, in.ClientID, in.RedirectURI, now)
+	} else {
+		err = s.tx.Within(ctx, func(ctx context.Context, tx Tx) (err error) {
+			reg, err = s.repo.FindRegistration(ctx, tx, in.ClientID, now)
+			return err
+		})
+	}
 	if err != nil {
 		return OAuthAuthorization{}, err
 	}

@@ -106,6 +106,21 @@ An agent, its host or its tools are fully controlled by an attacker who holds a 
 
 Residual: a flood can fill the pending cap for up to 24 hours and block new registrations. There is no per-source limit, because kb takes nothing about the caller from proxy headers. Bearer clients are unaffected.
 
+### OAuth client ID metadata documents
+
+A client may instead name itself with an `https` URL as its `client_id` (draft-ietf-oauth-client-id-metadata-document), and kb fetches that document when the client starts a grant request. Since anyone can make kb fetch a URL this way, the fetch is the risk: server-side request forgery against Railway's private network or cloud metadata, and slow or huge responses.
+
+| Defense | Test |
+| --- | --- |
+| Only an `https` URL on the default port, with a DNS host name and a path and no user info, query, fragment or dot segments, is fetched. Anything else is an unknown client and nothing is fetched. | `TestClientMetadataURLsAreHTTPSWithAPathAndNothingAmbiguous` |
+| The fetch dials only public unicast addresses (for IPv6, only inside `2000::/3`), checked on the address actually connected to after DNS, so a name that resolves to a private, shared, loopback, link-local, site-local, metadata, documentation, multicast or translation address is refused. No proxy is used. | `TestPublicAddressExcludesInternalAndSpecialRanges`, `TestClientMetadataFetcherNeverDialsANonPublicAddress` |
+| No redirect is followed, no cookie or credential is sent, a response must be `200` with a JSON media type, at most 8 KiB, within 5 seconds. | `TestClientMetadataFetcherRefusesWhatIsNotAPlainDocument` |
+| The document's `client_id` must equal the URL exactly; one with a shared secret is refused; the same public-client rules as dynamic registration apply, with up to 10 redirect URIs. A refused document is an unknown client and is never redirected to. | `TestOAuthAuthorizeRefusesMetadataClientsKbCannotTrust` |
+| A document is reused for its `max-age`, bounded to between 1 minute and 24 hours (5 minutes without one), and at most 128 are cached, so one client cannot make kb fetch on every request. The `/oauth/*` guard bounds fetches to 2 a second and 4 at once. | `TestClientMetadataCacheHonorsBoundedLifetimesAndSize` |
+| A metadata client is stored as a registration keyed by its URL and counts against the same 256 pending cap. The approval page names the site that published it, since kb read the document from there; its self-reported name is still only a name. | `TestOAuthMetadataRegistrationsRealGraph`, `TestOAuthMetadataRegistrationsShareTheRegistrationCap`, `TestOAuthApprovalPageNamesTheSiteThatPublishedAMetadataClient` |
+
+Residual: the publisher is the host of the client ID URL. A look-alike host can still publish a document, which is why the page shows that host and the host the browser returns to, and why nothing is granted until the owner approves the code on the kb host.
+
 ### OAuth grant requests
 
 `GET /oauth/authorize` also takes no credential. It records a pending request and shows a page with an approval code; nothing is granted until the owner approves the code on the host with `kb-admin oauth-approve`, over the owner-only socket.
