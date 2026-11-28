@@ -3,6 +3,7 @@ package repository
 
 import (
 	"context"
+	"net/url"
 	"strings"
 	"time"
 
@@ -192,7 +193,9 @@ func (r *IdentityRepository) ListClients(ctx context.Context, tx domain.Tx, owne
 	if limit < 1 || limit > 101 {
 		return nil, domain.ErrInvalidInput
 	}
-	rows, err := r.query(ctx, tx, `MATCH (c:Client {ownerID:$owner}),(o:OwnerState {id:'owner'}) WHERE c.id>$after RETURN c.id,c.role,c.projectIDs,c.capabilities,c.revokedAt,o.authEpoch,c.expiresAt ORDER BY c.id LIMIT $limit`, map[string]any{"owner": owner, "after": after, "limit": limit})
+	rows, err := r.query(ctx, tx, `MATCH (c:Client {ownerID:$owner}),(o:OwnerState {id:'owner'}) WHERE c.id>$after
+OPTIONAL MATCH (g:OAuthGrant {clientID:c.id})
+RETURN c.id,c.role,c.projectIDs,c.capabilities,c.revokedAt,o.authEpoch,c.expiresAt,coalesce(c.resource,''),g.redirectURI,g.expiresAt ORDER BY c.id LIMIT $limit`, map[string]any{"owner": owner, "after": after, "limit": limit})
 	if err != nil {
 		return nil, err
 	}
@@ -204,10 +207,11 @@ func (r *IdentityRepository) ListClients(ctx context.Context, tx domain.Tx, owne
 		projects, c := stringList(v[2])
 		caps, d := stringList(v[3])
 		epoch, e := v[5].(int64)
-		if !a || !b || !c || !d || !e || epoch < 0 {
+		resource, f := v[7].(string)
+		if !a || !b || !c || !d || !e || !f || epoch < 0 {
 			return nil, domain.ErrUnavailable
 		}
-		m := domain.ClientMetadata{Principal: domain.Principal{ClientID: id, OwnerID: owner, Role: domain.Role(role), ProjectIDs: projects, Capabilities: caps, AuthEpoch: uint64(epoch)}}
+		m := domain.ClientMetadata{Principal: domain.Principal{ClientID: id, OwnerID: owner, Role: domain.Role(role), ProjectIDs: projects, Capabilities: caps, AuthEpoch: uint64(epoch), Resource: resource}}
 		var ok bool
 		if m.RevokedAt, ok = optionalInstant(v[4]); !ok {
 			return nil, domain.ErrUnavailable
@@ -215,7 +219,28 @@ func (r *IdentityRepository) ListClients(ctx context.Context, tx domain.Tx, owne
 		if m.ExpiresAt, ok = optionalInstant(v[6]); !ok {
 			return nil, domain.ErrUnavailable
 		}
+		if m.OAuth, ok = oauthClientGrant(v[8], v[9]); !ok {
+			return nil, domain.ErrUnavailable
+		}
 		out = append(out, m)
 	}
 	return out, nil
+}
+
+// oauthClientGrant summarizes the grant behind an OAuth client, or returns
+// nil for a client no grant created.
+func oauthClientGrant(redirect, expires any) (*domain.OAuthClientGrant, bool) {
+	if redirect == nil && expires == nil {
+		return nil, true
+	}
+	raw, ok := redirect.(string)
+	nanos, ok2 := expires.(int64)
+	if !ok || !ok2 {
+		return nil, false
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return nil, false
+	}
+	return &domain.OAuthClientGrant{RedirectHost: u.Host, GrantExpiresAt: time.Unix(0, nanos).UTC()}, true
 }
