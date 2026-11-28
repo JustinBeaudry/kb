@@ -295,6 +295,46 @@ func TestOAuthGrantsRealGraph(t *testing.T) {
 	}))
 }
 
+func TestOAuthGrantsAppearInTheClientListRealGraph(t *testing.T) {
+	store, _, _ := jobsGraph(t)
+	repo := repository.NewOAuthRepository(store)
+	identities := repository.NewIdentityRepository(store)
+	ctx := t.Context()
+	at := time.Date(2026, 11, 27, 9, 0, 0, 0, time.UTC)
+	within := func(fn func(context.Context, domain.Tx) error) error { return store.Within(ctx, fn) }
+	grantEnds := at.Add(720 * time.Hour)
+	tokenEnds := at.Add(time.Hour)
+	require.NoError(t, within(func(ctx context.Context, tx domain.Tx) error {
+		if err := repo.AddRegistration(ctx, tx, domain.OAuthRegistration{ID: "oc_1", RedirectURIs: []string{"https://client.example:8443/cb"}, ClientName: "Example", CreatedAt: at, ExpiresAt: at.Add(domain.OAuthRegistrationTTL)}, 10); err != nil {
+			return err
+		}
+		if err := repo.AddGrant(ctx, tx, domain.OAuthGrant{ID: "og_1", ClientID: "oauth-og_1", RegistrationID: "oc_1", RedirectURI: "https://client.example:8443/cb?keep=1", RefreshDigest: "r1", CreatedAt: at, ExpiresAt: grantEnds}); err != nil {
+			return err
+		}
+		if err := identities.PutClient(ctx, tx, domain.ClientRecord{Principal: domain.Principal{ClientID: "oauth-og_1", OwnerID: "owner", Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"status:read"}, Resource: domain.OAuthResourceMCP}, TokenDigest: "d1", ExpiresAt: &tokenEnds}); err != nil {
+			return err
+		}
+		return identities.PutClient(ctx, tx, domain.ClientRecord{Principal: domain.Principal{ClientID: "agent", OwnerID: "owner", Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"status:read"}}, TokenDigest: "d2"})
+	}))
+	var listed []domain.ClientMetadata
+	require.NoError(t, within(func(ctx context.Context, tx domain.Tx) (err error) {
+		listed, err = identities.ListClients(ctx, tx, "owner", 10, "")
+		return err
+	}))
+	require.Len(t, listed, 2)
+	assert.Equal(t, "agent", listed[0].Principal.ClientID)
+	assert.Nil(t, listed[0].OAuth, "a client no grant created has no OAuth summary")
+	assert.Empty(t, listed[0].Principal.Resource)
+	oauth := listed[1]
+	assert.Equal(t, "oauth-og_1", oauth.Principal.ClientID)
+	assert.Equal(t, domain.OAuthResourceMCP, oauth.Principal.Resource)
+	require.NotNil(t, oauth.OAuth)
+	assert.Equal(t, "client.example:8443", oauth.OAuth.RedirectHost, "only the host, never the path or query")
+	assert.True(t, grantEnds.Equal(oauth.OAuth.GrantExpiresAt))
+	require.NotNil(t, oauth.ExpiresAt)
+	assert.True(t, tokenEnds.Equal(*oauth.ExpiresAt), "the client's own expiry is its current access token")
+}
+
 func TestOAuthRegistrationsOutliveTheRequestsThatNeedThemRealGraph(t *testing.T) {
 	store, _, _ := jobsGraph(t)
 	repo := repository.NewOAuthRepository(store)

@@ -66,4 +66,14 @@ type ClientMetadata struct {
 	Principal Principal
 	RevokedAt *time.Time
 	ExpiresAt *time.Time `json:",omitempty"`
+	// OAuth is set for a client an OAuth grant created.
+	OAuth *OAuthClientGrant `json:",omitempty"`
+}
+
+// OAuthClientGrant is what the owner needs to recognize an OAuth grant: the
+// host its browser flow returns to and when the grant itself ends. The
+// client's own ExpiresAt is only its current access token.
+type OAuthClientGrant struct {
+	RedirectHost   string
+	GrantExpiresAt time.Time
 }

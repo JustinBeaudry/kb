@@ -60,6 +60,7 @@ An app that connects by URL (a hosted MCP connector) opens kb's approval page in
 
 The app then holds the client `oauth-<grant id>`, with exactly the projects and capabilities you granted. Its access token works only at `/mcp`, lasts an hour and is refreshed by the app until the grant expires.
 
+- `kb-admin list` shows each app as `oauth-<grant id>`, with the host its sign-in returns to and when its grant ends (`OAuth.GrantExpiresAt`). Its own `ExpiresAt` is only the current access token.
 - `kb-admin access --client-id oauth-<grant id>` shows what the app touched, including any use of its token outside `/mcp`.
 - `kb-admin revoke --client-id oauth-<grant id>` stops the app at once. Its next refresh fails and removes the grant. To connect it again, start a new approval.
 - A refresh token used twice revokes the grant by itself, because one copy is in someone else's hands. If an app reports it was disconnected, look at its access before approving it again.
