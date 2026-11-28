@@ -50,7 +50,7 @@ Host access is a separate authority. Anyone who can run `kb-admin` on the host c
 
 ## Approving an app over OAuth
 
-An app that connects by URL (a hosted MCP connector) opens kb's approval page in your browser. The page shows the host it will send you back to, the name the app gives itself (not verified), what it asks for, and an eight-character approval code. Nothing is granted from the page.
+An app that connects by URL (a hosted MCP connector) opens kb's approval page in your browser. The page shows the host it will send you back to, the name the app gives itself, what it asks for, and an eight-character approval code. Nothing is granted from the page. An app that registered itself is marked "not verified". An app that identifies itself with a published client ID metadata document, as Claude does with **Use Claude's published identity**, is shown with the site that published it, because kb read its description from there; `kb-admin oauth-requests` shows that URL as its client ID.
 
 1. Make sure you started this connection yourself, and that the host on the page is the app you expect. If not, close the page.
 2. On the service host, `kb-admin oauth-requests` lists pending requests as JSON, with their codes, hosts and requested scope.

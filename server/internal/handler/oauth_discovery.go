@@ -43,6 +43,7 @@ type authorizationServerMetadata struct {
 	RevocationEndpointAuthMethodsSupported     []string `json:"revocation_endpoint_auth_methods_supported"`
 	CodeChallengeMethodsSupported              []string `json:"code_challenge_methods_supported"`
 	AuthorizationResponseIssParameterSupported bool     `json:"authorization_response_iss_parameter_supported"`
+	ClientIDMetadataDocumentSupported          bool     `json:"client_id_metadata_document_supported"`
 	ServiceDocumentation                       string   `json:"service_documentation,omitempty"`
 }
 
@@ -86,6 +87,7 @@ func WithOAuthDiscovery(next http.Handler, origin string) http.Handler {
 		RevocationEndpointAuthMethodsSupported:     []string{"none"},
 		CodeChallengeMethodsSupported:              []string{"S256"},
 		AuthorizationResponseIssParameterSupported: true,
+		ClientIDMetadataDocumentSupported:          true,
 		ServiceDocumentation:                       "https://github.com/JustinBeaudry/kb",
 	})
 	if err != nil {

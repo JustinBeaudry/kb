@@ -27,6 +27,17 @@ func (f *oauthRepoFake) AddRegistration(_ context.Context, _ Tx, reg domain.OAut
 	return nil
 }
 
+func (f *oauthRepoFake) PutMetadataRegistration(_ context.Context, _ Tx, reg domain.OAuthRegistration, maxPending int) error {
+	for i, r := range f.regs {
+		if r.ID == reg.ID {
+			reg.CreatedAt = r.CreatedAt
+			f.regs[i] = reg
+			return nil
+		}
+	}
+	return f.AddRegistration(context.Background(), nil, reg, maxPending)
+}
+
 func (f *oauthRepoFake) FindRegistration(_ context.Context, _ Tx, id string, now time.Time) (domain.OAuthRegistration, error) {
 	for _, r := range f.regs {
 		if r.ID == id && now.Before(r.ExpiresAt) {
