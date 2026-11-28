@@ -226,7 +226,13 @@ func (s *MaintenanceService) Finish(ctx context.Context, p domain.OperationPermi
 		return domain.ErrUnknownOutcome
 	}
 	delete(s.permits, p.ID)
-	return s.save(ctx)
+	if err := s.save(ctx); err != nil {
+		// The permit is still on disk, so keep it: a retried Finish must save
+		// again rather than see a missing permit and report success.
+		s.permits[p.ID] = current
+		return err
+	}
+	return nil
 }
 func (s *MaintenanceService) MarkUnknown(ctx context.Context, p domain.OperationPermit) error {
 	s.mu.Lock()

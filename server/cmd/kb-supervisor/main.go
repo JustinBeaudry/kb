@@ -413,7 +413,7 @@ func startupRecovery(ctx context.Context, m *service.MaintenanceService, snapsho
 	}
 	if !domain.OperationSettled(ctx) {
 		_ = m.MarkUnknown(context.WithoutCancel(ctx), permit)
-		return domain.ErrUnknownOutcome
+		return platform.AtStage("finish_operation", domain.ErrUnknownOutcome)
 	}
 	if err = m.Finish(ctx, permit); err != nil {
 		return platform.AtStage("finish_operation", err)

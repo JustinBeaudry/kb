@@ -218,6 +218,19 @@ func TestMaintenanceShutdownDrainWaitsForRestoredButNotUncertainPermits(t *testi
 		t.Fatal("WaitIdle did not return after the restored holder finished")
 	}
 }
+func TestMaintenanceFinishKeepsThePermitUntilItsRemovalIsSaved(t *testing.T) {
+	ctx := context.Background()
+	s, store := newMaintenance(t)
+	openMaintenance(t, s)
+	p, err := s.Admit(ctx, "api-one", "api")
+	require.NoError(t, err)
+	store.fail = true
+	require.ErrorIs(t, s.Finish(ctx, p), domain.ErrUnavailable)
+	require.Len(t, store.permits, 1, "the permit is still on disk")
+	store.fail = false
+	require.NoError(t, s.Finish(ctx, p), "a retry saves the removal")
+	assert.Empty(t, store.permits)
+}
 func TestMaintenancePersistenceFailureNeverGrantsOrReopens(t *testing.T) {
 	ctx := context.Background()
 	s, store := newMaintenance(t)

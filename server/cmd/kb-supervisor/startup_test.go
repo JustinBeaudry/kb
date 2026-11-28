@@ -83,7 +83,9 @@ func TestMissingBootstrapPrerequisiteReleasesOnlySettledRecovery(t *testing.T) {
 func TestStartupMaskedUnknownEffectCannotOpen(t *testing.T) {
 	m := newStartupMaintenance(t)
 	snapshot := &startupSnapshotFake{uncertain: "journal"}
-	require.ErrorIs(t, startupRecovery(t.Context(), m, snapshot, "fixture"), domain.ErrUnknownOutcome)
+	err := startupRecovery(t.Context(), m, snapshot, "fixture")
+	require.ErrorIs(t, err, domain.ErrUnknownOutcome)
+	assert.Equal(t, "finish_operation", platform.FailureStage(err), "the closed warning names where recovery stopped")
 	state, e := m.State(t.Context())
 	require.NoError(t, e)
 	assert.Equal(t, "bootstrap", state.Phase)
