@@ -17,6 +17,11 @@ type OperationPermit struct {
 	Kind       string `json:"kind"`
 	Generation uint64 `json:"generation"`
 	Unknown    bool   `json:"unknown,omitempty"`
+	// Restored marks a permit that was still registered when an earlier
+	// supervisor process stopped and that its holder never declared uncertain.
+	// Only its holder's exact Finish, or a host operator's settle after proving
+	// the holder ended, removes it. It stays unknown for admission until then.
+	Restored bool `json:"restored,omitempty"`
 }
 type MaintenanceState struct {
 	Fence                MaintenanceFence `json:"fence"`

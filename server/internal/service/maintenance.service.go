@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -37,6 +38,9 @@ type MaintenanceService struct {
 	permits map[string]domain.OperationPermit
 	changed chan struct{}
 	failed  bool
+	// quiesced refuses every new admission while the supervisor shuts down,
+	// so registered operations can finish before the process exits.
+	quiesced bool
 }
 
 func NewMaintenanceService(ctx context.Context, store MaintenanceStateStore) (*MaintenanceService, error) {
@@ -58,6 +62,10 @@ func NewMaintenanceService(ctx context.Context, store MaintenanceStateStore) (*M
 		if _, ok := s.permits[p.ID]; ok {
 			return nil, domain.ErrUnavailable
 		}
+		// A permit its holder never declared uncertain may still be finished by
+		// that holder. Service-role kinds can never be declared uncertain, so a
+		// legacy record of one is restored too.
+		p.Restored = p.Restored || !p.Unknown || serviceRoleKind(p.Kind)
 		p.Unknown = true
 		s.permits[p.ID] = p
 	}
@@ -84,6 +92,16 @@ func randomOperationID() (string, error) {
 		return "", domain.ErrUnavailable
 	}
 	return hex.EncodeToString(b[:]), nil
+}
+
+// serviceRoleKind reports the kinds admitted only through the service-role
+// control API, which offers no way to declare an outcome uncertain.
+func serviceRoleKind(kind string) bool {
+	switch kind {
+	case "api", "worker", "worker-startup", "sweep", "access-audit", "health":
+		return true
+	}
+	return false
 }
 func validPhase(p string) bool {
 	switch p {
@@ -163,7 +181,7 @@ func (s *MaintenanceService) admit(ctx context.Context, instance, kind string, f
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.failed {
+	if s.failed || s.quiesced {
 		return domain.OperationPermit{}, domain.ErrMaintenance
 	}
 	if f != nil {
@@ -204,7 +222,7 @@ func (s *MaintenanceService) Finish(ctx context.Context, p domain.OperationPermi
 	if !samePermit(current, p) {
 		return domain.ErrStale
 	}
-	if current.Unknown {
+	if current.Unknown && !current.Restored {
 		return domain.ErrUnknownOutcome
 	}
 	delete(s.permits, p.ID)
@@ -218,8 +236,92 @@ func (s *MaintenanceService) MarkUnknown(ctx context.Context, p domain.Operation
 		return domain.ErrStale
 	}
 	current.Unknown = true
+	current.Restored = false
 	s.permits[p.ID] = current
 	return s.save(ctx)
+}
+
+// Restored lists the permits carried over from an earlier supervisor process
+// that are still waiting for their holder.
+func (s *MaintenanceService) Restored(ctx context.Context) ([]domain.OperationPermit, error) {
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := []domain.OperationPermit{}
+	for _, p := range s.permits {
+		if p.Restored {
+			out = append(out, p)
+		}
+	}
+	slices.SortFunc(out, func(a, b domain.OperationPermit) int { return strings.Compare(a.ID, b.ID) })
+	return out, nil
+}
+
+// SettleRestored removes a restored permit whose holder can no longer finish
+// it, such as a worker whose deployment was replaced. It is a host operator
+// action, offered only on the protected local socket, and only while admission
+// is closed for startup recovery. The operator must first prove the holder's
+// process ended, as docs/runbooks/recovery.md describes. A permit its holder
+// declared uncertain is never settled this way.
+func (s *MaintenanceService) SettleRestored(ctx context.Context, id string) (domain.OperationPermit, error) {
+	if ctx.Err() != nil {
+		return domain.OperationPermit{}, ctx.Err()
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.failed || (s.state.Phase != "bootstrap" && s.state.Phase != "recovering") {
+		return domain.OperationPermit{}, domain.ErrMaintenance
+	}
+	current, ok := s.permits[id]
+	if !ok {
+		return domain.OperationPermit{}, domain.ErrIncomplete
+	}
+	if !current.Restored {
+		return domain.OperationPermit{}, domain.ErrUnknownOutcome
+	}
+	delete(s.permits, id)
+	if err := s.save(ctx); err != nil {
+		return domain.OperationPermit{}, err
+	}
+	return current, nil
+}
+
+// Quiesce refuses every new admission from now on. The supervisor calls it on
+// shutdown, then waits in WaitIdle so operations already admitted can finish
+// and are not left unknown by the restart.
+func (s *MaintenanceService) Quiesce() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.quiesced = true
+	close(s.changed)
+	s.changed = make(chan struct{})
+}
+
+// WaitIdle waits until no admitted operation is still running. Unknown and
+// restored permits do not count, since they belong to no running operation of
+// this process.
+func (s *MaintenanceService) WaitIdle(ctx context.Context) error {
+	for {
+		s.mu.Lock()
+		running := 0
+		for _, p := range s.permits {
+			if !p.Unknown {
+				running++
+			}
+		}
+		changed := s.changed
+		s.mu.Unlock()
+		if running == 0 {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-changed:
+		}
+	}
 }
 func (s *MaintenanceService) ValidatePermit(ctx context.Context, p domain.OperationPermit) error {
 	if ctx.Err() != nil {

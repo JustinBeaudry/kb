@@ -37,12 +37,22 @@ type operatorStatus struct {
 	BackupAgeSeconds                   int64
 	DiskAvailableBytes, DiskTotalBytes uint64
 	DiskUsageWarning                   bool
+	// RestoredPermits are operations registered before this supervisor
+	// process started that their holders have not finished yet.
+	RestoredPermits []domain.OperationPermit
 }
 type operatorResponse struct {
 	Version          int
 	Code, NextAction string
 	Result           domain.BackupResult
 	Status           operatorStatus
+	Settled          *domain.OperationPermit `json:",omitempty"`
+}
+
+// restoredSettler removes a restored permit after the operator proved its
+// holder ended. Only the protected local operator socket offers it.
+type restoredSettler interface {
+	SettleRestored(context.Context, string) (domain.OperationPermit, error)
 }
 
 type privateStatusAdmission interface {
@@ -109,6 +119,8 @@ func operatorCode(err error) string {
 		return "conflict"
 	case errors.Is(err, domain.ErrUnknownOutcome):
 		return "unknown_outcome"
+	case errors.Is(err, domain.ErrIncomplete):
+		return "not_found"
 	default:
 		return "unavailable"
 	}
@@ -131,6 +143,16 @@ func dispatchOperator(ctx context.Context, runner operatorRunner, status func(co
 		err = runner.Pause(ctx, r.ID)
 	case "status":
 		out.Status, err = status(ctx)
+	case "settle":
+		settler, ok := runner.(restoredSettler)
+		if !ok {
+			err = domain.ErrInvalidInput
+			break
+		}
+		var settled domain.OperationPermit
+		if settled, err = settler.SettleRestored(ctx, r.ID); err == nil {
+			out.Settled = &settled
+		}
 	default:
 		err = domain.ErrInvalidInput
 	}
@@ -227,6 +249,14 @@ type evidenceRunner struct {
 	operatorRunner
 	state   platform.SupervisorMaintenance
 	observe func(platform.BackupEvidence)
+	settle  func(context.Context, string) (domain.OperationPermit, error)
+}
+
+func (r evidenceRunner) SettleRestored(ctx context.Context, id string) (domain.OperationPermit, error) {
+	if r.settle == nil {
+		return domain.OperationPermit{}, domain.ErrInvalidInput
+	}
+	return r.settle(ctx, id)
 }
 
 func (r evidenceRunner) Run(ctx context.Context, id string) (domain.BackupResult, error) {

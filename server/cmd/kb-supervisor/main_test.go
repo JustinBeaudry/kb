@@ -105,3 +105,22 @@ func TestOperatorBackupLogsRecoveryPointEvidence(t *testing.T) {
 	require.Len(t, reports, 1)
 	assert.True(t, reports[0].First)
 }
+func TestSupervisorOperatorSettlesOnlyThroughTheMaintenanceSettler(t *testing.T) {
+	status := func(context.Context) (operatorStatus, error) { return operatorStatus{}, nil }
+	plain := dispatchOperator(t.Context(), &operatorFake{}, status, operatorRequest{Version: 1, Action: "settle", ID: "permit-1"})
+	assert.Equal(t, "invalid_input", plain.Code)
+	var got string
+	runner := evidenceRunner{operatorRunner: &operatorFake{}, settle: func(_ context.Context, id string) (domain.OperationPermit, error) {
+		got = id
+		return domain.OperationPermit{ID: id, InstanceID: "worker-1", Kind: "worker", Generation: 3, Unknown: true, Restored: true}, nil
+	}}
+	out := dispatchOperator(t.Context(), runner, status, operatorRequest{Version: 1, Action: "settle", ID: "permit-1"})
+	assert.Equal(t, "ok", out.Code)
+	assert.Equal(t, "permit-1", got)
+	require.NotNil(t, out.Settled)
+	assert.Equal(t, "worker", out.Settled.Kind)
+	missing := evidenceRunner{operatorRunner: &operatorFake{}, settle: func(context.Context, string) (domain.OperationPermit, error) {
+		return domain.OperationPermit{}, domain.ErrIncomplete
+	}}
+	assert.Equal(t, "not_found", dispatchOperator(t.Context(), missing, status, operatorRequest{Version: 1, Action: "settle", ID: "permit-1"}).Code)
+}

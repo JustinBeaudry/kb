@@ -33,12 +33,30 @@ func FinishOperation(ctx context.Context, a WorkerAdmission, p domain.OperationP
 	if !domain.OperationSettled(ctx) {
 		return errors.Join(outcome, domain.ErrUnknownOutcome)
 	}
-	cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-	defer cancel()
-	if err := a.Finish(cleanup, p); err != nil {
+	if err := finishWithRetry(context.WithoutCancel(ctx), a, p); err != nil {
 		return err
 	}
 	return outcome
+}
+
+// finishRetryWindow bounds how long a holder keeps retrying Finish while the
+// supervisor is unreachable, such as during a graph restart. The supervisor
+// keeps the permit across its restart, so the exact retry releases it there.
+const finishRetryWindow = 10 * time.Minute
+
+func finishWithRetry(ctx context.Context, a WorkerAdmission, p domain.OperationPermit) error {
+	deadline := time.Now().Add(finishRetryWindow)
+	delay := 250 * time.Millisecond
+	for {
+		attempt, cancel := context.WithTimeout(ctx, 5*time.Second)
+		err := a.Finish(attempt, p)
+		cancel()
+		if err == nil || !errors.Is(err, domain.ErrUnavailable) || time.Now().Add(delay).After(deadline) {
+			return err
+		}
+		time.Sleep(delay)
+		delay = min(delay*2, 15*time.Second)
+	}
 }
 
 func AdmittedHandler(a WorkerAdmission, instance string, next http.Handler) http.Handler {
@@ -58,8 +76,23 @@ func AdmittedHandlerRefusing(a WorkerAdmission, instance string, next http.Handl
 			return
 		}
 		next.ServeHTTP(w, r)
-		_ = FinishOperation(r.Context(), a, p, nil)
+		finishRequest(r.Context(), a, p)
 	})
+}
+
+// finishRequest finishes a request's permit without holding back its response:
+// if the supervisor is unreachable, the retry continues after the handler
+// returns.
+func finishRequest(ctx context.Context, a WorkerAdmission, p domain.OperationPermit) {
+	if !domain.OperationSettled(ctx) {
+		return
+	}
+	cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	err := a.Finish(cleanup, p)
+	cancel()
+	if errors.Is(err, domain.ErrUnavailable) {
+		go func() { _ = finishWithRetry(context.WithoutCancel(ctx), a, p) }()
+	}
 }
 
 func WriteUnready(w http.ResponseWriter, reason string) {

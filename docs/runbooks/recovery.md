@@ -159,14 +159,40 @@ and is retried with its exact restore ID and configuration after inspection.
 
 An unknown permit is a separate boundary: cancellation, process heartbeat
 expiry, an HTTP disconnect, or a new instance ID does not prove source I/O
-ended. Keep admission closed. Identify the exact original process/deployment,
-prove its termination, and reconcile its exact journal/object operation with
-provider readback and the idempotent O1 operation identity. Preserve receipts.
-This release deliberately has no generic command that clears unknown permits
-from an operator assertion. Engineering review and a bounded reconciler are
-required to consume that evidence; do not edit persisted state or use a timeout
-as a workaround. Unattended recovery from unknown external effects is not
-claimed.
+ended. Keep admission closed. No timeout removes an unknown permit, and nothing
+edits persisted state.
+
+There are two kinds of unknown permit, and `kb-supervisor status` lists the
+first kind under `RestoredPermits` with its ID, holder instance, kind and
+generation:
+
+- **Restored.** The supervisor stopped while a service-role holder (api,
+  worker, sweep, access audit or health) held the permit, and the holder never
+  declared its outcome uncertain. The holder retries its exact Finish for up to
+  ten minutes, and the supervisor accepts that Finish after its restart, so a
+  graph restart while api and worker keep running settles on its own and
+  startup recovery then opens. A stopping supervisor also refuses new work and
+  waits up to 90 seconds, inside the graph service's 120 second draining
+  window, for running operations to finish before it stops the graph.
+  If the holder's process ended first, for example because its deployment was
+  replaced, no Finish will come. Prove that process ended (its deployment is
+  removed and no process with that instance ID runs), then run
+  `kb-supervisor settle --id PERMIT_ID` on the graph host for each such permit.
+  Settle works only while admission is closed for startup recovery and only for
+  restored permits. It prints the permit it removed.
+- **Uncertain.** The holder declared its outcome uncertain, such as a backup,
+  host administration or startup recovery whose external effect may have
+  happened. Identify the exact original process/deployment, prove its
+  termination, and reconcile its exact journal/object operation with provider
+  readback and the idempotent O1 operation identity. Preserve receipts. This
+  release has no command that clears an uncertain permit from an operator
+  assertion; settle refuses one. Unattended recovery from unknown external
+  effects is not claimed.
+
+While startup recovery is closed, the graph logs `maintenance_closed` at warn
+level with the failing `stage`, its `error_class` and `unknown_operations`,
+when any of them changes and at most every five minutes otherwise. Stage
+`admission` with unknown operations above zero means a permit above is waiting.
 
 ## Local evidence
 
