@@ -169,8 +169,8 @@ Evidence and backups are encrypted with age keyrings before upload, authenticate
 - **The hosting provider is trusted.** Railway can read sealed variables and run code in the services. The bucket provider could roll storage back to an older consistent state; the journal's hash chain cannot detect that without an external freshness anchor.
 - **Verified means owner-approved, not true.** The owner can be wrong or deceived.
 - **Up to 30 seconds of access audit counts** can be lost if the api stops abruptly.
+- **Failed authentication is not counted by source address.** A guessing campaign shows as a rise in `auth:unknown`, not where it comes from. kb reads no proxy headers, which a caller can forge, so the only address it has is the platform proxy's, and a per-source counter would also hold personal data. Bearers carry 256 bits, so guessing one is not a practical attack, and the public guard refuses malformed bearers before they cost a lookup.
 
 ## Open gaps
 
-1. **Failed authentication by source.** Refused bearers are counted per client, or as unknown, but not per source address. A guessing campaign shows as a rise in `auth:unknown`, not where it comes from. Decide whether a bounded per-source counter is worth the personal data it would hold.
-2. **Branch protection on `main`** (roadmap security item 2): require the Memory service and Security checks before merge.
+1. **Branch protection on `main`** (roadmap security item 2): require the Memory service and Security checks before merge.
