@@ -15,7 +15,7 @@ Status as of 2026-11-27. Items are in priority order within each tier. Linear tr
 1. **Worker survives dependency restarts** (kb#17). Retry transient startup failures, and log the failing stage and error class from a closed vocabulary.
 2. **Deploy main and take a backup straight after.** Migrations 007, 008, 010 and 011 change the backup schema digest, so the first backup after deploy is the new restore baseline. Keep graph deployment `5ed3e589` for restoring older backups. Needs the owner's go-ahead.
 3. **Deploy from CI, not from a laptop.** Connect the three services to GitHub with "wait for CI", so main deploys only after the Memory service and Security workflows pass.
-4. **Keep security patches from breaking restore.** Restore refuses any backup whose tool-versions digest differs, and that digest covers the Go build image, so every Go patch release starts a new restore boundary. Narrow the check to what changes the backup format (Neo4j version and schema), with a test that restores across a Go patch bump.
+4. **Keep security patches from breaking restore** (done). Restore compares a restore-format digest of kb's backup format and the graph edition and version, not the whole tool manifest, so Go, library and base-image patch releases no longer start a restore boundary. The real-graph runtime test restores a backup on a build with a newer Go patch release and refuses one from another graph version.
 5. **Alerts.** Railway monitors on api readiness, worker restarts and backup age, matching the thresholds in `docs/runbooks/observability.md`.
 
 ## Tier 1: any AI provider can share one memory

@@ -199,6 +199,28 @@ func TestRuntimeSnapshotRealGraphEvidenceAndRecoveryAuthority(t *testing.T) {
 	require.NoError(t, snapshot.Close(t.Context()))
 	t.Setenv("KB_RETRIEVAL_HMAC_KEY", strings.Repeat("b", 64))
 	config.EvidenceNamespace = "fresh-evidence"
+	// The restoring build has a newer Go patch release and build image. That
+	// is not a new restore boundary, but a new graph version is.
+	bumped := func(change func(map[string]any)) string {
+		raw, err := os.ReadFile(tools)
+		require.NoError(t, err)
+		var v map[string]any
+		require.NoError(t, json.Unmarshal(raw, &v))
+		change(v)
+		raw, err = json.Marshal(v)
+		require.NoError(t, err)
+		path := filepath.Join(t.TempDir(), "versions.json")
+		require.NoError(t, os.WriteFile(path, raw, 0600))
+		return path
+	}
+	t.Setenv("KB_TOOL_VERSIONS_FILE", bumped(func(v map[string]any) { v["graph"].(map[string]any)["version"] = "2099.1.0" }))
+	newerGraph, err := newRuntimeSnapshot(config, objects["fresh-evidence"], journal, archive)
+	require.NoError(t, err)
+	require.ErrorIs(t, newerGraph.ValidateBackup(t.Context(), archived), domain.ErrConflict, "a dump from another graph version is refused")
+	t.Setenv("KB_TOOL_VERSIONS_FILE", bumped(func(v map[string]any) {
+		v["go"] = "1.27.99"
+		v["build_image"] = "golang:1.27.99-bookworm@sha256:" + strings.Repeat("0", 64)
+	}))
 	restored, err := newRuntimeSnapshot(config, objects["fresh-evidence"], journal, archive)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, restored.Close(context.Background())) })

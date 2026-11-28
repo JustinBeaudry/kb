@@ -5,8 +5,8 @@ updates:
     schedule:
       interval: weekly
     # Modules recorded in deploy/versions.json fail TestVersionsManifestMatchesGoModule
-    # until the manifest is updated in the same PR, because the manifest feeds the
-    # backup restore digest.
+    # until the manifest is updated in the same PR. Only the graph edition and
+    # version in the manifest affect which backups restore.
     groups:
       go-minor-and-patch:
         update-types: [minor, patch]

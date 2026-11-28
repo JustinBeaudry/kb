@@ -31,7 +31,10 @@ type runtimeSnapshot struct {
 	store       *graph.Store
 	snapshot    *service.BackupSnapshotService
 	metadata    domain.BackupManifest
-	trace       func(context.Context, string, func(context.Context) error) error
+	// legacyToolsDigest is the whole tool manifest's digest, which backups
+	// written before restoreFormatDigest carry.
+	legacyToolsDigest string
+	trace             func(context.Context, string, func(context.Context) error) error
 }
 
 func newRuntimeSnapshot(c supervisorConfig, o *gateway.S3, j *gateway.S3DeletionJournal, a *gateway.BackupArchiveGateway) (*runtimeSnapshot, error) {
@@ -49,7 +52,11 @@ func newRuntimeSnapshot(c supervisorConfig, o *gateway.S3, j *gateway.S3Deletion
 	if e != nil {
 		return nil, e
 	}
-	return &runtimeSnapshot{cfg: c, objects: o, journal: j, archive: a, metadata: domain.BackupManifest{SchemaDigest: digest([]byte(schema)), ToolVersionsDigest: digest(tools), Architecture: runtime.GOOS + "/" + runtime.GOARCH, EvidenceNamespace: c.EvidenceNamespace, RetrievalKeyDigest: digest(key)}}, nil
+	format, e := restoreFormatDigest(tools)
+	if e != nil {
+		return nil, e
+	}
+	return &runtimeSnapshot{cfg: c, objects: o, journal: j, archive: a, legacyToolsDigest: digest(tools), metadata: domain.BackupManifest{SchemaDigest: digest([]byte(schema)), ToolVersionsDigest: format, Architecture: runtime.GOOS + "/" + runtime.GOARCH, EvidenceNamespace: c.EvidenceNamespace, RetrievalKeyDigest: digest(key)}}, nil
 }
 func (r *runtimeSnapshot) InitializeAndRecover(ctx context.Context) error {
 	r.mu.Lock()
@@ -154,7 +161,7 @@ func (r *runtimeSnapshot) InvalidateRestoredClients(ctx context.Context, id stri
 func (r *runtimeSnapshot) VerifyRestore(ctx context.Context, m domain.BackupManifest) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.snapshot == nil || m.SchemaDigest != r.metadata.SchemaDigest || m.ToolVersionsDigest != r.metadata.ToolVersionsDigest || m.Architecture != r.metadata.Architecture {
+	if r.snapshot == nil || m.SchemaDigest != r.metadata.SchemaDigest || !r.sameRestoreFormat(m.ToolVersionsDigest) || m.Architecture != r.metadata.Architecture {
 		return domain.ErrUnavailable
 	}
 	if err := r.snapshot.VerifyRestore(ctx, m); err != nil {
@@ -174,7 +181,7 @@ func (r *runtimeSnapshot) ValidateRestoredSnapshot(ctx context.Context, m domain
 	return r.snapshot.ValidateRestoredSnapshot(ctx, m)
 }
 func (r *runtimeSnapshot) ValidateBackup(_ context.Context, m domain.BackupManifest) error {
-	if m.SchemaDigest != r.metadata.SchemaDigest || m.ToolVersionsDigest != r.metadata.ToolVersionsDigest || m.Architecture != r.metadata.Architecture || m.RetrievalKeyDigest == "" || m.RetrievalKeyDigest == r.metadata.RetrievalKeyDigest {
+	if m.SchemaDigest != r.metadata.SchemaDigest || !r.sameRestoreFormat(m.ToolVersionsDigest) || m.Architecture != r.metadata.Architecture || m.RetrievalKeyDigest == "" || m.RetrievalKeyDigest == r.metadata.RetrievalKeyDigest {
 		return domain.ErrConflict
 	}
 	return nil
