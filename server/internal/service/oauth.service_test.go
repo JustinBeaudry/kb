@@ -104,7 +104,9 @@ func (f *oauthRepoFake) ReleaseRequest(_ context.Context, _ Tx, id, digest strin
 	return nil
 }
 
-func (f *oauthRepoFake) PruneRequests(context.Context, Tx, time.Time, int) (int, error) { return 0, nil }
+func (f *oauthRepoFake) PruneRequests(context.Context, Tx, time.Time, int) (int, error) {
+	return 0, nil
+}
 
 func (f *oauthRepoFake) PruneRegistrations(_ context.Context, _ Tx, now time.Time, _ int) (int, error) {
 	f.pruned = append(f.pruned, now)

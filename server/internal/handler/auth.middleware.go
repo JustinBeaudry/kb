@@ -97,6 +97,7 @@ func authentication(identity Authenticator, access AccessRecorder) echo.Middlewa
 		}
 	}
 }
+
 // resourceAllows refuses a credential bound to one endpoint everywhere else:
 // an OAuth access token authenticates only at /mcp.
 func resourceAllows(p domain.Principal, r *http.Request) bool {
