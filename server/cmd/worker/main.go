@@ -25,6 +25,7 @@ func main() {
 	defer func() { _ = telemetry.Shutdown(context.Background()) }()
 	http.DefaultTransport = telemetry.HTTPClientTransport(http.DefaultTransport)
 	logger := telemetry.Logger()
+	platform.InstallHoldWatchdog(logger)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	// The liveness listener outlives every startup attempt, so a worker that is
@@ -89,14 +90,14 @@ func run(parent context.Context, logger *slog.Logger, handlers map[string]platfo
 	}
 	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	permit, err := platform.WaitForAdmission(ctx, admission, mc.InstanceID, "worker-startup")
+	permit, held, release, err := platform.WaitForAdmission(ctx, admission, mc.InstanceID, "worker-startup")
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil
 		}
 		return err
 	}
-	startupCtx := domain.WithOperationOutcome(ctx)
+	startupCtx := domain.WithOperationOutcome(held)
 	startupFinished := false
 	defer func() {
 		if failure := recover(); failure != nil {
@@ -104,6 +105,7 @@ func run(parent context.Context, logger *slog.Logger, handlers map[string]platfo
 			panic(failure)
 		}
 		if !startupFinished {
+			release(startupCtx)
 			_ = platform.FinishOperation(startupCtx, admission, permit, nil)
 		}
 	}()
@@ -128,6 +130,7 @@ func run(parent context.Context, logger *slog.Logger, handlers map[string]platfo
 	if err = lifecycle.Recover(startupCtx); err != nil {
 		return err
 	}
+	release(startupCtx)
 	if err = platform.FinishOperation(startupCtx, admission, permit, nil); err != nil {
 		return err
 	}
@@ -186,17 +189,23 @@ func runCapture(parent context.Context, logger *slog.Logger, opts captureOptions
 	if opts.admission != nil {
 		defer context.AfterFunc(opts.admission, stopAdmission)()
 	}
-	permit, err := platform.WaitForAdmission(admissionCtx, admission, mc.InstanceID, "worker-startup")
+	permit, admitted, release, err := platform.WaitForAdmission(admissionCtx, admission, mc.InstanceID, "worker-startup")
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil
 		}
 		return platform.AtStage("admission", err)
 	}
+	// Startup work runs on ctx, not the admission wait's context, but keeps
+	// the deadline the permit's hold was declared with. release still ends the
+	// hold, with this work's outcome.
+	holdDeadline, _ := admitted.Deadline()
+	held, releaseHold := context.WithDeadline(ctx, holdDeadline)
+	defer releaseHold()
 	if opts.admitted != nil {
 		opts.admitted()
 	}
-	startupCtx := domain.WithOperationOutcome(ctx)
+	startupCtx := domain.WithOperationOutcome(held)
 	startupFinished := false
 	defer func() {
 		if failure := recover(); failure != nil {
@@ -204,6 +213,7 @@ func runCapture(parent context.Context, logger *slog.Logger, opts captureOptions
 			panic(failure)
 		}
 		if !startupFinished {
+			release(startupCtx)
 			_ = platform.FinishOperation(startupCtx, admission, permit, nil)
 		}
 	}()
@@ -226,6 +236,7 @@ func runCapture(parent context.Context, logger *slog.Logger, opts captureOptions
 	if err = lifecycle.Recover(startupCtx); err != nil {
 		return platform.AtStage("lifecycle_recover", err)
 	}
+	release(startupCtx)
 	if err = platform.FinishOperation(startupCtx, admission, permit, nil); err != nil {
 		return platform.AtStage("finish_operation", err)
 	}
@@ -265,10 +276,12 @@ func runCapture(parent context.Context, logger *slog.Logger, opts captureOptions
 			case <-sweepCtx.Done():
 				return
 			case <-timer.C:
-				checkCtx, stop := context.WithTimeout(domain.WithOperationOutcome(sweepCtx), 30*time.Second)
+				held, release := domain.WithPermitHold(sweepCtx, "sweep")
+				checkCtx, stopCheck := context.WithTimeout(domain.WithOperationOutcome(held), 30*time.Second)
 				sweepPermit, err := admission.Admit(checkCtx, mc.InstanceID, "sweep")
 				if err != nil {
-					stop()
+					stopCheck()
+					release(nil)
 					continue
 				}
 				err = platform.AtStage("lifecycle_recover", lifecycle.Recover(checkCtx))
@@ -283,8 +296,9 @@ func runCapture(parent context.Context, logger *slog.Logger, opts captureOptions
 					// Dream scheduling never blocks capture reconciliation.
 					_ = dreams.tick(checkCtx, time.Now().UTC())
 				}
+				release(checkCtx)
 				err = platform.AtStage("finish_operation", platform.FinishOperation(checkCtx, admission, sweepPermit, err))
-				stop()
+				stopCheck()
 				if err != nil {
 					logger.Warn("capture_reconciliation_incomplete", "reason", "objects_or_policy_unavailable", "stage", platform.FailureStage(err), "error_class", platform.ErrorClass(err))
 				}

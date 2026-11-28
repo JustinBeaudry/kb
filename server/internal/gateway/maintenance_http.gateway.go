@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/JustinBeaudry/kb/server/internal/domain"
 	"io"
 	"net/http"
@@ -31,11 +32,22 @@ func (c *MaintenanceHTTPClient) Admit(ctx context.Context, instance, kind string
 	if strings.HasPrefix(kind, "host-admin:") || strings.Contains(kind, "recovery") {
 		return domain.OperationPermit{}, domain.ErrForbidden
 	}
+	type admitRequest struct {
+		InstanceID  string `json:"instance_id"`
+		Kind        string `json:"kind"`
+		HoldSeconds int64  `json:"hold_seconds,omitempty"`
+	}
+	// The hold is declared only when ctx carries the matching deadline, so a
+	// permit is never marked held unless this operation will stop by then.
+	hold := int64(domain.DeclaredPermitHold(ctx, kind) / time.Second)
 	var p domain.OperationPermit
-	err := c.request(ctx, http.MethodPost, "/v1/admit", struct {
-		InstanceID string `json:"instance_id"`
-		Kind       string `json:"kind"`
-	}{instance, kind}, &p)
+	err := c.request(ctx, http.MethodPost, "/v1/admit", admitRequest{instance, kind, hold}, &p)
+	if hold > 0 && errors.Is(err, domain.ErrInvalidInput) {
+		// A supervisor from before holds refuses the field. The permit is
+		// then simply not held, which is always safe.
+		p = domain.OperationPermit{}
+		err = c.request(ctx, http.MethodPost, "/v1/admit", admitRequest{InstanceID: instance, Kind: kind}, &p)
+	}
 	if err == nil && (p.ID == "" || p.InstanceID != instance || p.Kind != kind || p.Generation == 0 || p.Unknown) {
 		err = domain.ErrUnavailable
 	}

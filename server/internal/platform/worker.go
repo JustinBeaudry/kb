@@ -81,28 +81,25 @@ func (w *Worker) Run(ctx context.Context) error {
 		if ctx.Err() != nil {
 			return nil
 		}
-		var permit domain.OperationPermit
-		if w.Admission != nil {
-			var err error
-			permit, err = w.Admission.Admit(ctx, w.InstanceID, "worker")
-			if err != nil {
-				if ctx.Err() != nil {
+		permit, held, release, err := w.admit(ctx)
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
+			if errors.Is(err, domain.ErrMaintenance) {
+				if !waitWorker(ctx, poll) {
 					return nil
 				}
-				if errors.Is(err, domain.ErrMaintenance) {
-					if !waitWorker(ctx, poll) {
-						return nil
-					}
-					continue
-				}
-				return err
+				continue
 			}
+			return err
 		}
-		operationCtx := domain.WithOperationOutcome(ctx)
+		operationCtx := domain.WithOperationOutcome(held)
 		claimCtx, cancel := context.WithTimeout(operationCtx, 5*time.Second)
 		job, lease, err := w.Jobs.Claim(claimCtx, w.ID, w.Kinds, time.Now().UTC())
 		cancel()
 		if err != nil {
+			release(operationCtx)
 			finishErr := w.finishPermit(operationCtx, permit)
 			if ctx.Err() != nil {
 				return nil
@@ -119,6 +116,7 @@ func (w *Worker) Run(ctx context.Context) error {
 			continue
 		}
 		err = w.execute(operationCtx, job, lease, maxRun)
+		release(operationCtx)
 		finishErr := w.finishPermit(operationCtx, permit)
 		if ctx.Err() != nil {
 			return nil
@@ -130,6 +128,22 @@ func (w *Worker) Run(ctx context.Context) error {
 			return err
 		}
 	}
+}
+
+// admit asks for a worker permit. The returned context bounds the claim and
+// the job by the worker hold, which the permit declares, so the supervisor can
+// settle the permit if this process dies mid-job.
+func (w *Worker) admit(ctx context.Context) (domain.OperationPermit, context.Context, domain.PermitHoldRelease, error) {
+	held, release := domain.WithPermitHold(ctx, "worker")
+	if w.Admission == nil {
+		return domain.OperationPermit{}, held, release, nil
+	}
+	permit, err := w.Admission.Admit(held, w.InstanceID, "worker")
+	if err != nil {
+		release(nil)
+		return domain.OperationPermit{}, nil, nil, err
+	}
+	return permit, held, release, nil
 }
 func waitWorker(ctx context.Context, delay time.Duration) bool {
 	timer := time.NewTimer(delay)

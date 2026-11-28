@@ -324,6 +324,13 @@ func serveSupervisor(parent context.Context) error {
 				return domain.ErrUnavailable
 			}
 		case <-ticker.C:
+			expired, e := maintenance.ExpireHolds(ctx, time.Now().UTC())
+			if e != nil {
+				return e
+			}
+			for _, p := range expired {
+				logger.Warn("permit_hold_expired", "reason", "maintenance", "operation_kind", p.Kind)
+			}
 			state, e := maintenance.State(ctx)
 			if e != nil {
 				return e

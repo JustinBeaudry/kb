@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type ServiceAdmission interface {
@@ -38,8 +39,10 @@ func (h *MaintenanceHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		var input struct {
 			InstanceID string `json:"instance_id"`
 			Kind       string `json:"kind"`
+			// HoldSeconds is the deadline the holder enforces on its operation.
+			HoldSeconds int64 `json:"hold_seconds,omitempty"`
 		}
-		if decodeControl(w, r, &input) != nil {
+		if decodeControl(w, r, &input) != nil || input.HoldSeconds < 0 || input.HoldSeconds > 3600 {
 			controlError(w, domain.ErrInvalidInput)
 			return
 		}
@@ -47,7 +50,7 @@ func (h *MaintenanceHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			controlError(w, domain.ErrForbidden)
 			return
 		}
-		p, err := h.admission.Admit(r.Context(), input.InstanceID, input.Kind)
+		p, err := h.admission.Admit(domain.WithDeclaredHold(r.Context(), time.Duration(input.HoldSeconds)*time.Second), input.InstanceID, input.Kind)
 		if err != nil {
 			controlError(w, err)
 			return

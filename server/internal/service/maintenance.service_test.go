@@ -326,3 +326,103 @@ func TestMaintenanceExplicitRestoreCanMoveRecoveringOfflineOnlyWhenDrained(t *te
 		})
 	}
 }
+func TestMaintenanceHeldPermitIsSettledOnlyAfterItsHoldAndGrace(t *testing.T) {
+	domain.SetHoldOverrun(func(string) {})
+	t.Cleanup(func() { domain.SetHoldOverrun(nil) })
+	ctx := context.Background()
+	s, store := newMaintenance(t)
+	openMaintenance(t, s)
+	held, release := domain.WithPermitHold(ctx, "worker")
+	defer release(nil)
+	before := time.Now().UTC()
+	p, err := s.Admit(held, "worker-one", "worker")
+	require.NoError(t, err)
+	require.False(t, p.HoldUntil.IsZero())
+	assert.WithinDuration(t, before.Add(15*time.Minute), p.HoldUntil, 5*time.Second)
+	unheld, err := s.Admit(ctx, "worker-two", "worker")
+	require.NoError(t, err)
+	assert.True(t, unheld.HoldUntil.IsZero(), "a holder that sets no deadline declares no hold")
+
+	// The holder died without finishing. Within the hold and its grace the
+	// permit stays, since the holder may still be running.
+	expired, err := s.ExpireHolds(ctx, p.HoldUntil.Add(4*time.Minute))
+	require.NoError(t, err)
+	assert.Empty(t, expired)
+	expired, err = s.ExpireHolds(ctx, p.HoldUntil.Add(6*time.Minute))
+	require.NoError(t, err)
+	require.Len(t, expired, 1)
+	assert.Equal(t, p.ID, expired[0].ID)
+	require.Len(t, store.permits, 1, "the unheld permit is never expired")
+	assert.Equal(t, unheld.ID, store.permits[0].ID)
+	require.NoError(t, s.Finish(ctx, p), "a late Finish from the holder is harmless")
+	expired, err = s.ExpireHolds(ctx, time.Now().UTC().Add(24*time.Hour))
+	require.NoError(t, err)
+	assert.Empty(t, expired)
+}
+func TestMaintenanceRestoredHeldPermitExpiresAndLetsStartupRecoveryProceed(t *testing.T) {
+	domain.SetHoldOverrun(func(string) {})
+	t.Cleanup(func() { domain.SetHoldOverrun(nil) })
+	ctx := context.Background()
+	s, store := newMaintenance(t)
+	openMaintenance(t, s)
+	held, release := domain.WithPermitHold(ctx, "api")
+	defer release(nil)
+	p, err := s.Admit(held, "api-one", "api")
+	require.NoError(t, err)
+	_, err = s.Admit(ctx, "legacy", "worker")
+	require.NoError(t, err)
+	legacy := store.permits
+	// A graph restart cut both holders off.
+	s, err = service.NewMaintenanceService(ctx, store)
+	require.NoError(t, err)
+	st, err := s.State(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 2, st.Unknown)
+	expired, err := s.ExpireHolds(ctx, p.HoldUntil.Add(6*time.Minute))
+	require.NoError(t, err)
+	require.Len(t, expired, 1)
+	assert.Equal(t, p.ID, expired[0].ID)
+	st, err = s.State(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, st.Unknown, "a permit with no declared hold still needs its holder or an operator")
+	require.ErrorIs(t, s.MarkRecoveryComplete(ctx, st.Fence), domain.ErrMaintenance)
+	for _, l := range legacy {
+		if l.ID != p.ID {
+			_, err = s.SettleRestored(ctx, l.ID)
+			require.NoError(t, err)
+		}
+	}
+	require.NoError(t, s.MarkRecoveryComplete(ctx, st.Fence))
+}
+func TestMaintenanceHoldsAreOnlyForServiceRoleKindsAndNeverForUncertainPermits(t *testing.T) {
+	ctx := context.Background()
+	s, store := newMaintenance(t)
+	openMaintenance(t, s)
+	_, err := s.Admit(domain.WithDeclaredHold(ctx, time.Minute), "admin", "custom")
+	require.ErrorIs(t, err, domain.ErrInvalidInput)
+	_, err = s.Admit(domain.WithDeclaredHold(ctx, 2*time.Hour), "api-one", "api")
+	require.ErrorIs(t, err, domain.ErrInvalidInput)
+	_, err = s.Admit(domain.WithDeclaredHold(ctx, -time.Minute), "api-one", "api")
+	require.ErrorIs(t, err, domain.ErrInvalidInput)
+	p, err := s.Admit(domain.WithDeclaredHold(ctx, time.Minute), "api-one", "api")
+	require.NoError(t, err)
+	require.NoError(t, s.MarkUnknown(ctx, p))
+	expired, err := s.ExpireHolds(ctx, p.HoldUntil.Add(time.Hour))
+	require.NoError(t, err)
+	assert.Empty(t, expired, "a permit its holder declared uncertain is never settled by time")
+	require.Len(t, store.permits, 1)
+}
+func TestMaintenanceHoldExpiryKeepsPermitsWhenItsSaveFails(t *testing.T) {
+	ctx := context.Background()
+	s, store := newMaintenance(t)
+	openMaintenance(t, s)
+	p, err := s.Admit(domain.WithDeclaredHold(ctx, time.Minute), "api-one", "api")
+	require.NoError(t, err)
+	store.fail = true
+	_, err = s.ExpireHolds(ctx, p.HoldUntil.Add(time.Hour))
+	require.ErrorIs(t, err, domain.ErrUnavailable)
+	require.Len(t, store.permits, 1, "the permit is still on disk")
+	expired, err := s.ExpireHolds(ctx, p.HoldUntil.Add(time.Hour))
+	require.NoError(t, err)
+	assert.Empty(t, expired, "a failed supervisor changes nothing")
+}

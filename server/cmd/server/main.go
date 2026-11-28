@@ -27,6 +27,7 @@ func main() {
 	}
 	defer func() { _ = telemetry.Shutdown(context.Background()) }()
 	http.DefaultTransport = telemetry.HTTPClientTransport(http.DefaultTransport)
+	platform.InstallHoldWatchdog(telemetry.Logger())
 	if err = run(context.Background(), telemetry.Logger(), telemetry); err != nil {
 		telemetry.Logger().Error("server_stopped", "reason", "configuration_or_service_unavailable")
 		os.Exit(1)
@@ -109,13 +110,14 @@ func run(parent context.Context, logger *slog.Logger, telemetry ...*platform.Tel
 	}()
 	initialized := make(chan error, 1)
 	go func() {
-		permit, err := platform.WaitForAdmission(ctx, admission, mc.InstanceID, "api-startup")
+		permit, held, release, err := platform.WaitForAdmission(ctx, admission, mc.InstanceID, "api-startup")
 		if err != nil {
 			initialized <- err
 			return
 		}
-		operationCtx := domain.WithOperationOutcome(ctx)
+		operationCtx := domain.WithOperationOutcome(held)
 		current, err := composeRuntime(operationCtx, cfg, key, objects, journal, admission, mc.InstanceID, logger, telemetry...)
+		release(operationCtx)
 		err = platform.FinishOperation(operationCtx, admission, permit, err)
 		if err != nil {
 			if current != nil {
@@ -222,12 +224,16 @@ func composeRuntime(ctx context.Context, cfg platform.Config, key []byte, object
 	go func() {
 		defer close(auditDone)
 		access.Run(auditCtx, accessFlushInterval, func(ctx context.Context) error {
-			ctx = domain.WithOperationOutcome(ctx)
+			held, release := domain.WithPermitHold(ctx, "access-audit")
+			ctx = domain.WithOperationOutcome(held)
 			permit, err := admission.Admit(ctx, instance, "access-audit")
 			if err != nil {
+				release(nil)
 				return err
 			}
-			return platform.FinishOperation(ctx, admission, permit, access.Flush(ctx))
+			flushErr := access.Flush(ctx)
+			release(ctx)
+			return platform.FinishOperation(ctx, admission, permit, flushErr)
 		})
 	}()
 	closeRuntime := func() {
