@@ -56,8 +56,8 @@ Phase 3 adds approval in the browser with a NIP-07 signer: the page asks the ext
 
 ## Grants and tokens
 
-- **Approval** creates the client `oauth-<grant id>` through the same enrollment path as `kb-admin enroll`, with the chosen grant, plus an `OAuthGrant` node holding the registration ID, redirect URI, the grant's own expiry, the current refresh-token digest and the digests of refresh tokens already used.
-- **The grant's expiry is fixed at approval** and stored only on the `OAuthGrant`. Each token response sets the client's bearer expiry to one hour from now or the grant's expiry, whichever is sooner, so refreshing can never carry a grant past its limit. Code exchange and refresh refuse a grant past its expiry, and expiry removes the client record.
+- **Approval** fixes the grant on the request. **Code exchange** then creates the client `oauth-<grant id>` with the chosen grant, plus an `OAuthGrant` node holding the registration ID, redirect URI, the grant's own expiry and the current refresh-token digest. Used refresh-token digests are kept as `OAuthUsedRefresh` nodes until the grant ends. Exchange marks the registration approved, so it is no longer pruned.
+- **The grant's expiry is fixed at approval** and stored only on the `OAuthGrant`. Each token response sets the client's bearer expiry to one hour from now or the grant's expiry, whichever is sooner, so refreshing can never carry a grant past its limit. Refresh refuses a grant past its expiry, and expired grants are revoked and removed a few at a time on each code exchange.
 - **Authorization codes** are single use, live 60 seconds, and are bound to the redirect URI and code challenge. A second use of a code revokes the grant (OAuth 2.1 §4.1.2).
 - **Access tokens** are the client's bearer, rotated by each token response. They are bound to `/mcp`: the client record carries `resource: mcp`, `Authenticate` puts it on the principal, and every route other than `/mcp` refuses a principal bound to a resource. A test sends an OAuth access token to `/v1/exports` and expects `401`.
 - **Refresh tokens** rotate on every use. The used token's digest moves to the grant's used list, which is kept until the grant ends, so an old token still finds its grant. Presenting one that was already used revokes the grant, because it means a copy is in someone else's hands (RFC 9700 §4.14).
@@ -88,7 +88,7 @@ Phase 3 adds approval in the browser with a NIP-07 signer: the page asks the ext
 3. **Browser approval** with a NIP-07 signer.
 4. **Client ID Metadata Documents.**
 
-Phase 2 ships as three pull requests, each safe on its own: (2a) the `/oauth/*` guard and registration, (2b) authorize, the request poll and `kb-admin oauth-approve`/`oauth-deny`, (2c) token exchange, refresh, revocation, and last the authorization server metadata that tells clients the flow exists.
+Phase 2 ships as four pull requests, each safe on its own: (2a) the `/oauth/*` guard and registration, (2b) authorize, the request poll and `kb-admin oauth-approve`/`oauth-deny`, (2c) token exchange, refresh, revocation, and last the authorization server metadata that tells clients the flow exists, (2d) the end-to-end test with a scripted client against a real graph, and grants with their redirect host and expiry in `kb-admin list`.
 
 Each phase is its own pull request and ships behind no flag: phase 1 is inert without phase 2, and phase 2 does nothing until the owner approves a request.
 

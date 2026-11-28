@@ -61,3 +61,8 @@ var OAuth string
 //
 //go:embed 015_oauth_requests.cypher
 var OAuthRequests string
+
+// OAuthGrants holds approved OAuth grants and their refresh token digests.
+//
+//go:embed 016_oauth_grants.cypher
+var OAuthGrants string

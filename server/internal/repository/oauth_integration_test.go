@@ -154,3 +154,125 @@ func TestOAuthRequestsRealGraph(t *testing.T) {
 	_, err = find("or_old")
 	assert.ErrorIs(t, err, domain.ErrForbidden)
 }
+
+func TestOAuthGrantsRealGraph(t *testing.T) {
+	store, _, _ := jobsGraph(t)
+	repo := repository.NewOAuthRepository(store)
+	identities := repository.NewIdentityRepository(store)
+	ctx := t.Context()
+	at := time.Date(2026, 11, 27, 9, 0, 0, 0, time.UTC)
+	within := func(fn func(context.Context, domain.Tx) error) error { return store.Within(ctx, fn) }
+
+	require.NoError(t, within(func(ctx context.Context, tx domain.Tx) error {
+		return repo.AddRegistration(ctx, tx, domain.OAuthRegistration{ID: "oc_1", RedirectURIs: []string{"https://client.example/cb"}, ClientName: "Example", CreatedAt: at, ExpiresAt: at.Add(domain.OAuthRegistrationTTL)}, 10)
+	}))
+	req := domain.OAuthRequest{
+		ID: "or_a", ApprovalCode: "BBBBBBBB", ClientID: "oc_1", ClientName: "Example", RedirectURI: "https://client.example/cb",
+		State: "s", CodeChallenge: "c", CookieDigest: "k",
+		Requested: domain.OAuthScope{Projects: []string{"demo"}, Capabilities: []string{}},
+		Status:    domain.OAuthRequestPending, Granted: domain.OAuthScope{Projects: []string{}, Capabilities: []string{}},
+		CreatedAt: at, ExpiresAt: at.Add(domain.OAuthRequestTTL),
+	}
+	require.NoError(t, within(func(ctx context.Context, tx domain.Tx) error { return repo.AddRequest(ctx, tx, req, 10) }))
+	claim := func(digest, grant string) (got domain.OAuthRequest, err error) {
+		err = within(func(ctx context.Context, tx domain.Tx) (err error) {
+			got, err = repo.ClaimCode(ctx, tx, digest, grant)
+			return err
+		})
+		return got, err
+	}
+	_, err := claim("code-digest", "og_1")
+	assert.ErrorIs(t, err, domain.ErrForbidden, "a pending request has no code to claim")
+
+	require.NoError(t, within(func(ctx context.Context, tx domain.Tx) error {
+		if err := repo.DecideRequest(ctx, tx, "or_a", domain.OAuthRequestApproved, domain.OAuthScope{Projects: []string{"demo"}, Capabilities: []string{"retrieval:read"}}, 720*time.Hour, at); err != nil {
+			return err
+		}
+		return repo.ReleaseRequest(ctx, tx, "or_a", "code-digest", at.Add(domain.OAuthCodeTTL))
+	}))
+	_, err = claim("", "og_1")
+	assert.ErrorIs(t, err, domain.ErrForbidden)
+	_, err = claim("other-digest", "og_1")
+	assert.ErrorIs(t, err, domain.ErrForbidden)
+	claimed, err := claim("code-digest", "og_1")
+	require.NoError(t, err)
+	assert.True(t, claimed.CodeUsed)
+	assert.Equal(t, "og_1", claimed.GrantID)
+	again, err := claim("code-digest", "og_2")
+	assert.ErrorIs(t, err, domain.ErrConflict, "a code is claimed once")
+	assert.Equal(t, "og_1", again.GrantID, "the second claim learns which grant to revoke")
+
+	grant := domain.OAuthGrant{ID: "og_1", ClientID: "oauth-og_1", RegistrationID: "oc_1", RedirectURI: "https://client.example/cb", RefreshDigest: "r1", CreatedAt: at, ExpiresAt: at.Add(720 * time.Hour)}
+	assert.ErrorIs(t, within(func(ctx context.Context, tx domain.Tx) error {
+		g := grant
+		g.ID, g.RegistrationID = "og_x", "oc_missing"
+		return repo.AddGrant(ctx, tx, g)
+	}), domain.ErrForbidden, "a grant needs its registration")
+	require.NoError(t, within(func(ctx context.Context, tx domain.Tx) error { return repo.AddGrant(ctx, tx, grant) }))
+
+	var pruned int
+	require.NoError(t, within(func(ctx context.Context, tx domain.Tx) (err error) {
+		pruned, err = repo.PruneRegistrations(ctx, tx, at.Add(domain.OAuthRegistrationTTL+time.Hour), 10)
+		return err
+	}))
+	assert.Zero(t, pruned, "an approved registration is never pruned")
+
+	byRefresh := func(digest string) (got domain.OAuthGrant, err error) {
+		err = within(func(ctx context.Context, tx domain.Tx) (err error) {
+			got, err = repo.FindGrantByRefresh(ctx, tx, digest)
+			return err
+		})
+		return got, err
+	}
+	got, err := byRefresh("r1")
+	require.NoError(t, err)
+	assert.Equal(t, grant.ID, got.ID)
+	assert.True(t, grant.ExpiresAt.Equal(got.ExpiresAt))
+	require.NoError(t, within(func(ctx context.Context, tx domain.Tx) error {
+		g, err := repo.FindGrantByClient(ctx, tx, "oauth-og_1")
+		assert.Equal(t, "og_1", g.ID)
+		return err
+	}))
+
+	require.NoError(t, within(func(ctx context.Context, tx domain.Tx) error { return repo.RotateRefresh(ctx, tx, "og_1", "r1", "r2") }))
+	assert.ErrorIs(t, within(func(ctx context.Context, tx domain.Tx) error { return repo.RotateRefresh(ctx, tx, "og_1", "r1", "r3") }), domain.ErrConflict, "a used refresh token cannot rotate again")
+	got, err = byRefresh("r2")
+	require.NoError(t, err)
+	assert.Equal(t, "og_1", got.ID)
+	got, err = byRefresh("r1")
+	assert.ErrorIs(t, err, domain.ErrConflict, "a used refresh token names its grant")
+	assert.Equal(t, "og_1", got.ID)
+	_, err = byRefresh("unknown")
+	assert.ErrorIs(t, err, domain.ErrForbidden)
+
+	var expired []domain.OAuthGrant
+	require.NoError(t, within(func(ctx context.Context, tx domain.Tx) (err error) {
+		expired, err = repo.ExpiredGrants(ctx, tx, at, 10)
+		return err
+	}))
+	assert.Empty(t, expired)
+	require.NoError(t, within(func(ctx context.Context, tx domain.Tx) (err error) {
+		expired, err = repo.ExpiredGrants(ctx, tx, grant.ExpiresAt, 10)
+		return err
+	}))
+	require.Len(t, expired, 1)
+	assert.Equal(t, "og_1", expired[0].ID)
+
+	require.NoError(t, within(func(ctx context.Context, tx domain.Tx) error { return repo.DeleteGrant(ctx, tx, "og_1") }))
+	require.NoError(t, within(func(ctx context.Context, tx domain.Tx) error { return repo.DeleteGrant(ctx, tx, "og_1") }), "deleting is idempotent")
+	_, err = byRefresh("r2")
+	assert.ErrorIs(t, err, domain.ErrForbidden)
+	_, err = byRefresh("r1")
+	assert.ErrorIs(t, err, domain.ErrForbidden, "used digests go with their grant")
+
+	// An access token client carries the resource it is bound to.
+	expires := at.Add(time.Hour)
+	require.NoError(t, within(func(ctx context.Context, tx domain.Tx) error {
+		return identities.PutClient(ctx, tx, domain.ClientRecord{Principal: domain.Principal{ClientID: "oauth-og_2", OwnerID: "owner", Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"retrieval:read"}, Resource: domain.OAuthResourceMCP}, TokenDigest: "access-digest", ExpiresAt: &expires})
+	}))
+	require.NoError(t, within(func(ctx context.Context, tx domain.Tx) error {
+		record, err := identities.FindToken(ctx, tx, "access-digest")
+		assert.Equal(t, domain.OAuthResourceMCP, record.Principal.Resource)
+		return err
+	}))
+}

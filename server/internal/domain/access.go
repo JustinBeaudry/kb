@@ -21,6 +21,9 @@ const (
 	AccessAuthRevoked = "auth:revoked"
 	AccessAuthExpired = "auth:expired"
 	AccessAuthUnknown = "auth:unknown"
+	// AccessAuthResource counts a token bound to one endpoint, such as an
+	// OAuth access token, presented at another.
+	AccessAuthResource = "auth:resource"
 )
 
 // accessKeySeparator never appears in an accepted identifier.

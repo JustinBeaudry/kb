@@ -37,8 +37,8 @@ func TestProtectedResourceMetadataIsServedBeforeTheGuard(t *testing.T) {
 	// derived from.
 	assert.Equal(t, "https://kb.example.com/mcp", doc["resource"])
 	assert.Equal(t, []any{"header"}, doc["bearer_methods_supported"])
-	// No authorization server is advertised until kb can issue grants.
-	assert.NotContains(t, doc, "authorization_servers")
+	// kb is its own authorization server.
+	assert.Equal(t, []any{"https://kb.example.com"}, doc["authorization_servers"])
 	assert.Zero(t, reached.Load(), "metadata never reaches admission or authentication")
 
 	// The root address would describe the origin, not /mcp, so it is not
@@ -108,4 +108,28 @@ func TestOAuthDiscoveryIsOffWithoutAPublicOrigin(t *testing.T) {
 	rec := httptest.NewRecorder()
 	api.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, MCPResourceMetadataPath, nil))
 	assert.Equal(t, http.StatusTeapot, rec.Code)
+}
+
+func TestAuthorizationServerMetadataNamesOnlyWhatKbIssues(t *testing.T) {
+	var reached atomic.Int64
+	api := discoveryAPI(&reached)
+	rec := httptest.NewRecorder()
+	api.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, AuthorizationServerMetadataPath, nil))
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "*", rec.Header().Get("Access-Control-Allow-Origin"))
+	var doc map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &doc))
+	// RFC 8414 §3.3: the issuer must match the origin the document was fetched from.
+	assert.Equal(t, "https://kb.example.com", doc["issuer"])
+	assert.Equal(t, "https://kb.example.com/oauth/authorize", doc["authorization_endpoint"])
+	assert.Equal(t, "https://kb.example.com/oauth/token", doc["token_endpoint"])
+	assert.Equal(t, "https://kb.example.com/oauth/register", doc["registration_endpoint"])
+	assert.Equal(t, "https://kb.example.com/oauth/revoke", doc["revocation_endpoint"])
+	assert.Equal(t, []any{"code"}, doc["response_types_supported"])
+	assert.Equal(t, []any{"authorization_code", "refresh_token"}, doc["grant_types_supported"])
+	assert.Equal(t, []any{"S256"}, doc["code_challenge_methods_supported"])
+	assert.Equal(t, []any{"none"}, doc["token_endpoint_auth_methods_supported"])
+	assert.Equal(t, true, doc["authorization_response_iss_parameter_supported"])
+	assert.NotContains(t, doc["scopes_supported"], "owner:adjudicate")
+	assert.Zero(t, reached.Load(), "metadata never reaches admission or authentication")
 }

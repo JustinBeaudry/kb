@@ -42,8 +42,10 @@ type OAuthService struct {
 	tx     Transactor
 	repo   OAuthRepository
 	now    func() time.Time
-	issuer string
-	owners AccessOwners
+	issuer  string
+	owners  AccessOwners
+	clients OAuthClients
+	grants  OAuthGrantStore
 }
 
 func NewOAuthService(tx Transactor, repo OAuthRepository, now func() time.Time) *OAuthService {

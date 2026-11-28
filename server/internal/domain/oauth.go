@@ -148,8 +148,12 @@ type OAuthRequest struct {
 	CodeDigest    string             `json:"-"`
 	CodeExpiresAt time.Time          `json:"-"`
 	Released      bool               `json:"-"`
-	CreatedAt     time.Time          `json:"created_at"`
-	ExpiresAt     time.Time          `json:"expires_at"`
+	// CodeUsed marks an authorization code already exchanged, and GrantID the
+	// grant it produced, so a second use can revoke that grant.
+	CodeUsed  bool      `json:"-"`
+	GrantID   string    `json:"-"`
+	CreatedAt time.Time `json:"created_at"`
+	ExpiresAt time.Time `json:"expires_at"`
 }
 
 // ParseOAuthScope reads a space-separated scope: project:<id> tokens and
@@ -272,4 +276,26 @@ func validScopeProject(p string) bool {
 // alnumOr reports whether r is an ASCII letter or digit, or one of extra.
 func alnumOr(r rune, extra string) bool {
 	return r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || strings.ContainsRune(extra, r)
+}
+
+const (
+	// OAuthResourceMCP binds an OAuth access token to kb's /mcp endpoint.
+	OAuthResourceMCP = "mcp"
+	// OAuthClientPrefix starts the client ID of every OAuth grant.
+	OAuthClientPrefix = "oauth-"
+	// OAuthAccessTokenTTL is the longest an OAuth access token lives.
+	OAuthAccessTokenTTL = time.Hour
+)
+
+// OAuthGrant is an owner-approved grant: the client record it authenticates
+// as, the registration and redirect URI it was issued to, its fixed expiry and
+// the digest of its current refresh token.
+type OAuthGrant struct {
+	ID             string
+	ClientID       string
+	RegistrationID string
+	RedirectURI    string
+	RefreshDigest  string
+	CreatedAt      time.Time
+	ExpiresAt      time.Time
 }
