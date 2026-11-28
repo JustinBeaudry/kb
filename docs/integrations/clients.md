@@ -109,6 +109,52 @@ not its `headers`, so the bearer is written into the file here. Keep that file
 readable only by you (`chmod 600`), and give this client a short `--ttl` so a
 leaked copy expires.
 
+## Hermes Agent
+
+Hermes reads MCP servers from `~/.hermes/config.yaml` under `mcp_servers`.
+It can sign in with OAuth, so no bearer has to be written anywhere:
+
+```yaml
+mcp_servers:
+  kb:
+    url: "https://memory.example.com/mcp"
+    auth: oauth
+```
+
+Hermes registers itself with kb and opens kb's approval page in your browser;
+approve the code on the host as in
+[Apps that sign in with OAuth](#apps-that-sign-in-with-oauth). kb accepts a
+local sign-in return only on a loopback IP address such as `127.0.0.1`, so if
+you set `oauth.redirect_host`, don't set it to `localhost`. Hermes keeps the tokens in `~/.hermes/mcp-tokens/kb.json`, so
+keep that directory readable only by you. Run `hermes mcp login kb` to sign
+in again after `kb-admin revoke` or when the grant ends.
+
+To use an enrolled bearer instead, put `KB_MEMORY_BEARER=...` in
+`~/.hermes/.env` and name the variable in the header. Make that file readable
+only by you first (`chmod 600 ~/.hermes/.env`):
+
+```yaml
+mcp_servers:
+  kb:
+    url: "https://memory.example.com/mcp"
+    headers:
+      Authorization: "Bearer ${KB_MEMORY_BEARER}"
+```
+
+Hermes resolves `${VAR}` in `headers` from the environment, which includes
+`~/.hermes/.env`. A `401` from kb means the bearer is wrong, revoked or
+expired, or the variable was not set where Hermes reads it. Run
+`/reload-mcp` in a session, or restart Hermes, after editing the file.
+
+`tools.include` limits which kb tools Hermes sees, for example
+`include: [memory_status, memory_orient, memory_search, memory_fetch]` for an
+agent that should only read. That only hides tools; the credential's
+capabilities are what kb enforces.
+
+For automatic recall and turn capture inside a Hermes conversation, see the
+native memory provider in [hermes.md](hermes.md). The MCP server above works
+on its own or alongside it.
+
 ## Apps that sign in with OAuth
 
 Claude (web and desktop), ChatGPT and other apps that can't send a custom
