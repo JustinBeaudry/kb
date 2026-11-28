@@ -14,6 +14,7 @@ type OAuthRepository interface {
 	AddRegistration(ctx context.Context, tx Tx, reg domain.OAuthRegistration, maxPending int) error
 	FindRegistration(ctx context.Context, tx Tx, id string, now time.Time) (domain.OAuthRegistration, error)
 	PruneRegistrations(ctx context.Context, tx Tx, now time.Time, limit int) (int, error)
+<<<<<<< HEAD
 	AddRequest(ctx context.Context, tx Tx, req domain.OAuthRequest, maxPending int) error
 	FindRequest(ctx context.Context, tx Tx, id string) (domain.OAuthRequest, error)
 	FindPendingRequest(ctx context.Context, tx Tx, code string, now time.Time) (domain.OAuthRequest, error)
@@ -21,6 +22,8 @@ type OAuthRepository interface {
 	DecideRequest(ctx context.Context, tx Tx, id string, status domain.OAuthRequestStatus, granted domain.OAuthScope, ttl time.Duration, now time.Time) error
 	ReleaseRequest(ctx context.Context, tx Tx, id, codeDigest string, codeExpires time.Time) error
 	PruneRequests(ctx context.Context, tx Tx, before time.Time, limit int) (int, error)
+=======
+>>>>>>> origin/main
 }
 
 // OAuthRegistrationInput is the client metadata kb reads from a dynamic
@@ -39,11 +42,17 @@ const oauthPruneBatch = 100
 // OAuthService registers public OAuth clients. A registration grants nothing:
 // it only lets a client ask the owner for a grant.
 type OAuthService struct {
+<<<<<<< HEAD
 	tx     Transactor
 	repo   OAuthRepository
 	now    func() time.Time
 	issuer string
 	owners AccessOwners
+=======
+	tx   Transactor
+	repo OAuthRepository
+	now  func() time.Time
+>>>>>>> origin/main
 }
 
 func NewOAuthService(tx Transactor, repo OAuthRepository, now func() time.Time) *OAuthService {
@@ -53,6 +62,7 @@ func NewOAuthService(tx Transactor, repo OAuthRepository, now func() time.Time) 
 	return &OAuthService{tx: tx, repo: repo, now: now}
 }
 
+<<<<<<< HEAD
 // WithGrants enables grant requests. issuer is kb's public origin, which is
 // also the authorization server's issuer; the only resource a grant may name
 // is issuer + "/mcp". owners resolves the enrolled owner for host decisions.
@@ -62,6 +72,8 @@ func (s *OAuthService) WithGrants(issuer string, owners AccessOwners) *OAuthServ
 	return s
 }
 
+=======
+>>>>>>> origin/main
 // Register validates the metadata and stores a new public client. Only public
 // clients using the authorization code grant with PKCE are accepted.
 func (s *OAuthService) Register(ctx context.Context, in OAuthRegistrationInput) (domain.OAuthRegistration, error) {

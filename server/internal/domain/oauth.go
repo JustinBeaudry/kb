@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+<<<<<<< HEAD
 	"slices"
+=======
+>>>>>>> origin/main
 	"strings"
 	"time"
 	"unicode"
@@ -86,6 +89,7 @@ func CanonicalClientName(raw string) (string, error) {
 	}
 	return name, nil
 }
+<<<<<<< HEAD
 
 const (
 	// OAuthRequestTTL is how long the owner has to approve a grant request.
@@ -273,3 +277,5 @@ func validScopeProject(p string) bool {
 func alnumOr(r rune, extra string) bool {
 	return r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || strings.ContainsRune(extra, r)
 }
+=======
+>>>>>>> origin/main

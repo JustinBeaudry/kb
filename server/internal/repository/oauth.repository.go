@@ -95,6 +95,7 @@ WITH reg LIMIT $limit DETACH DELETE reg RETURN count(*)`, map[string]any{"now": 
 	}
 	return int(n), nil
 }
+<<<<<<< HEAD
 
 const oauthRequestFields = `r.id, r.approvalCode, r.clientID, r.clientName, r.redirectURI, r.state, r.codeChallenge, r.requestedProjects, r.requestedCapabilities, r.status, r.grantedProjects, r.grantedCapabilities, r.grantTTL, r.cookieDigest, r.codeDigest, r.codeExpiresAt, r.released, r.createdAt, r.expiresAt`
 
@@ -286,3 +287,5 @@ func decodeOAuthRequest(row *neo4j.Record) (domain.OAuthRequest, error) {
 	req.ExpiresAt = time.Unix(0, expires).UTC()
 	return req, nil
 }
+=======
+>>>>>>> origin/main

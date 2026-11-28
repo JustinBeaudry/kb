@@ -238,7 +238,11 @@ func composeRuntime(ctx context.Context, cfg platform.Config, key []byte, object
 	api := handler.GuardPublicAPI(platform.AdmittedHandler(admission, instance, e), logger)
 	if cfg.PublicURL != "" {
 		// OAuth endpoints are only useful where clients can discover them.
+<<<<<<< HEAD
 		oauth := handler.NewOAuthHandler(service.NewOAuthService(store, repository.NewOAuthRepository(store), time.Now).WithGrants(cfg.PublicURL, repository.NewIdentityRepository(store)), logger)
+=======
+		oauth := handler.NewOAuthHandler(service.NewOAuthService(store, repository.NewOAuthRepository(store), time.Now), logger)
+>>>>>>> origin/main
 		api = handler.WithOAuthEndpoints(api, handler.GuardOAuth(platform.AdmittedHandlerRefusing(admission, instance, oauth, handler.RefuseOAuthMaintenance(logger)), logger))
 	}
 	return &serverRuntime{api: handler.WithOAuthDiscovery(api, cfg.PublicURL), readiness: service.NewHealthService(admission, store, objects, journal, 5*time.Second, instance), close: closeRuntime}, nil
