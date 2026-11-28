@@ -1,0 +1,14 @@
+[project]
+name = "kb-client"
+version = "0.1.0"
+description = "Typed Python client for kb's REST API, generated from server/api/openapi.yaml"
+license = "MIT"
+requires-python = ">=3.11"
+dependencies = []
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["kb_client"]

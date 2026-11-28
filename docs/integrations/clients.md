@@ -183,5 +183,6 @@ Agents built on a model API's function calling can use the same tools from
 published OpenAI and Gemini definitions; see
 [function-calling.md](function-calling.md). Agents that only speak HTTP use
 the REST API under `/v1` with the same bearer; see [remote.md](remote.md),
-`server/api/openapi.yaml`, and the typed TypeScript client in
-[sdk/typescript](../../sdk/typescript/README.md).
+`server/api/openapi.yaml`, and the typed clients for
+[TypeScript](../../sdk/typescript/README.md) and
+[Python](../../sdk/python/README.md).

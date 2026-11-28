@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { generatePython, PYTHON_OUTPUT_PATH } from "../scripts/generate-python-sdk";
 import { generateClient, SDK_OUTPUT_PATH } from "../scripts/generate-sdk";
 import { SPEC_PATH } from "../scripts/generate-memory-api";
 import { KBClient, KBError, canonicalOrigin } from "../sdk/typescript/src/kb";
@@ -77,5 +79,19 @@ describe("generated TypeScript client", () => {
     const kb = new KBClient({ origin: "https://memory.example.com", bearer, fetch: fake(200, {}, seen) });
     expect(await kb.completeArtifact("", {} as never).catch((e: KBError) => e.code)).toBe("invalid_input");
     expect(seen).toHaveLength(0);
+  });
+});
+
+describe("generated Python client", () => {
+  test("is current with the OpenAPI contract", () => {
+    const spec = JSON.parse(readFileSync(SPEC_PATH, "utf8"));
+    expect(readFileSync(PYTHON_OUTPUT_PATH, "utf8")).toBe(generatePython(spec));
+  });
+
+  test("passes its own tests against a local server", () => {
+    const python = Bun.which("python3");
+    if (!python) return;
+    const run = Bun.spawnSync([python, "-I", "-m", "unittest", "discover", "-s", "sdk/python/tests"], { cwd: join(import.meta.dir, ".."), stderr: "pipe" });
+    expect(run.exitCode, new TextDecoder().decode(run.stderr)).toBe(0);
   });
 });
