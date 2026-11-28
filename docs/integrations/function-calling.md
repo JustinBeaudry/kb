@@ -28,8 +28,10 @@ Accept: application/json
 {"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"memory_status","arguments":{}}}
 ```
 
-The reply's `result.content[0].text` is the tool's JSON output, which is what
-you give back to the model. When `result.isError` is true, that text is an
+The reply's `result.content[0].text` is the tool's JSON output, as a string.
+OpenAI takes that string as the tool message's `content`. Gemini's
+`functionResponse.response` must be an object, so decode the text first and
+pass the parsed object (it is always a JSON object). When `result.isError` is true, that text is an
 error with a code and usually an action, such as
 `{"schema_version":"3","error":{"code":"forbidden","action":"..."}}`. A
 JSON-RPC `error` instead of a `result` means the name or arguments were not
@@ -66,7 +68,8 @@ def call_kb(name: str, arguments: dict) -> str:
 tools = json.load(open("integrations/function-tools/openai.json"))
 # Pass `tools` to the model. For each tool call it returns:
 #   output = call_kb(call.function.name, json.loads(call.function.arguments))
-# and send `output` back as that call's tool result.
+# and send `output` back as that call's tool result. With Gemini, send
+# json.loads(output) as the functionResponse's `response` instead.
 ```
 
 The model only sees what a tool returns: claims carry `claim_status`, and
