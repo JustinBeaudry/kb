@@ -122,7 +122,31 @@ the view refreshed.
   `complete`. A `partial` export (withheld or unavailable records) keeps
   existing pages, marks the index Incomplete, and exits with status 2.
 - Edits to synced pages are replaced on the next run. To correct memory, submit
-  a candidate; an edited page is still a valid `--vault` for preview.
+  the edited page as a candidate, as below.
+
+### Correct memory from Obsidian
+
+To fix a claim you read in Obsidian, edit its text on the synced page (or on a
+copy of the page elsewhere in the vault, which the sync never touches), then
+submit that page as a candidate before the next sync replaces it:
+
+```sh
+kb transfer preview --vault <vault> --project <p> --task <t> \
+  --select "kb-memory/claims/<page>.md" --manifest correction.json \
+  --profile <agent> --endpoint <origin>
+kb transfer apply --manifest correction.json --approve <digest> \
+  --profile <agent> --evidence-profile <collector> --endpoint <origin>
+```
+
+- Only your text is submitted. The status callout and the Evidence list that
+  the sync added are left out, and the escaping that keeps synced pages inert
+  is undone, so code and links come back as you wrote them. A literal `&lt;`
+  in a page is read as `<`.
+- The page's front matter goes with it as provenance: the candidate records
+  which claim and revision you corrected (`exported_claim_id`,
+  `exported_revision`), so the owner sees what it replaces when adjudicating.
+- The result is always a new `candidate` with `submitted` origin. Nothing you
+  edit in Obsidian changes memory until the owner accepts it.
 
 ### Keep the view current
 

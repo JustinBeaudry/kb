@@ -29,7 +29,7 @@ Status as of 2026-11-27. Items are in priority order within each tier. Linear tr
 
 1. **Read-only Obsidian view** (done, kb#22): `kb transfer vault-sync` renders the memory a client may see as Markdown pages with provenance front matter, tags and wikilinks in a folder of a vault. Output is deterministic, so reruns only change what changed, and claim text is rendered inert.
 2. **Scheduled sync** (done): `vault-sync --every <minutes>` keeps the view current and logs one line per run, and the [migration runbook](runbooks/migration.md#keep-the-view-current) has launchd and systemd timers for running it unattended. A folder lock keeps two syncs from interleaving.
-3. **From notes back to memory:** submit a selected vault page as a candidate (the import path from kb#10), so a person can correct memory from Obsidian and the owner adjudicates it like any other candidate.
+3. **From notes back to memory** (done): a person edits a synced page and submits it with `kb transfer preview` and `apply`. Only their text becomes the candidate, with the corrected claim and revision as provenance, and the owner adjudicates it like any other candidate. See the [migration runbook](runbooks/migration.md#correct-memory-from-obsidian).
 
 ## Tier 1: security hardening
 

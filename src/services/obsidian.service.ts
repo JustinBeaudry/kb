@@ -15,6 +15,12 @@ const TITLE_CHARS = 60;
  * so a synced page only ever renders as text and ordinary links. Backslashes
  * are escaped first so text cannot cancel the escapes that follow.
  */
+/** Reverses inertMarkdown, so text a person edits on a synced page can be
+ * submitted back as written. A literal "&lt;" also becomes "<". */
+export function liveMarkdown(text: string): string {
+  return text.replace(/\\([\\`~[])|&lt;/g, (m, c: string | undefined) => (c ?? "<"));
+}
+
 export function inertMarkdown(text: string): string {
   return text.replaceAll("\\", "\\\\").replaceAll("`", "\\`").replaceAll("~", "\\~").replaceAll("<", "&lt;").replaceAll("![", "!\\[");
 }
@@ -37,7 +43,7 @@ export function claimTitle(text: string): string {
 const shortID = (claimID: string) => createHash("sha256").update(claimID).digest("hex").slice(0, 16);
 const tagPart = (v: string) => v.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "other";
 
-function statusNote(status: ExportedClaim["claim_status"]): string | undefined {
+export function statusNote(status: ExportedClaim["claim_status"]): string | undefined {
   if (status === "verified") return undefined;
   if (status === "candidate") return "> [!warning] Candidate\n> Submitted by an agent and not verified by the owner. Treat as unconfirmed.";
   return `> [!caution] ${status[0]!.toUpperCase()}${status.slice(1)}\n> The owner has not accepted this claim as current knowledge.`;
@@ -50,6 +56,7 @@ function claimPage(c: ExportedClaim): VaultPage & { title: string } {
   // submitted back as a candidate with its provenance kept as metadata.
   const front = {
     kb_export: 1,
+    kb_view: 1,
     claim_id: c.claim_id,
     revision: c.revision,
     kind: c.kind,
