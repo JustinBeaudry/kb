@@ -59,6 +59,21 @@ func GuardOAuth(next http.Handler, logger *slog.Logger) http.Handler {
 	return newOAuthGuard(next, logger, time.Now)
 }
 
+// RefuseOAuthMaintenance answers an OAuth request that maintenance admission
+// refused, in OAuth terms a client can read.
+func RefuseOAuthMaintenance(logger *slog.Logger) http.HandlerFunc {
+	if logger == nil {
+		logger = slog.New(slog.DiscardHandler)
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		started := time.Now()
+		r = withOAuthRequestID(w, r)
+		setOAuthHeaders(w.Header())
+		w.Header().Set("Retry-After", "30")
+		writeOAuthError(w, r, logger, started, time.Now, http.StatusServiceUnavailable, "temporarily_unavailable", "kb is in maintenance. Retry later.")
+	}
+}
+
 type oauthGuard struct {
 	next   http.Handler
 	logger *slog.Logger
@@ -97,6 +112,7 @@ func (g *oauthGuard) release() {
 func (g *oauthGuard) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	started := g.now()
 	r = withOAuthRequestID(w, r)
+	setOAuthHeaders(w.Header())
 	if !g.acquire() {
 		w.Header().Set("Retry-After", "1")
 		writeOAuthError(w, r, g.logger, started, g.now, http.StatusTooManyRequests, "temporarily_unavailable", "Too many OAuth requests. Retry after one second.")
@@ -104,6 +120,17 @@ func (g *oauthGuard) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer g.release()
 	g.next.ServeHTTP(w, r)
+}
+
+// setOAuthHeaders applies the headers every OAuth response carries, early
+// responses included. OAuth responses can hold client identifiers and, later,
+// codes and tokens, so none is cached. Every OAuth endpoint is credential-free
+// (the request cookie is SameSite=Strict and never sent cross-site), so
+// browser clients may read responses cross-origin.
+func setOAuthHeaders(h http.Header) {
+	h.Set("Cache-Control", "no-store")
+	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("Access-Control-Allow-Origin", "*")
 }
 
 // NewOAuthHandler serves the OAuth endpoints that exist so far: dynamic client
@@ -142,16 +169,11 @@ type oauthRegistrationResponse struct {
 func (h *oauthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	started := h.now()
 	r = withOAuthRequestID(w, r)
-	// OAuth responses carry client identifiers and, later, codes and tokens.
-	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("X-Content-Type-Options", "nosniff")
+	setOAuthHeaders(w.Header())
 	if r.URL.Path != OAuthRegisterPath {
 		writeOAuthError(w, r, h.logger, started, h.now, http.StatusNotFound, "not_found", "No such OAuth endpoint.")
 		return
 	}
-	// Registration is credential-free and returns nothing secret, so browser
-	// clients may call it cross-origin, as RFC 7591 clients do.
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 	switch r.Method {
 	case http.MethodPost:
 		h.register(w, r, started)
