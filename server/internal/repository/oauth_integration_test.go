@@ -61,7 +61,6 @@ func TestOAuthRegistrationsRealGraph(t *testing.T) {
 	later := at.Add(domain.OAuthRegistrationTTL + time.Minute)
 	require.NoError(t, add(reg("oc_c", later), 2))
 }
-<<<<<<< HEAD
 
 func TestOAuthRequestsRealGraph(t *testing.T) {
 	store, _, _ := jobsGraph(t)
@@ -155,5 +154,3 @@ func TestOAuthRequestsRealGraph(t *testing.T) {
 	_, err = find("or_old")
 	assert.ErrorIs(t, err, domain.ErrForbidden)
 }
-=======
->>>>>>> origin/main

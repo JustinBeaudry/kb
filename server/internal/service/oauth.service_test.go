@@ -12,17 +12,11 @@ import (
 )
 
 type oauthRepoFake struct {
-<<<<<<< HEAD
 	regs     []domain.OAuthRegistration
 	pruned   []time.Time
 	full     bool
 	requests map[string]domain.OAuthRequest
 	clashes  int
-=======
-	regs   []domain.OAuthRegistration
-	pruned []time.Time
-	full   bool
->>>>>>> origin/main
 }
 
 func (f *oauthRepoFake) AddRegistration(_ context.Context, _ Tx, reg domain.OAuthRegistration, maxPending int) error {
@@ -33,7 +27,6 @@ func (f *oauthRepoFake) AddRegistration(_ context.Context, _ Tx, reg domain.OAut
 	return nil
 }
 
-<<<<<<< HEAD
 func (f *oauthRepoFake) FindRegistration(_ context.Context, _ Tx, id string, now time.Time) (domain.OAuthRegistration, error) {
 	for _, r := range f.regs {
 		if r.ID == id && now.Before(r.ExpiresAt) {
@@ -113,12 +106,6 @@ func (f *oauthRepoFake) ReleaseRequest(_ context.Context, _ Tx, id, digest strin
 
 func (f *oauthRepoFake) PruneRequests(context.Context, Tx, time.Time, int) (int, error) { return 0, nil }
 
-=======
-func (f *oauthRepoFake) FindRegistration(context.Context, Tx, string, time.Time) (domain.OAuthRegistration, error) {
-	return domain.OAuthRegistration{}, domain.ErrUnauthorized
-}
-
->>>>>>> origin/main
 func (f *oauthRepoFake) PruneRegistrations(_ context.Context, _ Tx, now time.Time, _ int) (int, error) {
 	f.pruned = append(f.pruned, now)
 	return 0, nil

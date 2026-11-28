@@ -114,11 +114,7 @@ func (s *Store) Close(ctx context.Context) error {
 }
 
 func (s *Store) migrate(ctx context.Context) error {
-<<<<<<< HEAD
 	for _, statement := range strings.Split(migrations.Identity+"\n"+migrations.Clients+"\n"+migrations.Jobs+"\n"+migrations.Evidence+"\n"+migrations.Memory+"\n"+migrations.Verification+"\n"+migrations.Decisions+"\n"+migrations.Dreaming+"\n"+migrations.Lifecycle+"\n"+migrations.Lessons+"\n"+migrations.SupersedeBackfill+"\n"+migrations.Access+"\n"+migrations.OwnerKeys+"\n"+migrations.OAuth+"\n"+migrations.OAuthRequests, ";") {
-=======
-	for _, statement := range strings.Split(migrations.Identity+"\n"+migrations.Clients+"\n"+migrations.Jobs+"\n"+migrations.Evidence+"\n"+migrations.Memory+"\n"+migrations.Verification+"\n"+migrations.Decisions+"\n"+migrations.Dreaming+"\n"+migrations.Lifecycle+"\n"+migrations.Lessons+"\n"+migrations.SupersedeBackfill+"\n"+migrations.Access+"\n"+migrations.OwnerKeys+"\n"+migrations.OAuth, ";") {
->>>>>>> origin/main
 		if strings.TrimSpace(statement) == "" {
 			continue
 		}

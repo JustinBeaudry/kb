@@ -106,7 +106,6 @@ An agent, its host or its tools are fully controlled by an attacker who holds a 
 
 Residual: a flood can fill the pending cap for up to 24 hours and block new registrations. There is no per-source limit, because kb takes nothing about the caller from proxy headers. Bearer clients are unaffected.
 
-<<<<<<< HEAD
 ### OAuth grant requests
 
 `GET /oauth/authorize` also takes no credential. It records a pending request and shows a page with an approval code; nothing is granted until the owner approves the code on the host with `kb-admin oauth-approve`, over the owner-only socket.
@@ -124,8 +123,6 @@ Residual: a flood can fill the pending cap for up to 24 hours and block new regi
 
 Residual: a flood can fill the pending cap for up to 10 minutes, so the owner's own request waits. Owners should approve only a code from a request they started, for the host they expect.
 
-=======
->>>>>>> origin/main
 ### Owner key compromise
 
 Whoever holds the owner's Nostr key can publish anything. The key never reaches the service; signatures are verified against the enrolled public key (`TestNostrVerifierChecksOwnerDigestSignature`), and each adjudication binds the exact candidate head and digest (`TestOwnerAdjudicationRequiresExactHeadAndDigest`). A lost or stolen key is replaced on the host with `kb-admin owner-rotate`: signatures by the old key stop verifying at once, and the retired key can never be enrolled again (`TestReplaceOwnerKeyRetiresTheOldKeyForGood`, and the owner key replacement case in `TestIdentityRealGraph`). The steps, including reviewing what the old key approved, are in [credentials](runbooks/credentials.md#owner-key-loss-or-theft).
