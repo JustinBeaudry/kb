@@ -23,3 +23,4 @@ knowledge/.kb/sessions/
 knowledge/sessions/
 knowledge/raw/
 docs/plans/_unredacted-local/
+__pycache__/

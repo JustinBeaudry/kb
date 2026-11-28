@@ -1,0 +1,463 @@
+{
+  "functionDeclarations": [
+    {
+      "description": "Bounded orientation from the remote memory graph (schema 3). Each page is authorized and measured independently; later pages are not prevalidated. A continuation whose bound service budget cannot fit returns a budget error; restart with a larger budget or narrow the query. Task state and candidates are unverified unless claim_status says verified. Remote failures are reported, never replaced with local results.",
+      "name": "memory_orient",
+      "parametersJsonSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "applicability": {
+            "additionalProperties": false,
+            "properties": {
+              "dirty_digest": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "environment": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "repository_revision": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "versions": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              }
+            },
+            "type": "object"
+          },
+          "budget_bytes": {
+            "default": 4096,
+            "description": "Complete successful MCP response frame bytes, including JSON-RPC framing and newline, never exceed this budget. If too small for a compact budget error, that error exceeds the budget but is at most 512 bytes including newline. For continuation keep the effective budget unchanged; restarting the MCP server invalidates continuations. Request IDs are limited to 256 JSON-encoded bytes; larger IDs are rejected before execution with JSON-RPC invalid request and id null, so cannot be correlated.",
+            "maximum": 4096,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "continuation": {
+            "type": "string"
+          },
+          "entity_ids": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 50,
+            "type": "array"
+          },
+          "max_depth": {
+            "maximum": 2,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "max_visited": {
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "mode": {
+            "enum": [
+              "orientation",
+              "working"
+            ],
+            "type": "string"
+          },
+          "project_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "query": {
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "session_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "task_id": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "Bounded evidence search in the remote memory graph (schema 3). Each page is authorized and measured independently; later pages are not prevalidated. A continuation whose bound service budget cannot fit returns a budget error; restart with a larger budget or narrow the query. Working mode requires task_id and returns only this client's task candidates, labeled unverified.",
+      "name": "memory_search",
+      "parametersJsonSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "applicability": {
+            "additionalProperties": false,
+            "properties": {
+              "dirty_digest": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "environment": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "repository_revision": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "versions": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              }
+            },
+            "type": "object"
+          },
+          "budget_bytes": {
+            "default": 16384,
+            "description": "Complete successful MCP response frame bytes, including JSON-RPC framing and newline, never exceed this budget. If too small for a compact budget error, that error exceeds the budget but is at most 512 bytes including newline. For continuation keep the effective budget unchanged; restarting the MCP server invalidates continuations. Request IDs are limited to 256 JSON-encoded bytes; larger IDs are rejected before execution with JSON-RPC invalid request and id null, so cannot be correlated.",
+            "maximum": 16384,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "continuation": {
+            "type": "string"
+          },
+          "entity_ids": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 50,
+            "type": "array"
+          },
+          "max_depth": {
+            "maximum": 2,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "max_visited": {
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "mode": {
+            "enum": [
+              "evidence",
+              "working"
+            ],
+            "type": "string"
+          },
+          "project_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "query": {
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "session_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "task_id": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "Bounded passage of one cited stored source. Each page is authorized and measured independently; later pages are not prevalidated. Each service read revalidates and rereads the complete source. If a bound continuation cannot fit, restart with a larger budget or resume at the last passage end_byte and narrow the byte range with end_byte. Default publication mode is ID-only; working mode requires project_id and task_id and returns only sources cited by this client's own task candidates. Passage offsets are exact stored-artifact UTF-8 bytes; source evidence is never a verified claim. To continue, omit start_byte and keep other parameters unchanged.",
+      "name": "memory_fetch",
+      "parametersJsonSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "budget_bytes": {
+            "default": 16384,
+            "description": "Complete successful MCP response frame bytes, including JSON-RPC framing and newline, never exceed this budget. If too small for a compact budget error, that error exceeds the budget but is at most 512 bytes including newline. For continuation keep the effective budget unchanged; restarting the MCP server invalidates continuations. Request IDs are limited to 256 JSON-encoded bytes; larger IDs are rejected before execution with JSON-RPC invalid request and id null, so cannot be correlated.",
+            "maximum": 16384,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "continuation": {
+            "description": "To continue, omit start_byte and keep other parameters unchanged.",
+            "type": "string"
+          },
+          "end_byte": {
+            "maximum": 8388608,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "locator": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "publication",
+              "working"
+            ],
+            "type": "string"
+          },
+          "project_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "session_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "start_byte": {
+            "maximum": 8388608,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "task_id": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifact_id",
+          "locator"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "Submit a task-local candidate claim. The server derives origin; candidates are never verified by submission. Writes require a server-advertised revision bound and enough budget for the full revision receipt; otherwise no write is attempted. If the receipt is lost, the error is unknown_outcome: the write may have committed, so reread working state before retrying.",
+      "name": "memory_submit_candidate",
+      "parametersJsonSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "applicability": {
+            "additionalProperties": false,
+            "properties": {
+              "dirty_digest": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "environment": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "repository_revision": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "versions": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              }
+            },
+            "type": "object"
+          },
+          "budget_bytes": {
+            "default": 4096,
+            "description": "Complete successful MCP response frame bytes, including JSON-RPC framing and newline, never exceed this budget. If too small for a compact budget error, that error exceeds the budget but is at most 512 bytes including newline. For continuation keep the effective budget unchanged; restarting the MCP server invalidates continuations. Request IDs are limited to 256 JSON-encoded bytes; larger IDs are rejected before execution with JSON-RPC invalid request and id null, so cannot be correlated.",
+            "maximum": 4096,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "claim_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "depends_on": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 50,
+            "type": "array"
+          },
+          "entity_ids": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 50,
+            "type": "array"
+          },
+          "evidence": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "artifact_id": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "digest": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "locator": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "source_revision": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "artifact_id",
+                "digest",
+                "locator",
+                "source_revision"
+              ],
+              "type": "object"
+            },
+            "maxItems": 50,
+            "type": "array"
+          },
+          "expected_revision": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "project_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "session_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "task_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 16384,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "task_id",
+          "claim_id",
+          "text",
+          "kind"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "Write this client's task checkpoint (task state, not verified knowledge). Writes require a server-advertised revision bound and enough budget for the full revision receipt; otherwise no write is attempted. If the receipt is lost, the error is unknown_outcome: the write may have committed, so reread the checkpoint before retrying with expected_revision.",
+      "name": "memory_checkpoint",
+      "parametersJsonSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "budget_bytes": {
+            "default": 4096,
+            "description": "Complete successful MCP response frame bytes, including JSON-RPC framing and newline, never exceed this budget. If too small for a compact budget error, that error exceeds the budget but is at most 512 bytes including newline. For continuation keep the effective budget unchanged; restarting the MCP server invalidates continuations. Request IDs are limited to 256 JSON-encoded bytes; larger IDs are rejected before execution with JSON-RPC invalid request and id null, so cannot be correlated.",
+            "maximum": 4096,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "checkpoint_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "completed": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 50,
+            "type": "array"
+          },
+          "evidence_revision_ids": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 50,
+            "type": "array"
+          },
+          "expected_revision": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "objective": {
+            "type": "string"
+          },
+          "pending": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 50,
+            "type": "array"
+          },
+          "project_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "questions": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 50,
+            "type": "array"
+          },
+          "session_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "task_id": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "checkpoint_id",
+          "project_id",
+          "task_id",
+          "objective"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "description": "This client's own connection state, authorized projects, capabilities and capability gaps.",
+      "name": "memory_status",
+      "parametersJsonSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "budget_bytes": {
+            "default": 4096,
+            "description": "Complete successful MCP response frame bytes, including JSON-RPC framing and newline, never exceed this budget. If too small for a compact budget error, that error exceeds the budget but is at most 512 bytes including newline. For continuation keep the effective budget unchanged; restarting the MCP server invalidates continuations. Request IDs are limited to 256 JSON-encoded bytes; larger IDs are rejected before execution with JSON-RPC invalid request and id null, so cannot be correlated.",
+            "maximum": 4096,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "type": "object"
+      }
+    }
+  ]
+}
