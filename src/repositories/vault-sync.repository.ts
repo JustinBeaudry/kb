@@ -1,15 +1,55 @@
-import { lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, rmdirSync, unlinkSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { closeSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmdirSync, unlinkSync, writeFileSync, writeSync } from "node:fs";
+import { hostname } from "node:os";
 import { join } from "node:path";
 import type { Result } from "../capture/types";
-import { LockBusyError, withExclusiveLock } from "../lib/lockfile";
 import { isWithin } from "../lib/path-safety";
 import { validVaultID, type VaultError } from "./vault.repository";
 
 export const SYNC_STATE_FILE = ".kb-vault-sync.json";
 /** Held while a sync runs, so a scheduled run and a manual one never interleave. */
 export const SYNC_LOCK_FILE = ".kb-vault-sync.lock";
-/** A sync of the largest export finishes well within this; an older lock is a crashed run's. */
-const SYNC_LOCK_STALE_MS = 30 * 60 * 1000;
+/** A running sync renews its lock this often, however long its export takes. */
+export const SYNC_LOCK_RENEW_MS = 60 * 1000;
+/**
+ * A lock not renewed for this long belongs to a run that stopped. A lock
+ * taken on this machine by a process that has exited is reclaimed at once.
+ */
+export const SYNC_LOCK_STALE_MS = 10 * 60 * 1000;
+
+type SyncLock = { pid: number; host: string; token: string; renewedAt: string };
+
+function readLock(path: string): SyncLock | undefined {
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
+    if (!parsed || typeof parsed !== "object") return undefined;
+    const lock = parsed as Partial<SyncLock>;
+    return typeof lock.pid === "number" && typeof lock.host === "string" && typeof lock.token === "string" && typeof lock.renewedAt === "string" ? (lock as SyncLock) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function processExited(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return false;
+  } catch (e) {
+    return errno(e) === "ESRCH";
+  }
+}
+
+/**
+ * Whether a lock was left by a run that stopped. The folder may sit in a vault
+ * synced between machines, so a lock from another host is judged only by when
+ * it was last renewed.
+ */
+function abandoned(lock: SyncLock | undefined, now: number): boolean {
+  if (!lock) return true;
+  if (lock.host === hostname() && processExited(lock.pid)) return true;
+  const renewed = Date.parse(lock.renewedAt);
+  return !Number.isFinite(renewed) || now - renewed > SYNC_LOCK_STALE_MS;
+}
 
 export type SyncState = {
   version: "kb-vault-sync-1";
@@ -55,7 +95,7 @@ export function validSyncPath(path: unknown): path is string {
  * the saved state are ever removed.
  */
 export class FileSyncFolder implements SyncFolder {
-  constructor(private readonly dir: string) {}
+  constructor(private readonly dir: string, private readonly renewMs = SYNC_LOCK_RENEW_MS) {}
 
   private atomic(path: string, content: string): void {
     const tmp = `${path}.tmp-${process.pid}`;
@@ -95,18 +135,49 @@ export class FileSyncFolder implements SyncFolder {
       if (errno(e) !== "ENOENT") return fail("unreadable");
       existed = false;
     }
+    const path = join(this.dir, SYNC_LOCK_FILE);
+    const mine: SyncLock = { pid: process.pid, host: hostname(), token: randomBytes(16).toString("hex"), renewedAt: new Date().toISOString() };
+    let renewal: ReturnType<typeof setInterval> | undefined;
     try {
-      const value = await withExclusiveLock(join(this.dir, SYNC_LOCK_FILE), fn, { staleMs: SYNC_LOCK_STALE_MS, retries: 1, retryMs: 50 });
-      return { ok: true, value };
-    } catch (e) {
-      if (e instanceof LockBusyError) return { ok: false, error: { code: "busy" } };
+      const taken = this.takeLock(path, mine);
+      if (taken !== "taken") return taken === "busy" ? { ok: false, error: { code: "busy" } } : fail("unreadable");
+      // Renew the lock while the export is read, so a slow export is never
+      // mistaken for a stopped one.
+      renewal = setInterval(() => {
+        if (readLock(path)?.token !== mine.token) return;
+        try { this.atomic(path, JSON.stringify({ ...mine, renewedAt: new Date().toISOString() })); } catch { /* the next renewal retries */ }
+      }, this.renewMs);
+      renewal.unref?.();
+      return { ok: true, value: await fn() };
+    } catch {
       return fail("unreadable");
     } finally {
+      if (renewal) clearInterval(renewal);
+      // Release only our own lock, never one a later run took over.
+      if (readLock(path)?.token === mine.token) {
+        try { unlinkSync(path); } catch { /* best effort */ }
+      }
       // A first sync that failed leaves no folder behind, as before locking.
       if (!existed) {
         try { if (readdirSync(this.dir).length === 0) rmdirSync(this.dir); } catch { /* best effort */ }
       }
     }
+  }
+
+  private takeLock(path: string, mine: SyncLock): "taken" | "busy" | "failed" {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        mkdirSync(this.dir, { recursive: true, mode: 0o700 });
+        const fd = openSync(path, "wx", 0o600);
+        try { writeSync(fd, JSON.stringify(mine)); } finally { closeSync(fd); }
+        return "taken";
+      } catch (e) {
+        if (errno(e) !== "EEXIST") return "failed";
+      }
+      if (attempt > 0 || !abandoned(readLock(path), Date.now())) return "busy";
+      try { unlinkSync(path); } catch (e) { if (errno(e) !== "ENOENT") return "failed"; }
+    }
+    return "busy";
   }
 
   async open(): Promise<Result<SyncState | undefined, VaultError>> {

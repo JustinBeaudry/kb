@@ -144,8 +144,10 @@ kb transfer vault-sync --project <p> --out "<vault>/kb-memory" \
   command with exit status 1.
 - Only one sync writes a folder at a time. A sync holds
   `<folder>/.kb-vault-sync.lock` while it runs; a second one reports
-  `sync_running` and leaves the folder alone. A lock left by a crashed run is
-  reclaimed after 30 minutes.
+  `sync_running` and leaves the folder alone. A running sync renews its lock
+  every minute. A lock left by a run that stopped is reclaimed when its
+  process has exited on this machine, or once it goes ten minutes without
+  renewal (the test for a vault synced between machines).
 - `Ctrl-C` or `SIGTERM` stops the command between runs.
 
 To run it without a terminal open, let the system scheduler start a single run

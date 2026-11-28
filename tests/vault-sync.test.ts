@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { runCommand } from "citty";
 import { parse as yamlParse } from "yaml";
@@ -269,22 +269,48 @@ describe("vault-sync locking", () => {
     expect(after.ok && after.value).toMatchObject({ written: 2, removed: 1 });
   });
 
-  test("a lock left by a crashed run is reclaimed once it is stale", async () => {
+  test("a lock is reclaimed only when its run has stopped", async () => {
     const out = join(temp(), "kb");
     await sync(new PagedExports(pages([claim("a", "One")]))).sync(scope, out);
-    writeFileSync(join(out, SYNC_LOCK_FILE), JSON.stringify({ pid: 1, createdAt: new Date(Date.now() - 60_000).toISOString() }));
-    const fresh = await sync(new PagedExports(pages([claim("a", "One")]))).sync(scope, out);
-    expect(!fresh.ok && fresh.error.code).toBe("sync_running");
-    writeFileSync(join(out, SYNC_LOCK_FILE), JSON.stringify({ pid: 1, createdAt: new Date(Date.now() - 31 * 60_000).toISOString() }));
-    const reclaimed = await sync(new PagedExports(pages([claim("a", "One")]))).sync(scope, out);
-    expect(reclaimed.ok && reclaimed.value.unchanged).toBe(2);
+    const lock = (pid: number, host: string, minutesAgo: number) => writeFileSync(join(out, SYNC_LOCK_FILE), JSON.stringify({ pid, host, token: "t", renewedAt: new Date(Date.now() - minutesAgo * 60_000).toISOString() }));
+    const attempt = () => sync(new PagedExports(pages([claim("a", "One")]))).sync(scope, out);
+
+    lock(process.pid, hostname(), 9);
+    expect((r => !r.ok && r.error.code)(await attempt())).toBe("sync_running");
+    lock(process.pid, "another-machine", 9);
+    expect((r => !r.ok && r.error.code)(await attempt()), "a lock from a machine sharing the vault is honoured while renewed").toBe("sync_running");
+    expect(JSON.parse(readFileSync(join(out, SYNC_LOCK_FILE), "utf8")).token, "a refused sync leaves another run's lock alone").toBe("t");
+
+    lock(process.pid, "another-machine", 11);
+    expect((await attempt()).ok, "a lock not renewed for ten minutes is abandoned").toBe(true);
+    const exited = Bun.spawnSync(["true"]).pid;
+    lock(exited, hostname(), 0);
+    expect((await attempt()).ok, "a lock from an exited process on this machine is abandoned at once").toBe(true);
+    lock(process.pid, hostname(), 0);
+    writeFileSync(join(out, SYNC_LOCK_FILE), "not json");
+    expect((await attempt()).ok, "an unreadable lock is abandoned").toBe(true);
     expect(existsSync(join(out, SYNC_LOCK_FILE))).toBe(false);
   });
 
-  test("a new folder holding only a crashed run's lock is still the sync's to fill", async () => {
+  test("a running sync renews its lock, so a slow export is never taken for a stopped one", async () => {
+    const out = join(temp(), "kb");
+    const slow = new HeldExports(pages([claim("a", "One")]));
+    const first = new VaultSyncService(slow, (d) => new FileSyncFolder(d, 20)).sync(scope, out);
+    await slow.started;
+    const before = JSON.parse(readFileSync(join(out, SYNC_LOCK_FILE), "utf8"));
+    await Bun.sleep(80);
+    const after = JSON.parse(readFileSync(join(out, SYNC_LOCK_FILE), "utf8"));
+    expect(after.token).toBe(before.token);
+    expect(Date.parse(after.renewedAt)).toBeGreaterThan(Date.parse(before.renewedAt));
+    slow.release();
+    expect((await first).ok).toBe(true);
+    expect(existsSync(join(out, SYNC_LOCK_FILE))).toBe(false);
+  });
+
+  test("a new folder holding only a stopped run's lock is still the sync's to fill", async () => {
     const out = join(temp(), "kb");
     mkdirSync(out);
-    writeFileSync(join(out, SYNC_LOCK_FILE), JSON.stringify({ pid: 1, createdAt: new Date(Date.now() - 31 * 60_000).toISOString() }));
+    writeFileSync(join(out, SYNC_LOCK_FILE), JSON.stringify({ pid: process.pid, host: "another-machine", token: "t", renewedAt: new Date(Date.now() - 11 * 60_000).toISOString() }));
     const result = await sync(new PagedExports(pages([claim("a", "One")]))).sync(scope, out);
     expect(result.ok && result.value.written).toBe(2);
   });
