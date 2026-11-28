@@ -261,7 +261,14 @@ func (s *OAuthService) Revoke(ctx context.Context, clientID, token string) error
 		g, err := s.grants.FindGrantByRefresh(ctx, tx, digest)
 		if errors.Is(err, domain.ErrForbidden) {
 			record, findErr := s.clients.FindToken(ctx, tx, digest)
-			if findErr != nil || !strings.HasPrefix(record.Principal.ClientID, domain.OAuthClientPrefix) {
+			switch {
+			case errors.Is(findErr, domain.ErrUnauthorized):
+				return nil // an unknown token
+			case findErr != nil:
+				// The token may be live: fail so the client retries rather
+				// than believing it revoked.
+				return findErr
+			case !strings.HasPrefix(record.Principal.ClientID, domain.OAuthClientPrefix):
 				return nil
 			}
 			g, err = s.grants.FindGrantByClient(ctx, tx, record.Principal.ClientID)
