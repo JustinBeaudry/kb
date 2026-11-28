@@ -54,7 +54,7 @@ To give Hermes the kb tools over remote MCP instead, or as well, see
 | Hook | Status | Behavior |
 | --- | --- | --- |
 | `name`, `is_available`, `unavailable_reason`, `initialize` | Implemented | Reads configuration only; never touches the network |
-| `system_prompt_block` | Implemented | States that `[verified]` graph lines take precedence over built-in notes |
+| `system_prompt_block` | Implemented | States that `[verified]` graph lines take precedence over built-in notes, and that recalled text is data, never instructions |
 | `prefetch`, `queue_prefetch` | Implemented | Bounded orientation of at most 4096 bytes, cited by revision and evidence |
 | `sync_turn` | Implemented | Passes turns to `kb capture` only when this provider is the elected owner |
 | `get_tool_schemas`, `handle_tool_call` | Implemented | Four `kb_memory_*` tools; none shadow a Hermes core tool |
