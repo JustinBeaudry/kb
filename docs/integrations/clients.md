@@ -179,5 +179,8 @@ Codex and Gemini CLI can also use this flow instead of a bearer.
 
 ## Clients without MCP
 
-Agents that only speak HTTP use the REST API under `/v1` with the same bearer;
-see [remote.md](remote.md) and `server/api/openapi.yaml`.
+Agents built on a model API's function calling can use the same tools from
+published OpenAI and Gemini definitions; see
+[function-calling.md](function-calling.md). Agents that only speak HTTP use
+the REST API under `/v1` with the same bearer; see [remote.md](remote.md) and
+`server/api/openapi.yaml`.
