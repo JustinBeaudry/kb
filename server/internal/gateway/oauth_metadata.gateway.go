@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -73,8 +74,18 @@ var (
 	errMetadataRefused = errors.New("client metadata: document refused")
 )
 
+// clientIDShape is a second, independent check on the URL before it is
+// requested: https, a lowercase DNS name with at least one dot, the default
+// port, and a path of URL path characters only (no query, fragment or user
+// info). domain.ValidClientMetadataURL is the full check; this one keeps the
+// fetcher safe even if it is ever called without it.
+var clientIDShape = regexp.MustCompile(`^https://[a-z0-9-]+(\.[a-z0-9-]+)+/[A-Za-z0-9._~!$&'()*+,;=:@%/-]+$`)
+
 // FetchClientMetadata implements service.OAuthClientMetadataFetcher.
 func (f *ClientMetadataFetcher) FetchClientMetadata(ctx context.Context, clientID string) ([]byte, time.Duration, error) {
+	if !clientIDShape.MatchString(clientID) || !domain.ValidClientMetadataURL(clientID) {
+		return nil, 0, errMetadataRefused
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, clientID, nil)
 	if err != nil || req.URL.Scheme != "https" {
 		return nil, 0, errMetadataRefused

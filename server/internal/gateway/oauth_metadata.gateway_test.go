@@ -1,8 +1,10 @@
 package gateway
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
@@ -26,6 +28,21 @@ func metadataServer(t *testing.T, h http.HandlerFunc) (*httptest.Server, *tls.Co
 
 func allowAll(netip.Addr) bool { return true }
 
+// testClientID is a name the test server's certificate covers.
+const testClientID = "https://example.com/client.json"
+
+// fetcherFor sends every connection to srv, still through the fetcher's own
+// dialer and its address check, so tests can use a real client ID URL.
+func fetcherFor(allow func(netip.Addr) bool, roots *tls.Config, srv *httptest.Server) *ClientMetadataFetcher {
+	f := newClientMetadataFetcher(allow, roots)
+	tr := f.client.Transport.(*http.Transport)
+	dial, target := tr.DialContext, srv.Listener.Addr().String()
+	tr.DialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return dial(ctx, network, target)
+	}
+	return f
+}
+
 func TestClientMetadataFetcherReadsADocumentAndItsLifetime(t *testing.T) {
 	var got *http.Request
 	srv, roots := metadataServer(t, func(w http.ResponseWriter, r *http.Request) {
@@ -34,7 +51,7 @@ func TestClientMetadataFetcherReadsADocumentAndItsLifetime(t *testing.T) {
 		w.Header().Set("Cache-Control", "public, max-age=600")
 		_, _ = w.Write([]byte(`{"client_id":"x"}`))
 	})
-	body, maxAge, err := newClientMetadataFetcher(allowAll, roots).FetchClientMetadata(t.Context(), srv.URL+"/client.json")
+	body, maxAge, err := fetcherFor(allowAll, roots, srv).FetchClientMetadata(t.Context(), testClientID)
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"client_id":"x"}`, string(body))
 	assert.Equal(t, 10*time.Minute, maxAge)
@@ -67,7 +84,7 @@ func TestClientMetadataFetcherRefusesWhatIsNotAPlainDocument(t *testing.T) {
 	for name, h := range cases {
 		t.Run(name, func(t *testing.T) {
 			srv, roots := metadataServer(t, h)
-			_, _, err := newClientMetadataFetcher(allowAll, roots).FetchClientMetadata(t.Context(), srv.URL+"/client.json")
+			_, _, err := fetcherFor(allowAll, roots, srv).FetchClientMetadata(t.Context(), testClientID)
 			assert.ErrorIs(t, err, errMetadataRefused)
 		})
 	}
@@ -76,12 +93,25 @@ func TestClientMetadataFetcherRefusesWhatIsNotAPlainDocument(t *testing.T) {
 func TestClientMetadataFetcherNeverDialsANonPublicAddress(t *testing.T) {
 	called := false
 	srv, roots := metadataServer(t, func(w http.ResponseWriter, r *http.Request) { called = true })
-	_, _, err := newClientMetadataFetcher(PublicAddress, roots).FetchClientMetadata(t.Context(), srv.URL+"/client.json")
+	_, _, err := fetcherFor(PublicAddress, roots, srv).FetchClientMetadata(t.Context(), testClientID)
 	require.Error(t, err)
 	assert.False(t, called, "a loopback test server is never reached")
 
 	_, _, err = NewClientMetadataFetcher().FetchClientMetadata(t.Context(), "http://app.example/client.json")
 	assert.ErrorIs(t, err, errMetadataRefused, "plain http is never fetched")
+}
+
+func TestClientMetadataFetcherRefusesAMalformedClientIDBeforeDialing(t *testing.T) {
+	called := false
+	srv, roots := metadataServer(t, func(w http.ResponseWriter, r *http.Request) { called = true })
+	for _, id := range []string{
+		srv.URL + "/client.json", "https://Example.com/client.json", "https://example.com/", "https://example.com/a?x=1",
+		"https://user@example.com/a", "https://example.com:8443/a", "https://localhost/a", "https://example.com/a#f",
+	} {
+		_, _, err := fetcherFor(allowAll, roots, srv).FetchClientMetadata(t.Context(), id)
+		assert.ErrorIs(t, err, errMetadataRefused, id)
+	}
+	assert.False(t, called)
 }
 
 func TestPublicAddressExcludesInternalAndSpecialRanges(t *testing.T) {
