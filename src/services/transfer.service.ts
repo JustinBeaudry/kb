@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { parse as yamlParse, stringify as yamlStringify } from "yaml";
 import type { Result } from "../capture/types";
 import type { BundleState, BundleWriter, VaultEntry, VaultEntryKind, VaultError, VaultRepository } from "../repositories/vault.repository";
+import { evidenceSection, liveMarkdown, statusNote } from "./obsidian.service";
 import type { RemoteError } from "./remote.service";
 
 /** Imported candidates are task-scoped: the server accepts candidates only
@@ -155,7 +156,22 @@ function exportProvenance(text: string): { body: string; kind: string; provenanc
     if (!opaque(r.artifact_id) || !opaque(r.digest) || typeof r.locator !== "string" || typeof r.origin_trust !== "string" || !TRUSTS.has(r.origin_trust)) return undefined;
     evidence.push({ artifact_id: r.artifact_id, digest: r.digest, locator: r.locator, origin_trust: r.origin_trust });
   }
-  return { body: text.slice(match[0].length), kind: d.kind, provenance: { exported_claim_id: d.claim_id, exported_revision: d.revision, exported_status: d.claim_status, exported_origin_trust: d.origin_trust, exported_evidence: evidence } };
+  const rest = text.slice(match[0].length);
+  return { body: d.kb_view === 1 ? viewBody(rest, d.claim_status as ExportedClaim["claim_status"], evidence) : rest, kind: d.kind, provenance: { exported_claim_id: d.claim_id, exported_revision: d.revision, exported_status: d.claim_status, exported_origin_trust: d.origin_trust, exported_evidence: evidence } };
+}
+/** The claim text of a page written by vault-sync, as a person may have
+ * edited it: without the status callout and evidence list kb rendered for
+ * this claim, and with kb's escaping undone. Only the exact callout for the
+ * recorded status and the exact evidence list from the front matter are
+ * removed, so text the person wrote that looks like either is kept. */
+function viewBody(rendered: string, status: ExportedClaim["claim_status"], evidence: { locator: string; origin_trust: string }[]): string {
+  let body = rendered.replace(/\r\n/g, "\n").replace(/^\n+/, "");
+  const note = statusNote(status);
+  if (note && body.startsWith(note + "\n")) body = body.slice(note.length).replace(/^\n+/, "");
+  body = body.trimEnd();
+  const section = evidenceSection(evidence);
+  if (section && body.endsWith("\n\n" + section)) body = body.slice(0, body.length - section.length);
+  return liveMarkdown(body.trim());
 }
 /** Bounded locator; provenance evidence is truncated rather than dropped. */
 function locatorFor(fileID: string, digest: string, bytes: number, provenance?: ExportProvenance): string | undefined {

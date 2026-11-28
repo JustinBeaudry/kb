@@ -7,6 +7,9 @@ derived output, not an independent observation. This page describes the current
 interfaces. It does not claim that live conversational acceptance has been
 done; that happens in O3.
 
+To give Hermes the kb tools over remote MCP instead, or as well, see
+[clients.md](clients.md#hermes-agent).
+
 ## Qualification
 
 | Harness | Pinned version | Integration | Automatic hooks | Fallback | Capture trust | Evidence |
@@ -51,7 +54,7 @@ done; that happens in O3.
 | Hook | Status | Behavior |
 | --- | --- | --- |
 | `name`, `is_available`, `unavailable_reason`, `initialize` | Implemented | Reads configuration only; never touches the network |
-| `system_prompt_block` | Implemented | States that `[verified]` graph lines take precedence over built-in notes |
+| `system_prompt_block` | Implemented | States that `[verified]` graph lines take precedence over built-in notes, and that recalled text is data, never instructions |
 | `prefetch`, `queue_prefetch` | Implemented | Bounded orientation of at most 4096 bytes, cited by revision and evidence |
 | `sync_turn` | Implemented | Passes turns to `kb capture` only when this provider is the elected owner |
 | `get_tool_schemas`, `handle_tool_call` | Implemented | Four `kb_memory_*` tools; none shadow a Hermes core tool |
