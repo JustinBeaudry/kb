@@ -55,7 +55,10 @@ func TestOAuthScriptedClientRealGraph(t *testing.T) {
 	grants := service.NewOAuthService(store, oauthRepo, time.Now).WithGrants(origin, identities).WithClients(identities, oauthRepo)
 	root = handler.WithOAuthDiscovery(handler.WithOAuthEndpoints(api, handler.GuardOAuth(handler.NewOAuthHandler(grants, logger), logger)), origin)
 
-	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	// The OAuth guard allows a burst of 8 requests and 2 a second after that,
+	// and this flow makes more than 8, so the client waits out a 429 as a
+	// real connector would.
+	client := &http.Client{Transport: waitOutRateLimit{}, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	getJSON := func(path string, out any) {
 		t.Helper()
 		resp, err := client.Get(origin + path)
@@ -70,7 +73,7 @@ func TestOAuthScriptedClientRealGraph(t *testing.T) {
 		Resource             string   `json:"resource"`
 		AuthorizationServers []string `json:"authorization_servers"`
 	}
-	getJSON("/.well-known/oauth-protected-resource", &resource)
+	getJSON(handler.MCPResourceMetadataPath, &resource)
 	assert.Equal(t, origin+"/mcp", resource.Resource)
 	require.Equal(t, []string{origin}, resource.AuthorizationServers)
 	var metadata struct {
@@ -225,4 +228,27 @@ func TestOAuthScriptedClientRealGraph(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, call("/mcp", newAccess), "reusing a refresh token ends the grant")
 	status, _ = token(url.Values{"grant_type": {"refresh_token"}, "client_id": {registered.ClientID}, "refresh_token": {rotated["refresh_token"].(string)}})
 	assert.Equal(t, http.StatusBadRequest, status, "including its newest refresh token")
+}
+
+// waitOutRateLimit retries a request the OAuth guard refused with 429.
+type waitOutRateLimit struct{}
+
+func (waitOutRateLimit) RoundTrip(req *http.Request) (*http.Response, error) {
+	for attempt := 0; ; attempt++ {
+		resp, err := http.DefaultTransport.RoundTrip(req)
+		if err != nil || resp.StatusCode != http.StatusTooManyRequests || attempt == 10 {
+			return resp, err
+		}
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+		time.Sleep(600 * time.Millisecond)
+		if req.GetBody != nil {
+			body, err := req.GetBody()
+			if err != nil {
+				return nil, err
+			}
+			req = req.Clone(req.Context())
+			req.Body = body
+		}
+	}
 }
