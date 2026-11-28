@@ -46,6 +46,15 @@ supervisor reads back the uploaded archive, verifies exact inventory and reads
 the decrypted stream through authenticated EOF before publishing completion.
 No key material is included in archives or command output.
 
+Restore refuses a backup made with a different graph schema, architecture or
+restore format. The restore format covers kb's backup format version and the
+graph edition and version in `deploy/versions.json`, which write the dumps. Go,
+library and base-image patch releases leave it unchanged, so routine security
+updates never stop an older backup from restoring. Upgrading Neo4j starts a new
+restore boundary: keep the previous graph deployment until a backup made after
+the upgrade has completed. Backups made before kb compared only the restore
+format still restore while `deploy/versions.json` is byte-for-byte unchanged.
+
 The graph restarts closed. Explicit schema initialization, current journal
 replay, required object probes and retained backup key checks must succeed
 before the matching fence resumes. Completed sets older than 30 days are
