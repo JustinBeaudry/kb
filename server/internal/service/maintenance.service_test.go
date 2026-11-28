@@ -411,6 +411,12 @@ func TestMaintenanceHoldsAreOnlyForServiceRoleKindsAndNeverForUncertainPermits(t
 	require.NoError(t, err)
 	assert.Empty(t, expired, "a permit its holder declared uncertain is never settled by time")
 	require.Len(t, store.permits, 1)
+	reloaded, err := service.NewMaintenanceService(ctx, store)
+	require.NoError(t, err)
+	expired, err = reloaded.ExpireHolds(ctx, p.HoldUntil.Add(time.Hour))
+	require.NoError(t, err)
+	assert.Empty(t, expired, "a restart does not make an uncertain permit expire by time")
+	require.Len(t, store.permits, 1)
 }
 func TestMaintenanceHoldExpiryKeepsPermitsWhenItsSaveFails(t *testing.T) {
 	ctx := context.Background()

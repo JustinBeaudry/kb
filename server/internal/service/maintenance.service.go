@@ -260,6 +260,9 @@ func (s *MaintenanceService) MarkUnknown(ctx context.Context, p domain.Operation
 	}
 	current.Unknown = true
 	current.Restored = false
+	// An uncertain outcome is never settled by time, even after a restart
+	// restores the record, so the declared hold is dropped with it.
+	current.HoldUntil = time.Time{}
 	s.permits[p.ID] = current
 	return s.save(ctx)
 }
