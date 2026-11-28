@@ -185,7 +185,9 @@ func (s *OAuthService) ApproveHost(ctx context.Context, code string, grant domai
 		return domain.OAuthRequest{}, domain.ErrInvalidInput
 	}
 	parsed, err := domain.ParseOAuthScope(grant.String())
-	if err != nil || len(parsed.Projects) != len(grant.Projects) || len(parsed.Capabilities) != len(grant.Capabilities) {
+	// The round trip must give back exactly what the owner named: an element
+	// that splits into several scope tokens, or a duplicate, is refused.
+	if err != nil || !slices.Equal(parsed.Projects, grant.Projects) || !slices.Equal(parsed.Capabilities, grant.Capabilities) {
 		return domain.OAuthRequest{}, domain.ErrInvalidInput
 	}
 	return s.decideHost(ctx, code, domain.OAuthRequestApproved, parsed, ttl)

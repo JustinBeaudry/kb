@@ -145,6 +145,23 @@ func TestOAuthRequestsRealGraph(t *testing.T) {
 	assert.Equal(t, "code-digest", got.CodeDigest)
 	assert.True(t, codeExpires.Equal(got.CodeExpiresAt))
 
+	// or_b is still pending. A code is released only for an approved request,
+	// and once its denial is released the owner can no longer approve it.
+	release := func(id, digest string) error {
+		return within(func(ctx context.Context, tx domain.Tx) error {
+			return repo.ReleaseRequest(ctx, tx, id, digest, codeExpires)
+		})
+	}
+	assert.ErrorIs(t, release("or_b", "code-digest"), domain.ErrConflict, "no code for a request nobody approved")
+	require.NoError(t, release("or_b", ""))
+	assert.ErrorIs(t, within(func(ctx context.Context, tx domain.Tx) error {
+		return repo.DecideRequest(ctx, tx, "or_b", domain.OAuthRequestApproved, domain.OAuthScope{Projects: []string{"demo"}, Capabilities: []string{"retrieval:read"}}, time.Hour, at)
+	}), domain.ErrConflict, "a request whose denial reached the browser can't be approved")
+	got, err = find("or_b")
+	require.NoError(t, err)
+	assert.Equal(t, domain.OAuthRequestPending, got.Status)
+	assert.Empty(t, got.CodeDigest)
+
 	var pruned int
 	require.NoError(t, within(func(ctx context.Context, tx domain.Tx) (err error) {
 		pruned, err = repo.PruneRequests(ctx, tx, at, 10)

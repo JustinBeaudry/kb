@@ -187,7 +187,7 @@ func (r *OAuthRepository) ListPendingRequests(ctx context.Context, tx domain.Tx,
 // A request decided already, or expired, is ErrConflict.
 func (r *OAuthRepository) DecideRequest(ctx context.Context, tx domain.Tx, id string, status domain.OAuthRequestStatus, granted domain.OAuthScope, ttl time.Duration, now time.Time) error {
 	rows, err := r.query(ctx, tx, `MATCH (r:OAuthRequest {id:$id}) SET r.lockedAt = timestamp()
-WITH r WHERE r.status = 'pending' AND r.expiresAt > $now
+WITH r WHERE r.status = 'pending' AND r.released = false AND r.expiresAt > $now
 SET r.status = $status, r.grantedProjects = $projects, r.grantedCapabilities = $capabilities, r.grantTTL = $ttl
 RETURN r.id`, map[string]any{"id": id, "now": now.UTC().UnixNano(), "status": string(status), "projects": nonNil(granted.Projects), "capabilities": nonNil(granted.Capabilities), "ttl": int64(ttl)})
 	if err != nil {
@@ -200,8 +200,10 @@ RETURN r.id`, map[string]any{"id": id, "now": now.UTC().UnixNano(), "status": st
 }
 
 // ReleaseRequest marks a request's outcome as handed to its browser, once, and
-// stores the authorization code digest when there is one. A request released
-// already is ErrConflict.
+// stores the authorization code digest when there is one. A code is released
+// only for an approved request and a denial only for one that isn't, so the
+// stored decision and what the browser was told never disagree. A request
+// released already, or an outcome that contradicts its status, is ErrConflict.
 func (r *OAuthRepository) ReleaseRequest(ctx context.Context, tx domain.Tx, id, codeDigest string, codeExpires time.Time) error {
 	expires := int64(0)
 	if !codeExpires.IsZero() {
@@ -210,7 +212,7 @@ func (r *OAuthRepository) ReleaseRequest(ctx context.Context, tx domain.Tx, id, 
 	// Writing the node first takes its lock, so the released check below sees
 	// any concurrent release that committed first.
 	rows, err := r.query(ctx, tx, `MATCH (r:OAuthRequest {id:$id}) SET r.lockedAt = timestamp()
-WITH r WHERE r.released = false
+WITH r WHERE r.released = false AND ($digest <> '') = (r.status = 'approved')
 SET r.released = true, r.codeDigest = $digest, r.codeExpiresAt = $expires
 RETURN r.id`, map[string]any{"id": id, "digest": codeDigest, "expires": expires})
 	if err != nil {
