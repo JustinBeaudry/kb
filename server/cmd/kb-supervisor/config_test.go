@@ -144,7 +144,7 @@ func TestRestoreRequiresRotatedCursorAuthorityAndExactToolContract(t *testing.T)
 func TestRuntimeManifestUsesConfiguredAuthorityWithoutLoggingKeys(t *testing.T) {
 	root, _ := supervisorEnv(t)
 	tools := filepath.Join(root, "versions.json")
-	require.NoError(t, os.WriteFile(tools, []byte(`{"graph":"fixture-version"}`), 0600))
+	require.NoError(t, os.WriteFile(tools, []byte(`{"graph":{"edition":"community","version":"fixture-version"}}`), 0600))
 	t.Setenv("KB_TOOL_VERSIONS_FILE", tools)
 	c, e := loadSupervisorConfig()
 	require.NoError(t, e)

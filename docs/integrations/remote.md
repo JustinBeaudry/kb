@@ -173,14 +173,16 @@ same origin. Clients that can send an `Authorization` header connect directly,
 with no local bridge:
 
 ```sh
-claude mcp add --transport http kb https://memory.example.com/mcp \
-  --header "Authorization: Bearer $KB_MEMORY_BEARER"
+claude mcp add --scope project --transport http kb https://memory.example.com/mcp \
+  --header 'Authorization: Bearer ${KB_MEMORY_BEARER}'
 ```
 
 Other clients that support Streamable HTTP with a custom header (Codex,
-Cursor, Gemini CLI and others) take the same URL and header; see each client's
-MCP documentation for where they go. Keep the bearer in an environment
-variable rather than in a checked-in config file.
+Cursor, Gemini CLI and others) take the same URL and header;
+[clients.md](clients.md) has the exact setup for each. Keep the bearer in an environment
+variable rather than in a checked-in config file, and out of command-line
+arguments: the single quotes above leave `${KB_MEMORY_BEARER}` for Claude Code
+to expand when it connects.
 
 What the endpoint guarantees:
 
