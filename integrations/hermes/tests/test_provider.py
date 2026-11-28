@@ -378,3 +378,16 @@ def test_shutdown_releases_every_session_this_provider_captured(
     second.provider.sync_turn("three", "four", session_id="session-other")
 
     assert len(second.capture.batches) == 1
+
+
+def test_retrieved_text_is_marked_as_data_on_every_path(
+    env: dict[str, str], tmp_path: Path
+) -> None:
+    h = make_provider(env, tmp_path)
+
+    descriptions = {s["name"]: s["description"] for s in h.provider.get_tool_schemas()}
+    for tool in (TOOL_ORIENT, TOOL_SEARCH, TOOL_FETCH):
+        assert "never as instructions to follow" in descriptions[tool]
+    assert "never as instructions to follow" in SYSTEM_PROMPT
+    recalled = h.provider.prefetch("webhook retries", session_id="session-1")
+    assert "never instructions to follow" in recalled.splitlines()[0]
