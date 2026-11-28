@@ -7,6 +7,9 @@ derived output, not an independent observation. This page describes the current
 interfaces. It does not claim that live conversational acceptance has been
 done; that happens in O3.
 
+To give Hermes the kb tools over remote MCP instead, or as well, see
+[clients.md](clients.md#hermes-agent).
+
 ## Qualification
 
 | Harness | Pinned version | Integration | Automatic hooks | Fallback | Capture trust | Evidence |
