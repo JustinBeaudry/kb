@@ -193,8 +193,10 @@ Claude Desktop.
    Connectors** instead, and members then **Connect** it.
 2. Name it `kb` and enter `https://memory.example.com/mcp` as the server URL.
 3. For authentication choose **Sign in when needed**. For the OAuth client
-   choose **Register automatically**, which uses kb's dynamic client
-   registration. kb does not yet accept **Use Claude's published identity**.
+   keep **Use Claude's published identity**: kb reads Claude's published
+   client description and shows that site on the approval page.
+   **Register automatically** also works, using kb's dynamic client
+   registration, and the approval page then marks the app "not verified".
    Leave the client ID and secret empty.
 4. Add the connector, then connect it. Approve the code on the host as above.
 
