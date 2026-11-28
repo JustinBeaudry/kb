@@ -144,13 +144,25 @@ func loadBuzzGateway() (service.BuzzGateway, error) {
 }
 
 func composeDecisionAdministration(ctx context.Context, _ bool) (administration, func(), error) {
+	return composeDecisions(ctx, true)
+}
+
+// composeJudgmentAdministration serves the read-only judgments review, which
+// never posts to Buzz, so a missing Buzz key cannot stop it.
+func composeJudgmentAdministration(ctx context.Context, _ bool) (administration, func(), error) {
+	return composeDecisions(ctx, false)
+}
+
+func composeDecisions(ctx context.Context, withBuzz bool) (administration, func(), error) {
 	cfg, err := platform.LoadConfig()
 	if err != nil {
 		return administration{}, nil, err
 	}
-	buzz, err := loadBuzzGateway()
-	if err != nil {
-		return administration{}, nil, err
+	var buzz service.BuzzGateway
+	if withBuzz {
+		if buzz, err = loadBuzzGateway(); err != nil {
+			return administration{}, nil, err
+		}
 	}
 	store, err := graph.Connect(ctx, cfg.Graph)
 	if err != nil {

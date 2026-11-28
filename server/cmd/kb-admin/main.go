@@ -215,8 +215,11 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	if len(args) > 0 && lifecycleCommand(args[0]) {
 		factory = composeLifecycleAdministration
 	}
-	if len(args) > 0 && (decisionCommand(args[0]) || args[0] == "judgments") {
+	if len(args) > 0 && decisionCommand(args[0]) {
 		factory = composeDecisionAdministration
+	}
+	if len(args) > 0 && args[0] == "judgments" {
+		factory = composeJudgmentAdministration
 	}
 	route, complete := productionAdminRoute(ctx, output)
 	err := runAdminRouted(ctx, args, output, os.Stdin, factory, route)

@@ -759,12 +759,17 @@ func TestJudgmentsHostListsWhatEachKeySigned(t *testing.T) {
 		{Limit: -1},
 		{Signer: "not-a-key"},
 		{Since: "2026-11"},
+		{Since: "2500-01-01"},
 		{After: "nope"},
 		{After: "1." + "zz"},
 	} {
 		_, err := h.svc.JudgmentsHost(t.Context(), bad)
 		assert.ErrorIs(t, err, domain.ErrInvalidInput, "%+v", bad)
 	}
+
+	early, err := h.svc.JudgmentsHost(t.Context(), domain.JudgmentQuery{Since: "0001-01-01"})
+	require.NoError(t, err)
+	assert.Len(t, early.Judgments, len(want), "a day before 1970 includes every judgment")
 
 	h.graph.owner = domain.OwnerIdentity{}
 	_, err = h.svc.JudgmentsHost(t.Context(), domain.JudgmentQuery{})

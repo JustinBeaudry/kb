@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -346,8 +347,15 @@ func (s *DecisionService) JudgmentsHost(ctx context.Context, q domain.JudgmentQu
 	}
 	sinceAt := int64(0)
 	if q.Since != "" {
+		// UnixNano is defined only from 1678 to 2262. No judgment predates
+		// 1970, so an earlier day means all of them; a day past 2262 is refused.
 		day, _ := time.Parse(time.DateOnly, q.Since)
-		sinceAt = day.UnixNano()
+		if day.After(time.Unix(0, math.MaxInt64)) {
+			return domain.JudgmentPage{}, domain.ErrInvalidInput
+		}
+		if day.After(time.Unix(0, 0)) {
+			sinceAt = day.UnixNano()
+		}
 	}
 	afterAt, afterID, err := parseJudgmentCursor(q.After)
 	if err != nil {
