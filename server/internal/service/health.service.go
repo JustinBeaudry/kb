@@ -43,8 +43,10 @@ func (s *HealthService) Readiness(ctx context.Context) domain.HealthReport {
 		r.Reasons = []string{"maintenance"}
 		return r
 	}
+	ctx, release := domain.WithPermitHold(ctx, "health")
 	p, err := s.admission.Admit(ctx, s.instance, "health")
 	if err != nil {
+		release(nil)
 		r.Reasons = []string{"maintenance"}
 		return r
 	}
@@ -68,6 +70,7 @@ func (s *HealthService) Readiness(ctx context.Context) domain.HealthReport {
 			r.Reasons = append(r.Reasons, "journal_capacity")
 		}
 	}
+	release(ctx)
 	finishCtx, finishCancel := context.WithTimeout(context.WithoutCancel(ctx), s.timeout)
 	defer finishCancel()
 	if !domain.OperationSettled(ctx) || s.admission.Finish(finishCtx, p) != nil {

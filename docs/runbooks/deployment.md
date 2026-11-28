@@ -75,7 +75,7 @@ Run as UID7474 inside the graph host. Actual Railway SSH exec starts as root eve
 4. Inspect `kb-admin policy` with strict stdin JSON; create the initial policy through `policy-update` with the actual empty `ExpectedRevision`, a new valid revision and model routes omitted. Future updates use the inspected current revision. Policy durations are integer nanoseconds.
 5. Supervisor completes live journal recovery and dependency checks before resuming the exact fence. Require authenticated status, synthetic capture, host publication and cited retrieval. Keep historical import off.
 
-On existing or restored installs skip setup/init and follow private status plus [recovery](recovery.md). Unknown process/effect state keeps maintenance closed. Do not clear permits by timeouts or manual state-file edits.
+On existing or restored installs skip setup/init and follow private status plus [recovery](recovery.md). Unknown process/effect state keeps maintenance closed. Do not clear permits by timeouts or manual state-file edits. Held service-role permits expire on their own, as [recovery](recovery.md) describes. Deploy the graph before the api and worker when a release changes the control API; a holder that meets a supervisor from before holds asks again without one.
 
 ## Health, backup and rollback
 

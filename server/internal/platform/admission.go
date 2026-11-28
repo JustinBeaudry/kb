@@ -3,26 +3,36 @@ package platform
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/JustinBeaudry/kb/server/internal/domain"
 )
 
-func WaitForAdmission(ctx context.Context, a WorkerAdmission, instance, kind string) (domain.OperationPermit, error) {
+// WaitForAdmission retries until a permit of kind is granted. It returns the
+// context the admitted operation must run on, bounded by the kind's
+// domain.PermitHold from just before the granting request, and its release,
+// which the caller calls with the operation's outcome context once the
+// operation returns and before it finishes the permit.
+// Only the wait observes ctx's own deadline being reached before admission.
+func WaitForAdmission(ctx context.Context, a WorkerAdmission, instance, kind string) (domain.OperationPermit, context.Context, domain.PermitHoldRelease, error) {
 	for {
-		p, err := a.Admit(ctx, instance, kind)
+		held, cancel := domain.WithPermitHold(ctx, kind)
+		p, err := a.Admit(held, instance, kind)
 		if err == nil {
-			return p, nil
+			return p, held, cancel, nil
 		}
+		cancel(nil)
 		if ctx.Err() != nil {
-			return domain.OperationPermit{}, ctx.Err()
+			return domain.OperationPermit{}, nil, nil, ctx.Err()
 		}
 		if !errors.Is(err, domain.ErrMaintenance) && !errors.Is(err, domain.ErrUnavailable) {
-			return domain.OperationPermit{}, err
+			return domain.OperationPermit{}, nil, nil, err
 		}
 		if !waitWorker(ctx, time.Second) {
-			return domain.OperationPermit{}, ctx.Err()
+			return domain.OperationPermit{}, nil, nil, ctx.Err()
 		}
 	}
 }
@@ -68,15 +78,20 @@ func AdmittedHandler(a WorkerAdmission, instance string, next http.Handler) http
 // protocol's error.
 func AdmittedHandlerRefusing(a WorkerAdmission, instance string, next http.Handler, refuse http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := domain.WithOperationOutcome(r.Context())
+		// The request stops at its hold, which the permit declares, so the
+		// supervisor can settle the permit if this process dies mid-request.
+		held, release := domain.WithPermitHold(r.Context(), "api")
+		ctx := domain.WithOperationOutcome(held)
 		r = r.WithContext(ctx)
 		p, err := a.Admit(ctx, instance, "api")
 		if err != nil {
 			refuse(w, r)
+			release(nil)
 			return
 		}
 		next.ServeHTTP(w, r)
-		finishRequest(r.Context(), a, p)
+		release(ctx)
+		finishRequest(ctx, a, p)
 	})
 }
 
@@ -102,4 +117,17 @@ func WriteUnready(w http.ResponseWriter, reason string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusServiceUnavailable)
 	_, _ = w.Write([]byte(`{"live":true,"ready":false,"reasons":["` + reason + `"]}`))
+}
+
+// InstallHoldWatchdog makes this process declare permit holds, and ends it if
+// a held operation is still running, or ended with an uncertain outcome,
+// domain.HoldOverrunSlack past its hold. Exiting is what lets the supervisor
+// settle the permit after its HoldUntil without anyone proving the process
+// ended: by then either the operation settled or no process is left to run
+// it. Only a service's main calls this.
+func InstallHoldWatchdog(logger *slog.Logger) {
+	domain.SetHoldOverrun(func(kind string) {
+		logger.Error("permit_hold_overrun", "reason", "maintenance", "operation_kind", kind)
+		os.Exit(1)
+	})
 }

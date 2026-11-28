@@ -146,7 +146,7 @@ func (s *MaintenanceService) Admit(ctx context.Context, instance, kind string) (
 	if strings.HasPrefix(kind, "host-admin:") || strings.Contains(kind, "recovery") {
 		return domain.OperationPermit{}, domain.ErrForbidden
 	}
-	return s.admit(ctx, instance, kind, nil, false)
+	return s.admit(ctx, instance, kind, nil, domain.DeclaredHold(ctx, kind))
 }
 
 // AdmitHost is deliberately absent from the service-role HTTP interface.
@@ -154,13 +154,13 @@ func (s *MaintenanceService) AdmitHost(ctx context.Context, instance, kind strin
 	if !strings.HasPrefix(kind, "host-admin:") {
 		return domain.OperationPermit{}, domain.ErrForbidden
 	}
-	return s.admit(ctx, instance, kind, nil, true)
+	return s.admit(ctx, instance, kind, nil, 0)
 }
 func (s *MaintenanceService) AdmitRecovery(ctx context.Context, f domain.MaintenanceFence, instance, kind string) (domain.OperationPermit, error) {
 	if !recoveryKind(kind) {
 		return domain.OperationPermit{}, domain.ErrForbidden
 	}
-	return s.admit(ctx, instance, kind, &f, true)
+	return s.admit(ctx, instance, kind, &f, 0)
 }
 func recoveryKind(kind string) bool {
 	switch kind {
@@ -172,8 +172,20 @@ func recoveryKind(kind string) bool {
 func validAdmissionName(s string) bool {
 	return s != "" && len(s) <= 128 && !strings.ContainsAny(s, "\x00\r\n")
 }
-func (s *MaintenanceService) admit(ctx context.Context, instance, kind string, f *domain.MaintenanceFence, _ bool) (domain.OperationPermit, error) {
+
+// maxDeclaredHold bounds the hold a service-role holder may declare.
+const maxDeclaredHold = time.Hour
+
+// holdGrace is how long past a permit's HoldUntil the supervisor waits before
+// settling it, so calls the holder started before its deadline, such as a
+// graph commit or an object write, have ended too.
+const holdGrace = 5 * time.Minute
+
+func (s *MaintenanceService) admit(ctx context.Context, instance, kind string, f *domain.MaintenanceFence, hold time.Duration) (domain.OperationPermit, error) {
 	if !validAdmissionName(instance) || !validAdmissionName(kind) {
+		return domain.OperationPermit{}, domain.ErrInvalidInput
+	}
+	if hold < 0 || hold > maxDeclaredHold || (hold > 0 && !serviceRoleKind(kind)) {
 		return domain.OperationPermit{}, domain.ErrInvalidInput
 	}
 	if ctx.Err() != nil {
@@ -202,6 +214,11 @@ func (s *MaintenanceService) admit(ctx context.Context, instance, kind string, f
 		return domain.OperationPermit{}, err
 	}
 	p := domain.OperationPermit{ID: id, InstanceID: instance, Kind: kind, Generation: s.state.Fence.Generation}
+	if hold > 0 {
+		// Taken after the holder's deadline started, so the holder has always
+		// stopped by HoldUntil.
+		p.HoldUntil = time.Now().UTC().Add(hold)
+	}
 	s.permits[id] = p
 	s.state.RecoveryComplete = false
 	if err = s.save(ctx); err != nil {
@@ -243,6 +260,9 @@ func (s *MaintenanceService) MarkUnknown(ctx context.Context, p domain.Operation
 	}
 	current.Unknown = true
 	current.Restored = false
+	// An uncertain outcome is never settled by time, even after a restart
+	// restores the record, so the declared hold is dropped with it.
+	current.HoldUntil = time.Time{}
 	s.permits[p.ID] = current
 	return s.save(ctx)
 }
@@ -292,6 +312,50 @@ func (s *MaintenanceService) SettleRestored(ctx context.Context, id string) (dom
 		return domain.OperationPermit{}, err
 	}
 	return current, nil
+}
+
+// ExpireHolds settles every service-role permit whose holder declared a hold
+// that, with holdGrace, has passed by now. Such a holder cancelled its
+// operation at its deadline, so nothing it started can still be running,
+// even if its process died before it could Finish. This is what lets a worker
+// killed mid-job, or one cut off by a graph restart, stop blocking drains and
+// startup recovery without an operator. It runs in every phase. A permit its
+// holder declared uncertain is never settled this way.
+func (s *MaintenanceService) ExpireHolds(ctx context.Context, now time.Time) ([]domain.OperationPermit, error) {
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.failed {
+		// A failed supervisor changes nothing until an operator recovers it.
+		return nil, nil
+	}
+	expired := map[string]domain.OperationPermit{}
+	for id, p := range s.permits {
+		if p.HoldUntil.IsZero() || !serviceRoleKind(p.Kind) || (p.Unknown && !p.Restored) || !now.After(p.HoldUntil.Add(holdGrace)) {
+			continue
+		}
+		expired[id] = p
+	}
+	if len(expired) == 0 {
+		return nil, nil
+	}
+	for id := range expired {
+		delete(s.permits, id)
+	}
+	if err := s.save(ctx); err != nil {
+		for id, p := range expired {
+			s.permits[id] = p
+		}
+		return nil, err
+	}
+	out := make([]domain.OperationPermit, 0, len(expired))
+	for _, p := range expired {
+		out = append(out, p)
+	}
+	slices.SortFunc(out, func(a, b domain.OperationPermit) int { return strings.Compare(a.ID, b.ID) })
+	return out, nil
 }
 
 // Quiesce refuses every new admission from now on. The supervisor calls it on

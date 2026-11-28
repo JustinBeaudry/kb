@@ -169,6 +169,7 @@ Evidence and backups are encrypted with age keyrings before upload, authenticate
 - **The hosting provider is trusted.** Railway can read sealed variables and run code in the services. The bucket provider could roll storage back to an older consistent state; the journal's hash chain cannot detect that without an external freshness anchor.
 - **Verified means owner-approved, not true.** The owner can be wrong or deceived.
 - **Up to 30 seconds of access audit counts** can be lost if the api stops abruptly.
+- **A paused holder can outlive its hold.** A held service-role permit expires five minutes after its `HoldUntil`, because the holder's watchdog ends the process if the operation overran or its outcome is uncertain (`TestHoldWatchdogFiresUnlessTheOutcomeSettled`, `TestMaintenanceHeldPermitIsSettledOnlyAfterItsHoldAndGrace`). A process frozen past that point, rather than ended, could resume a write it had started. Railway stops containers rather than pausing them, so kb accepts this to recover from holder deaths without an operator.
 - **Failed authentication is not counted by source address.** A guessing campaign shows as a rise in `auth:unknown`, not where it comes from. kb reads no proxy headers, which a caller can forge, so the only address it has is the platform proxy's, and a per-source counter would also hold personal data. Bearers carry 256 bits, so guessing one is not a practical attack, and the public guard refuses malformed bearers before they cost a lookup.
 
 ## Open gaps

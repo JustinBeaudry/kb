@@ -194,7 +194,7 @@ func (h *safeLogHandler) Enabled(ctx context.Context, l slog.Level) bool {
 }
 func (h *safeLogHandler) Handle(ctx context.Context, r slog.Record) error {
 	message := r.Message
-	if !oneOf(message, "telemetry_export_failed", "http_request", "job_lease_lost", "job_failed", "worker_stopped", "worker_startup_retry", "server_stopped", "capture_reconciliation_incomplete", "supervisor_stopped", "backup_completed", "backup_failed", "backup_schedule_unsaved", "restore_failed", "maintenance_closed", "access_audit_flush_failed", "access_audit_dropped", "shutdown_drain_incomplete") {
+	if !oneOf(message, "telemetry_export_failed", "http_request", "job_lease_lost", "job_failed", "worker_stopped", "worker_startup_retry", "server_stopped", "capture_reconciliation_incomplete", "supervisor_stopped", "backup_completed", "backup_failed", "backup_schedule_unsaved", "restore_failed", "maintenance_closed", "access_audit_flush_failed", "access_audit_dropped", "shutdown_drain_incomplete", "permit_hold_expired", "permit_hold_overrun") {
 		message = "event"
 	}
 	cleaned := slog.NewRecord(r.Time, r.Level, message, r.PC)
@@ -242,6 +242,10 @@ func safeLogAttr(a slog.Attr) (slog.Attr, bool) {
 		}
 	case "error_class":
 		if a.Value.Kind() == slog.KindString && oneOf(a.Value.String(), ErrorClasses...) {
+			return a, true
+		}
+	case "operation_kind":
+		if a.Value.Kind() == slog.KindString && oneOf(a.Value.String(), "api", "api-startup", "worker", "worker-startup", "sweep", "access-audit", "health") {
 			return a, true
 		}
 	case "attempt", "retry_after_ms":

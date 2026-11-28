@@ -159,8 +159,23 @@ and is retried with its exact restore ID and configuration after inspection.
 
 An unknown permit is a separate boundary: cancellation, process heartbeat
 expiry, an HTTP disconnect, or a new instance ID does not prove source I/O
-ended. Keep admission closed. No timeout removes an unknown permit, and nothing
-edits persisted state.
+ended. Keep admission closed. A timeout alone never removes an unknown permit,
+and nothing edits persisted state.
+
+The one time-based settle is a **held** permit. When the api or worker asks
+for a service-role permit it declares a hold, the most its operation may run
+(1 to 30 minutes by kind), and starts that deadline before it asks. The same
+process runs a watchdog: if the operation is still running 30 seconds past its
+hold, or returned with an uncertain outcome, the watchdog logs
+`permit_hold_overrun` and ends the process. So by the permit's `HoldUntil`
+either the operation settled or no process is left to run it, which is the
+proof an operator gives before a settle. The supervisor waits five more
+minutes, then removes the permit and logs `permit_hold_expired` with its
+`operation_kind`. This covers a holder killed mid-operation, cut off by a graph
+restart, or stuck on an uncertain write. Permits from releases before holds,
+and every backup, host administration and recovery permit, are never held and
+never expire. A process that is paused rather than ended past its hold is not
+covered; Railway does not pause containers.
 
 There are two kinds of unknown permit, and `kb-supervisor status` lists the
 first kind under `RestoredPermits` with its ID, holder instance, kind and
@@ -175,7 +190,8 @@ generation:
   waits up to 90 seconds, inside the graph service's 120 second draining
   window, for running operations to finish before it stops the graph.
   If the holder's process ended first, for example because its deployment was
-  replaced, no Finish will come. Prove that process ended (its deployment is
+  replaced, no Finish will come. A held permit then expires by itself as above.
+  For a permit with no hold, prove that process ended (its deployment is
   removed and no process with that instance ID runs), then run
   `kb-supervisor settle --id PERMIT_ID` on the graph host for each such permit.
   Settle works only while admission is closed for startup recovery and only for

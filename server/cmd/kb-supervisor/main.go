@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -291,7 +292,11 @@ func serveSupervisor(parent context.Context) error {
 	mux.Handle("/readyz", healthHandler)
 	mux.Handle("/v1/", control)
 	server := &http.Server{Addr: cfg.ControlAddress, Handler: telemetry.HTTPMiddleware(mux), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}
-	results := make(chan error, 3)
+	results := make(chan error, 4)
+	// Hold expiry runs on its own loop: a scheduled backup blocks the main
+	// loop while it waits for operations to drain, and the permit of a dead
+	// holder must still expire so that drain can finish.
+	go func() { results <- expireHolds(ctx, maintenance, logger, 5*time.Second) }()
 	go func() { results <- adminServer.Serve(ctx) }()
 	go func() {
 		results <- serveOperator(ctx, operatorListener, evidenceRunner{operatorRunner: backup, state: maintenance, observe: logBackupEvidence, settle: maintenance.SettleRestored}, status)
@@ -351,6 +356,35 @@ func serveSupervisor(parent context.Context) error {
 				} else if e != nil {
 					logger.Error("backup_failed", "reason", "unavailable")
 				}
+			}
+		}
+	}
+}
+
+type holdExpirer interface {
+	ExpireHolds(context.Context, time.Time) ([]domain.OperationPermit, error)
+}
+
+// expireHolds settles the permits whose holders outlived their declared hold,
+// every interval, until ctx ends. It runs apart from the backup scheduler so a
+// backup waiting for its drain never stops a dead holder's permit expiring.
+func expireHolds(ctx context.Context, expirer holdExpirer, logger *slog.Logger, interval time.Duration) error {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			expired, err := expirer.ExpireHolds(ctx, time.Now().UTC())
+			if err != nil {
+				if ctx.Err() != nil {
+					return nil
+				}
+				return err
+			}
+			for _, p := range expired {
+				logger.Warn("permit_hold_expired", "reason", "maintenance", "operation_kind", p.Kind)
 			}
 		}
 	}
