@@ -213,14 +213,17 @@ func TestOAuthGrantNeverWidensTheRequest(t *testing.T) {
 		ttl   time.Duration
 		want  error
 	}{
-		"other project":       {domain.OAuthScope{Projects: []string{"secret"}, Capabilities: []string{"retrieval:read"}}, 0, domain.ErrForbidden},
-		"extra capability":    {domain.OAuthScope{Projects: []string{"demo"}, Capabilities: []string{"memory:export"}}, 0, domain.ErrForbidden},
-		"owner capability":    {domain.OAuthScope{Projects: []string{"demo"}, Capabilities: []string{"verification:write"}}, 0, domain.ErrInvalidInput},
-		"no project":          {domain.OAuthScope{Capabilities: []string{"retrieval:read"}}, 0, domain.ErrInvalidInput},
-		"no capability":       {domain.OAuthScope{Projects: []string{"demo"}}, 0, domain.ErrInvalidInput},
-		"too long":            {domain.OAuthScope{Projects: []string{"demo"}, Capabilities: []string{"retrieval:read"}}, domain.MaxOAuthGrantTTL + time.Second, domain.ErrInvalidInput},
-		"duplicate project":   {domain.OAuthScope{Projects: []string{"demo", "demo"}, Capabilities: []string{"retrieval:read"}}, 0, domain.ErrInvalidInput},
-		"project with spaces": {domain.OAuthScope{Projects: []string{"demo notes"}, Capabilities: []string{"retrieval:read"}}, 0, domain.ErrInvalidInput},
+		"other project":             {domain.OAuthScope{Projects: []string{"secret"}, Capabilities: []string{"retrieval:read"}}, 0, domain.ErrForbidden},
+		"extra capability":          {domain.OAuthScope{Projects: []string{"demo"}, Capabilities: []string{"memory:export"}}, 0, domain.ErrForbidden},
+		"owner capability":          {domain.OAuthScope{Projects: []string{"demo"}, Capabilities: []string{"verification:write"}}, 0, domain.ErrInvalidInput},
+		"no project":                {domain.OAuthScope{Capabilities: []string{"retrieval:read"}}, 0, domain.ErrInvalidInput},
+		"no capability":             {domain.OAuthScope{Projects: []string{"demo"}}, 0, domain.ErrInvalidInput},
+		"too long":                  {domain.OAuthScope{Projects: []string{"demo"}, Capabilities: []string{"retrieval:read"}}, domain.MaxOAuthGrantTTL + time.Second, domain.ErrInvalidInput},
+		"duplicate project":         {domain.OAuthScope{Projects: []string{"demo", "demo"}, Capabilities: []string{"retrieval:read"}}, 0, domain.ErrInvalidInput},
+		"project hiding a scope":    {domain.OAuthScope{Projects: []string{"demo project:secret", "demo"}, Capabilities: []string{"retrieval:read"}}, 0, domain.ErrInvalidInput},
+		"capability hiding a scope": {domain.OAuthScope{Projects: []string{"demo"}, Capabilities: []string{"retrieval:read project:secret", "retrieval:read"}}, 0, domain.ErrInvalidInput},
+		"duplicate capability":      {domain.OAuthScope{Projects: []string{"demo"}, Capabilities: []string{"retrieval:read", "retrieval:read"}}, 0, domain.ErrInvalidInput},
+		"project with spaces":       {domain.OAuthScope{Projects: []string{"demo notes"}, Capabilities: []string{"retrieval:read"}}, 0, domain.ErrInvalidInput},
 	} {
 		_, err := f.svc.ApproveHost(t.Context(), a.Request.ApprovalCode, tc.grant, tc.ttl)
 		assert.ErrorIs(t, err, tc.want, name)

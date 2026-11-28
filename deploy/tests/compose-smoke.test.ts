@@ -1,4 +1,9 @@
-import { test, expect } from "bun:test";
+import { test, expect, setDefaultTimeout } from "bun:test";
+
+// Each case compiles a Go helper with `go run` and drives the smoke script
+// through a dozen fake processes. A cold compile on a CI runner alone can pass
+// bun's 5 second default, so these tests get a minute.
+setDefaultTimeout(60_000);
 import { mkdtemp, mkdir, writeFile, readFile, chmod, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
