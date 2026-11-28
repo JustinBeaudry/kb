@@ -178,8 +178,8 @@ claude mcp add --transport http kb https://memory.example.com/mcp \
 ```
 
 Other clients that support Streamable HTTP with a custom header (Codex,
-Cursor, Gemini CLI and others) take the same URL and header; see each client's
-MCP documentation for where they go. Keep the bearer in an environment
+Cursor, Gemini CLI and others) take the same URL and header;
+[clients.md](clients.md) has the exact setup for each. Keep the bearer in an environment
 variable rather than in a checked-in config file.
 
 What the endpoint guarantees:
