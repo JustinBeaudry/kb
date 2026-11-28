@@ -25,8 +25,8 @@ type accessFake struct {
 	lostCommit int
 	pruned     []string
 	markersAt  []time.Time
-	listed  []domain.AccessQuery
-	list    []domain.AccessRollup
+	listed     []domain.AccessQuery
+	list       []domain.AccessRollup
 }
 
 func newAccessFake() *accessFake {
