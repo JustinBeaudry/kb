@@ -42,12 +42,19 @@ func FinishOperation(ctx context.Context, a WorkerAdmission, p domain.OperationP
 }
 
 func AdmittedHandler(a WorkerAdmission, instance string, next http.Handler) http.Handler {
+	return AdmittedHandlerRefusing(a, instance, next, func(w http.ResponseWriter, _ *http.Request) { WriteUnready(w, "maintenance") })
+}
+
+// AdmittedHandlerRefusing is AdmittedHandler with the response written when
+// admission refuses a request, for endpoints whose clients expect their own
+// protocol's error.
+func AdmittedHandlerRefusing(a WorkerAdmission, instance string, next http.Handler, refuse http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := domain.WithOperationOutcome(r.Context())
 		r = r.WithContext(ctx)
 		p, err := a.Admit(ctx, instance, "api")
 		if err != nil {
-			WriteUnready(w, "maintenance")
+			refuse(w, r)
 			return
 		}
 		next.ServeHTTP(w, r)

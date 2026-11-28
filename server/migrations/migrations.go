@@ -51,3 +51,8 @@ var Access string
 //
 //go:embed 013_owner_keys.cypher
 var OwnerKeys string
+
+// OAuth holds dynamic client registrations for OAuth grants.
+//
+//go:embed 014_oauth.cypher
+var OAuth string
