@@ -59,7 +59,7 @@ export type ImportReport = {
 };
 export type ExportSummary = { out: string; claims: number; omitted: number; completeness: "complete" | "partial" | "withheld" };
 
-export type TransferError = { code: "invalid_input" | "approval_stale" | "policy_paused" | "vault_unavailable" | "output_exists" | RemoteError["code"] };
+export type TransferError = { code: "invalid_input" | "approval_stale" | "policy_paused" | "vault_unavailable" | "output_exists" | "sync_running" | RemoteError["code"] };
 export type GatewayError = { code: RemoteError["code"] };
 
 export type TransferPolicy = { revision: string; paused: boolean; excluded_paths: string[]; excluded_fields: string[] };

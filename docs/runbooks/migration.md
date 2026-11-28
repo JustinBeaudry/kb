@@ -124,6 +124,84 @@ the view refreshed.
 - Edits to synced pages are replaced on the next run. To correct memory, submit
   a candidate; an edited page is still a valid `--vault` for preview.
 
+### Keep the view current
+
+Add `--every <minutes>` (5 to 1440) and the command stays running, syncing now
+and then at that interval. Each run prints one JSON line with its time, so the
+output works as a log:
+
+```sh
+kb transfer vault-sync --project <p> --out "<vault>/kb-memory" \
+  --profile <agent> --endpoint <origin> --every 15
+```
+
+- The bearer is read from the credential store on every run, so
+  `kb remote credential-set` after a rotation takes effect at the next run.
+- A run that fails for a reason a later run can get past (the service is
+  unreachable, or another sync of the folder is running) is logged to stderr
+  and retried at the next interval. A failure that needs you (a revoked or
+  missing credential, a lost grant, a folder the sync does not own) stops the
+  command with exit status 1.
+- Only one sync writes a folder at a time. A sync holds
+  `<folder>/.kb-vault-sync.lock` while it runs; a second one reports
+  `sync_running` and leaves the folder alone. A running sync renews its lock
+  every minute. A lock left by a run that stopped is reclaimed when its
+  process has exited on this machine, or once it goes ten minutes without
+  renewal (the test for a vault synced between machines). A lock that cannot
+  be read is never reclaimed, and a run that finds its lock taken over stops
+  writing.
+- `Ctrl-C` or `SIGTERM` stops the command between runs.
+
+To run it without a terminal open, let the system scheduler start a single run
+(without `--every`) instead. On macOS, a launchd agent in
+`~/Library/LaunchAgents/dev.kb.vault-sync.plist`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>dev.kb.vault-sync</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/kb</string><string>transfer</string><string>vault-sync</string>
+    <string>--project</string><string>PROJECT</string>
+    <string>--out</string><string>/Users/YOU/Vault/kb-memory</string>
+    <string>--profile</string><string>PROFILE</string>
+    <string>--endpoint</string><string>https://memory.example.com</string>
+  </array>
+  <key>StartInterval</key><integer>900</integer>
+  <key>StandardErrorPath</key><string>/Users/YOU/Library/Logs/kb-vault-sync.log</string>
+</dict>
+</plist>
+```
+
+Load it with `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.kb.vault-sync.plist`.
+On Linux, a systemd user service and timer:
+
+```ini
+# ~/.config/systemd/user/kb-vault-sync.service
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/kb transfer vault-sync --project PROJECT --out %h/Vault/kb-memory --profile PROFILE --endpoint https://memory.example.com
+
+# ~/.config/systemd/user/kb-vault-sync.timer
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+
+[Install]
+WantedBy=timers.target
+```
+
+Enable it with `systemctl --user enable --now kb-vault-sync.timer`. Both read
+the bearer from the same credential store as an interactive run (the macOS
+keychain, or the Secret Service keyring on Linux), so they need your login
+session's keychain unlocked; a run that reports `credential_unavailable` while
+an interactive one works could not reach it. The lock keeps a scheduled run
+from overlapping one you start by hand. Exit status 2
+from a single run means the export was partial: pages were kept, not removed.
+
 ## Provenance loss and filtering
 
 - Local curated Markdown has no evidence chain. Its import carries the vault file

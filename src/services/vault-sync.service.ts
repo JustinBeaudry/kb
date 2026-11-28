@@ -13,6 +13,50 @@ export type VaultSyncSummary = {
   removed: number;
 };
 
+/** Bounds of `vault-sync --every`, in minutes. */
+export const MIN_SYNC_INTERVAL_MINUTES = 5;
+export const MAX_SYNC_INTERVAL_MINUTES = 24 * 60;
+
+/** Failures a later scheduled run can get past without anyone acting. */
+const TRANSIENT: ReadonlySet<TransferError["code"]> = new Set(["unavailable", "stale", "conflict", "incomplete", "sync_running"]);
+
+export type ScheduleOptions = {
+  everyMs: number;
+  signal: AbortSignal;
+  sleep: (ms: number, signal: AbortSignal) => Promise<void>;
+  onResult: (result: Result<VaultSyncSummary, TransferError>) => void;
+};
+
+/**
+ * Runs a sync now and then every interval until the signal aborts. A failure
+ * that needs someone to act (a revoked credential, a lost grant, a folder the
+ * sync does not own) stops the schedule and is returned; a transient one is
+ * reported and the next run tries again.
+ */
+export async function syncOnSchedule(run: () => Promise<Result<VaultSyncSummary, TransferError>>, options: ScheduleOptions): Promise<TransferError | undefined> {
+  while (!options.signal.aborted) {
+    const result = await run();
+    options.onResult(result);
+    if (!result.ok && !TRANSIENT.has(result.error.code)) return result.error;
+    await options.sleep(options.everyMs, options.signal);
+  }
+  return undefined;
+}
+
+/** Waits ms, or less when the signal aborts. */
+export function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal.aborted) return resolve();
+    const timer = setTimeout(done, ms);
+    function done() {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", done);
+      resolve();
+    }
+    signal.addEventListener("abort", done, { once: true });
+  });
+}
+
 /** Bounds memory: every page is held until the whole export is read. */
 export const MAX_SYNC_CLAIMS = 20_000;
 const MAX_SYNC_PAGES = MAX_SYNC_CLAIMS / 10;
@@ -32,6 +76,12 @@ export class VaultSyncService {
   async sync(scope: ExportScope, outDir: string): Promise<Result<VaultSyncSummary, TransferError>> {
     if (!validScope(scope, false) || typeof outDir !== "string" || outDir.length === 0) return fail("invalid_input");
     const folder = this.folders(outDir);
+    const locked = await folder.exclusive(() => this.syncLocked(folder, scope, outDir));
+    if (!locked.ok) return fail(locked.error.code === "busy" ? "sync_running" : "invalid_input");
+    return locked.value;
+  }
+
+  private async syncLocked(folder: SyncFolder, scope: ExportScope, outDir: string): Promise<Result<VaultSyncSummary, TransferError>> {
     const opened = await folder.open();
     if (!opened.ok) return fail(opened.error.code === "output_exists" ? "output_exists" : "invalid_input");
     const prior = opened.value;
