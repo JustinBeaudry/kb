@@ -109,16 +109,73 @@ not its `headers`, so the bearer is written into the file here. Keep that file
 readable only by you (`chmod 600`), and give this client a short `--ttl` so a
 leaked copy expires.
 
-## Apps that require OAuth
+## Apps that sign in with OAuth
 
-Claude.ai and Claude Desktop connectors, ChatGPT connectors and other apps
-that can't send a custom header need OAuth, which kb is adding now (see the
-[OAuth plan](../plans/2026-11-27-oauth-mcp/plan.md)). Once it is deployed, you
-add `https://memory.example.com/mcp` as a custom connector, the app opens an
-approval page that shows an eight-letter code, and you approve that code on
-the host. The app then gets its own scoped, expiring credential that you can
-list and revoke like any other. Cursor, Codex and Gemini CLI can also use
-that flow instead of a bearer.
+Claude (web and desktop), ChatGPT and other apps that can't send a custom
+header connect with OAuth instead of a bearer. The app registers itself with
+kb, opens an approval page, and gets its own scoped, expiring client once you
+approve it on the host. Nothing is granted until you do.
+
+The approval itself is the same for every app:
+
+1. The app opens kb's approval page, which shows an eight-letter code and
+   what the app asked for. Leave the page open; it continues by itself.
+2. On the kb host, `kb-admin oauth-requests` lists pending requests with
+   their codes, the host the app returns to, and the scope it asked for.
+   Check that the code and host match what you see.
+3. Approve with
+   `kb-admin oauth-approve --code CODE --project LIST --capabilities LIST`,
+   granting only what the app needs (for example `--capabilities
+   policy:read,status:read,retrieval:read,evidence:read`). You can grant less
+   than it asked for, never more. Or refuse with `kb-admin oauth-deny --code
+   CODE`.
+
+The app then appears in `kb-admin list` as `oauth-<grant id>`. Its access
+token works only at `/mcp` and lasts an hour, the app refreshes it until the
+grant ends (30 days by default, `--ttl` up to 90), and `kb-admin revoke
+--client-id oauth-<grant id>` cuts it off at once. See
+[credentials.md](../runbooks/credentials.md#approving-an-app-over-oauth).
+
+### Claude
+
+Custom connectors are available on Claude's Free (one connector), Pro, Max,
+Team and Enterprise plans, and a connector added on claude.ai is also there in
+Claude Desktop.
+
+1. Go to **Customize > Connectors** and choose **Add custom connector**. On
+   Team or Enterprise, an owner adds it under **Organization settings >
+   Connectors** instead, and members then **Connect** it.
+2. Name it `kb` and enter `https://memory.example.com/mcp` as the server URL.
+3. For authentication choose **Sign in when needed**. For the OAuth client
+   choose **Register automatically**, which uses kb's dynamic client
+   registration. kb does not yet accept **Use Claude's published identity**.
+   Leave the client ID and secret empty.
+4. Add the connector, then connect it. Approve the code on the host as above.
+
+Claude reaches kb from Anthropic's cloud, not from your computer, so the kb
+origin has to be reachable from the public internet. Turn the connector on
+for a chat from the **+** menu under **Connectors**.
+
+### ChatGPT
+
+1. In ChatGPT on the web, add a custom MCP server (under **Plugins**, or
+   **Settings > Connectors** with developer mode on, depending on your plan
+   and workspace).
+2. Enter `https://memory.example.com/mcp` as the server URL and choose
+   **OAuth** for authentication, leaving any client ID and secret empty so
+   ChatGPT registers itself.
+3. Confirm the warning about custom servers, create it, then connect it and
+   approve the code on the host as above.
+
+A workspace admin may need to allow custom servers first. ChatGPT also reaches
+kb from its own cloud, so the origin must be public.
+
+### Checking an app's connection
+
+Ask the app to call `memory_status`. If it can't connect, `kb-admin
+oauth-requests` shows whether its request reached kb, and `kb-admin access
+--client-id oauth-<grant id>` shows what an approved app has done. Cursor,
+Codex and Gemini CLI can also use this flow instead of a bearer.
 
 ## Clients without MCP
 
