@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -28,6 +29,7 @@ type DecisionRepository interface {
 	ReplyReceipt(context.Context, Tx, string) (domain.DecisionReplyReceipt, error)
 	PutReplyReceipt(context.Context, Tx, domain.DecisionReplyReceipt) error
 	PutJudgment(context.Context, Tx, domain.OwnerJudgment) error
+	ListJudgments(context.Context, Tx) ([]domain.JudgmentRecord, error)
 	Cursor(context.Context, Tx) (string, error)
 	PutCursor(context.Context, Tx, string) error
 	PutChallenge(context.Context, Tx, domain.OwnerChallenge) error
@@ -327,6 +329,88 @@ func (s *DecisionService) Pending(ctx context.Context, limit int) ([]domain.Deci
 		return e
 	})
 	return out, err
+}
+
+// JudgmentsHost lists owner judgments oldest first for review on the host:
+// what each signing key approved or rejected, and when. Signer narrows it to
+// one public key, such as the retired key that owner-rotate printed; Since to
+// judgments recorded on or after a UTC day. CurrentKey marks judgments signed
+// by the key enrolled now, so a review after a theft can tell them apart.
+func (s *DecisionService) JudgmentsHost(ctx context.Context, q domain.JudgmentQuery) (domain.JudgmentPage, error) {
+	if q.Limit == 0 {
+		q.Limit = 100
+	}
+	q.Signer = strings.ToLower(q.Signer)
+	if q.Limit < 1 || q.Limit > domain.MaxJudgmentPage || (q.Signer != "" && !validDigest(q.Signer)) || (q.Since != "" && !domain.ValidAccessDay(q.Since)) {
+		return domain.JudgmentPage{}, domain.ErrInvalidInput
+	}
+	var since time.Time
+	if q.Since != "" {
+		since, _ = time.Parse(time.DateOnly, q.Since)
+	}
+	afterAt, afterID, err := parseJudgmentCursor(q.After)
+	if err != nil {
+		return domain.JudgmentPage{}, err
+	}
+	var all []domain.JudgmentRecord
+	var current string
+	err = s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
+		owner, e := s.owners.Owner(ctx, tx)
+		if e != nil {
+			return e
+		}
+		if owner.ID == "" || owner.PublicKey == "" {
+			return domain.ErrForbidden
+		}
+		current = owner.PublicKey
+		all, e = s.repo.ListJudgments(ctx, tx)
+		return e
+	})
+	if err != nil {
+		return domain.JudgmentPage{}, err
+	}
+	slices.SortFunc(all, func(a, b domain.JudgmentRecord) int {
+		if c := a.RecordedAt.Compare(b.RecordedAt); c != 0 {
+			return c
+		}
+		return strings.Compare(a.ID, b.ID)
+	})
+	page := domain.JudgmentPage{Judgments: []domain.JudgmentRecord{}}
+	for _, j := range all {
+		if q.Signer != "" && strings.ToLower(j.SignerID) != q.Signer {
+			continue
+		}
+		if !since.IsZero() && j.RecordedAt.Before(since) {
+			continue
+		}
+		if q.After != "" {
+			if c := j.RecordedAt.UnixNano() - afterAt; c < 0 || (c == 0 && j.ID <= afterID) {
+				continue
+			}
+		}
+		if len(page.Judgments) == q.Limit {
+			last := page.Judgments[len(page.Judgments)-1]
+			page.Next = strconv.FormatInt(last.RecordedAt.UnixNano(), 10) + "." + last.ID
+			break
+		}
+		j.CurrentKey = strings.ToLower(j.SignerID) == current
+		page.Judgments = append(page.Judgments, j)
+	}
+	return page, nil
+}
+
+// parseJudgmentCursor reads a Next cursor: the last judgment's recorded time
+// in Unix nanoseconds, a dot, and its ID.
+func parseJudgmentCursor(after string) (int64, string, error) {
+	if after == "" {
+		return 0, "", nil
+	}
+	at, id, ok := strings.Cut(after, ".")
+	n, err := strconv.ParseInt(at, 10, 64)
+	if !ok || err != nil || !validDigest(id) {
+		return 0, "", domain.ErrInvalidInput
+	}
+	return n, id, nil
 }
 
 type replyChannel int

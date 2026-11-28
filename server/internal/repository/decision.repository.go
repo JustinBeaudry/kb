@@ -125,6 +125,30 @@ func (r *DecisionRepository) PutJudgment(ctx context.Context, tx domain.Tx, j do
 	}
 	return expectOne(r.query(ctx, tx, `MATCH (d:Decision {id:$decision}) CREATE (j:OwnerJudgment {id:$id,decisionID:$decision,candidateRevision:$revision,action:$action,data:$data})-[:JUDGES]->(d) RETURN j.id`, map[string]any{"id": j.ID, "decision": j.DecisionID, "revision": j.CandidateRevision, "action": j.Action, "data": data}))
 }
+
+// ListJudgments returns every owner judgment with the decision it answered,
+// in no particular order. Judgments are written only by the owner's own
+// signatures, so the set stays small enough to read whole; the service
+// filters, orders and pages it for review.
+func (r *DecisionRepository) ListJudgments(ctx context.Context, tx domain.Tx) ([]domain.JudgmentRecord, error) {
+	rows, err := r.query(ctx, tx, `MATCH (j:OwnerJudgment)-[:JUDGES]->(d:Decision) RETURN j.data, d.data`, nil)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.JudgmentRecord, 0, len(rows))
+	for _, row := range rows {
+		var j domain.OwnerJudgment
+		var d domain.Decision
+		if err = decodeCapture(row, 0, &j); err != nil {
+			return nil, err
+		}
+		if err = decodeCapture(row, 1, &d); err != nil {
+			return nil, err
+		}
+		out = append(out, domain.JudgmentRecord{ID: j.ID, RecordedAt: j.RecordedAt, SignerID: j.SignerID, Action: j.Action, ProjectID: d.ProjectID, DecisionID: j.DecisionID, RequestedAction: d.RequestedAction, CandidateRevision: j.CandidateRevision, EvidenceDigest: j.EvidenceDigest, OwnerID: j.OwnerID, EventID: j.EventID, Channel: j.Channel})
+	}
+	return out, nil
+}
 func (r *DecisionRepository) Cursor(ctx context.Context, tx domain.Tx) (string, error) {
 	rows, err := r.query(ctx, tx, `OPTIONAL MATCH (c:DecisionCursor {id:'buzz'}) RETURN coalesce(c.value,'')`, nil)
 	if err != nil {

@@ -33,7 +33,7 @@ type hostRecovery interface {
 
 func requiresRecovery(command string, preview bool) bool {
 	switch command {
-	case "setup", "access", "journal-init", "journal-check", "deletion-status", "decisions", "decision-request", "decision-sync", "decision-challenge", "decision-approve":
+	case "setup", "access", "journal-init", "journal-check", "deletion-status", "decisions", "decision-request", "decision-sync", "decision-challenge", "decision-approve", "judgments":
 		return false
 	case "delete":
 		// Exact deletion execution is the host repair path for pending journal

@@ -139,4 +139,31 @@ func TestDecisionRoundTripOnRealGraph(t *testing.T) {
 			return e
 		}))
 	})
+
+	t.Run("judgments list what each key signed, after the key is replaced", func(t *testing.T) {
+		page, err := decisions.JudgmentsHost(t.Context(), domain.JudgmentQuery{})
+		require.NoError(t, err)
+		require.Len(t, page.Judgments, 1)
+		j := page.Judgments[0]
+		assert.Equal(t, ownerPub, j.SignerID)
+		assert.True(t, j.CurrentKey)
+		assert.Equal(t, "approve", j.Action)
+		assert.Equal(t, "demo", j.ProjectID)
+		assert.Equal(t, "publish", j.RequestedAction)
+		assert.Equal(t, d.ID, j.DecisionID)
+		assert.Equal(t, "rev-1", j.CandidateRevision)
+		assert.False(t, j.RecordedAt.IsZero())
+
+		_, newPub := decisionKey("owner-2")
+		_, err = identity.ReplaceOwnerKeyHost(t.Context(), newPub)
+		require.NoError(t, err)
+
+		retired, err := decisions.JudgmentsHost(t.Context(), domain.JudgmentQuery{Signer: ownerPub})
+		require.NoError(t, err)
+		require.Len(t, retired.Judgments, 1)
+		assert.False(t, retired.Judgments[0].CurrentKey, "a replaced key's judgments are marked as no longer current")
+		none, err := decisions.JudgmentsHost(t.Context(), domain.JudgmentQuery{Signer: newPub})
+		require.NoError(t, err)
+		assert.Empty(t, none.Judgments)
+	})
 }

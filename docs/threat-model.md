@@ -157,7 +157,7 @@ Residual: a stolen access token works at `/mcp`, within its grant, for up to an 
 
 ### Owner key compromise
 
-Whoever holds the owner's Nostr key can publish anything. The key never reaches the service; signatures are verified against the enrolled public key (`TestNostrVerifierChecksOwnerDigestSignature`), and each adjudication binds the exact candidate head and digest (`TestOwnerAdjudicationRequiresExactHeadAndDigest`). A lost or stolen key is replaced on the host with `kb-admin owner-rotate`: signatures by the old key stop verifying at once, and the retired key can never be enrolled again (`TestReplaceOwnerKeyRetiresTheOldKeyForGood`, and the owner key replacement case in `TestIdentityRealGraph`). The steps, including reviewing what the old key approved, are in [credentials](runbooks/credentials.md#owner-key-loss-or-theft).
+Whoever holds the owner's Nostr key can publish anything. The key never reaches the service; signatures are verified against the enrolled public key (`TestNostrVerifierChecksOwnerDigestSignature`), and each adjudication binds the exact candidate head and digest (`TestOwnerAdjudicationRequiresExactHeadAndDigest`). A lost or stolen key is replaced on the host with `kb-admin owner-rotate`: signatures by the old key stop verifying at once, and the retired key can never be enrolled again (`TestReplaceOwnerKeyRetiresTheOldKeyForGood`, and the owner key replacement case in `TestIdentityRealGraph`). `kb-admin judgments --signer KEY` lists everything a key signed, oldest first, and marks judgments by a key that is no longer enrolled (`TestJudgmentsHostListsWhatEachKeySigned`, and the judgments case in `TestDecisionRoundTripOnRealGraph`). The steps, including reviewing what the old key approved, are in [credentials](runbooks/credentials.md#owner-key-loss-or-theft).
 
 ### Storage and backup exposure
 
@@ -173,5 +173,4 @@ Evidence and backups are encrypted with age keyrings before upload, authenticate
 
 1. **Failed authentication by source.** Refused bearers are counted per client, or as unknown, but not per source address. A guessing campaign shows as a rise in `auth:unknown`, not where it comes from. Decide whether a bounded per-source counter is worth the personal data it would hold.
 2. **Tool descriptions do not tell agents to treat stored text as data.** kb deliberately sends no instructions, but each retrieval tool's description could say that returned text is stored content, not instructions, without adding a server voice. Decide and test.
-3. **Owner key review tooling.** `owner-rotate` replaces the key, but finding everything a retired key approved is a manual review today. Add a host listing of owner judgments by signing key and time.
-4. **Branch protection on `main`** (roadmap security item 2): require the Memory service and Security checks before merge.
+3. **Branch protection on `main`** (roadmap security item 2): require the Memory service and Security checks before merge.

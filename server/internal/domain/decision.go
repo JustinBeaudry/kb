@@ -85,3 +85,39 @@ func DecisionActionDigest(decisionID, action, candidateRevision, evidenceDigest 
 	sum := sha256.Sum256([]byte(strings.Join([]string{"kb-decision-action/v1", decisionID, action, candidateRevision, evidenceDigest}, "\n")))
 	return hex.EncodeToString(sum[:])
 }
+
+// MaxJudgmentPage bounds one page of the owner judgment review listing.
+const MaxJudgmentPage = 500
+
+// JudgmentQuery selects owner judgments for review on the host, for example
+// everything a retired or stolen key signed. Signer is a 64-hex public key,
+// Since a YYYY-MM-DD UTC day, and After the Next cursor of a previous page.
+type JudgmentQuery struct {
+	Signer, Since, After string
+	Limit                int
+}
+
+// JudgmentRecord is one owner judgment as the review listing shows it, with the
+// project of the decision it answered and whether its signing key is the one
+// enrolled now.
+type JudgmentRecord struct {
+	ID                string    `json:"id"`
+	RecordedAt        time.Time `json:"recorded_at"`
+	SignerID          string    `json:"signer"`
+	CurrentKey        bool      `json:"current_key"`
+	Action            string    `json:"action"`
+	ProjectID         string    `json:"project_id"`
+	DecisionID        string    `json:"decision_id"`
+	RequestedAction   string    `json:"requested_action"`
+	CandidateRevision string    `json:"candidate_revision"`
+	EvidenceDigest    string    `json:"evidence_digest"`
+	OwnerID           string    `json:"owner_id"`
+	EventID           string    `json:"event_id"`
+	Channel           string    `json:"channel"`
+}
+
+// JudgmentPage is one page of owner judgments, oldest first.
+type JudgmentPage struct {
+	Judgments []JudgmentRecord `json:"judgments"`
+	Next      string           `json:"next,omitempty"`
+}

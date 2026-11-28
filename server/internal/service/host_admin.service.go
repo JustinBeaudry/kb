@@ -83,7 +83,7 @@ func (s *HostAdminService) Run(ctx context.Context, r domain.HostAdminRequest, s
 }
 func hostAdminAction(action string) bool {
 	switch action {
-	case "setup", "enroll", "rotate", "revoke", "owner-rotate", "oauth-requests", "oauth-approve", "oauth-deny", "list", "access", "verify", "reject", "invalidate", "verify-check", "lesson-publish", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-request", "decision-sync", "decision-challenge", "decision-approve":
+	case "setup", "enroll", "rotate", "revoke", "owner-rotate", "oauth-requests", "oauth-approve", "oauth-deny", "list", "access", "verify", "reject", "invalidate", "verify-check", "lesson-publish", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-request", "decision-sync", "decision-challenge", "decision-approve", "judgments":
 		return true
 	}
 	return false

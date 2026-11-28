@@ -28,6 +28,7 @@ type hostDecisions interface {
 	CreateDecisionChallenge(context.Context, string, string) (domain.OwnerChallenge, error)
 	ApproveOwnerChallenge(context.Context, string, []byte) (domain.ActionGrant, string, error)
 	RespondWithGrant(context.Context, string, string, string) (domain.Decision, error)
+	JudgmentsHost(context.Context, domain.JudgmentQuery) (domain.JudgmentPage, error)
 }
 
 type decisionInput struct {

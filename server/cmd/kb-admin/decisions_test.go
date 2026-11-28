@@ -21,6 +21,7 @@ type fakeHostDecisions struct {
 	token, usedToken      string
 	signature             []byte
 	requested             []domain.Decision
+	judgmentQuery         domain.JudgmentQuery
 }
 
 const fakeEvidenceDigest = "1111111111111111111111111111111111111111111111111111111111111111"
@@ -54,6 +55,11 @@ func (f *fakeHostDecisions) ApproveOwnerChallenge(_ context.Context, _ string, s
 func (f *fakeHostDecisions) RespondWithGrant(_ context.Context, token, id, _ string) (domain.Decision, error) {
 	f.usedToken = token
 	return domain.Decision{ID: id, State: domain.DecisionAccepted}, nil
+}
+
+func (f *fakeHostDecisions) JudgmentsHost(_ context.Context, q domain.JudgmentQuery) (domain.JudgmentPage, error) {
+	f.judgmentQuery = q
+	return domain.JudgmentPage{Judgments: []domain.JudgmentRecord{{ID: "j-1", SignerID: q.Signer, Action: "approve", ProjectID: "demo"}}, Next: "cursor-2"}, nil
 }
 
 func TestDecisionCommandsNeverPrintGrantToken(t *testing.T) {
@@ -153,4 +159,34 @@ func TestDecisionRequestPreviewThenApply(t *testing.T) {
 	require.Len(t, host.requested, 1)
 	assert.Equal(t, domain.Decision{CandidateRevision: "rev-1", RequestedAction: "publish", EvidenceDigest: fakeEvidenceDigest}, host.requested[0])
 	assert.Contains(t, applied.String(), `"dec-new"`)
+}
+
+func TestJudgmentsCommandPrintsTheReviewPage(t *testing.T) {
+	host := &fakeHostDecisions{}
+	factory := func(context.Context, bool) (administration, func(), error) {
+		return administration{decisions: host}, func() {}, nil
+	}
+	key := strings.Repeat("ab", 32)
+	var out bytes.Buffer
+
+	err := runAdmin(t.Context(), []string{"judgments", "--signer", key, "--since", "2026-11-01", "--limit", "20", "--after", "c"}, &out, strings.NewReader(""), factory)
+
+	require.NoError(t, err)
+	assert.Equal(t, domain.JudgmentQuery{Signer: key, Since: "2026-11-01", Limit: 20, After: "c"}, host.judgmentQuery)
+	assert.Contains(t, out.String(), `"signer":"`+key+`"`)
+	assert.Contains(t, out.String(), `"next":"cursor-2"`)
+
+	require.NoError(t, runAdmin(t.Context(), []string{"judgments"}, &out, strings.NewReader(""), factory))
+	assert.Equal(t, domain.JudgmentQuery{Limit: 100}, host.judgmentQuery, "defaults to 100 from the first judgment")
+
+	for _, bad := range [][]string{
+		{"judgments", "--limit", "0"},
+		{"judgments", "--limit", "501"},
+		{"judgments", "--since", "yesterday"},
+		{"judgments", "--input", "-"},
+		{"judgments", "extra"},
+	} {
+		assert.ErrorIs(t, runAdmin(t.Context(), bad, io.Discard, strings.NewReader(""), factory), domain.ErrInvalidInput, "%v", bad)
+	}
+	assert.False(t, requiresRecovery("judgments", false), "the review works while kb is in maintenance")
 }
