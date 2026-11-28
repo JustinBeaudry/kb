@@ -34,10 +34,13 @@ func (r *OAuthRepository) query(ctx context.Context, tx domain.Tx, statement str
 }
 
 // AddRegistration stores reg unless maxPending unexpired, unapproved
-// registrations already exist, in which case it returns ErrBudget. The
-// count and the create run in one statement, inside the caller's transaction.
+// registrations already exist, in which case it returns ErrBudget. Writing the
+// registrations limit node first holds its lock until the transaction ends,
+// so concurrent registrations count and create one at a time.
 func (r *OAuthRepository) AddRegistration(ctx context.Context, tx domain.Tx, reg domain.OAuthRegistration, maxPending int) error {
-	rows, err := r.query(ctx, tx, `OPTIONAL MATCH (p:OAuthRegistration) WHERE p.approved = false AND p.expiresAt > $created
+	rows, err := r.query(ctx, tx, `MERGE (l:OAuthLimit {id:'registrations'}) SET l.at = $created
+WITH l
+OPTIONAL MATCH (p:OAuthRegistration) WHERE p.approved = false AND p.expiresAt > $created
 WITH count(p) AS pending WHERE pending < $max
 CREATE (reg:OAuthRegistration {id:$id, redirectURIs:$uris, clientName:$name, createdAt:$created, expiresAt:$expires, approved:false})
 RETURN reg.id`, map[string]any{"id": reg.ID, "uris": reg.RedirectURIs, "name": reg.ClientName, "created": reg.CreatedAt.UTC().UnixNano(), "expires": reg.ExpiresAt.UTC().UnixNano(), "max": int64(maxPending)})

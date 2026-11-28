@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/JustinBeaudry/kb/server/internal/domain"
+	"github.com/JustinBeaudry/kb/server/internal/platform"
 	"github.com/JustinBeaudry/kb/server/internal/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -63,15 +64,17 @@ func TestOAuthRegisterRefusals(t *testing.T) {
 		status int
 		code   string
 	}{
-		"bad redirect":   {func() *http.Request { return registerRequest(`{"redirect_uris":["http://a.example"]}`) }, domain.ErrInvalidRedirectURI, 400, "invalid_redirect_uri"},
-		"bad metadata":   {func() *http.Request { return registerRequest(`{"redirect_uris":["https://a.example"]}`) }, domain.ErrInvalidClientMetadata, 400, "invalid_client_metadata"},
-		"cap reached":    {func() *http.Request { return registerRequest(`{"redirect_uris":["https://a.example"]}`) }, domain.ErrBudget, 429, "temporarily_unavailable"},
-		"graph down":     {func() *http.Request { return registerRequest(`{"redirect_uris":["https://a.example"]}`) }, domain.ErrUnavailable, 503, "temporarily_unavailable"},
-		"not json":       {func() *http.Request { return registerRequest(`redirect_uris=x`) }, nil, 400, "invalid_client_metadata"},
-		"wrong type":     {func() *http.Request { return registerRequest(`{"redirect_uris":"https://a.example"}`) }, nil, 400, "invalid_client_metadata"},
-		"two objects":    {func() *http.Request { return registerRequest(`{"redirect_uris":["https://a.example"]}{}`) }, nil, 400, "invalid_client_metadata"},
-		"array":          {func() *http.Request { return registerRequest(`[]`) }, nil, 400, "invalid_client_metadata"},
-		"too large":      {func() *http.Request { return registerRequest(`{"client_name":"` + strings.Repeat("a", maxOAuthRegisterBody) + `"}`) }, nil, 413, "invalid_client_metadata"},
+		"bad redirect": {func() *http.Request { return registerRequest(`{"redirect_uris":["http://a.example"]}`) }, domain.ErrInvalidRedirectURI, 400, "invalid_redirect_uri"},
+		"bad metadata": {func() *http.Request { return registerRequest(`{"redirect_uris":["https://a.example"]}`) }, domain.ErrInvalidClientMetadata, 400, "invalid_client_metadata"},
+		"cap reached":  {func() *http.Request { return registerRequest(`{"redirect_uris":["https://a.example"]}`) }, domain.ErrBudget, 429, "temporarily_unavailable"},
+		"graph down":   {func() *http.Request { return registerRequest(`{"redirect_uris":["https://a.example"]}`) }, domain.ErrUnavailable, 503, "temporarily_unavailable"},
+		"not json":     {func() *http.Request { return registerRequest(`redirect_uris=x`) }, nil, 400, "invalid_client_metadata"},
+		"wrong type":   {func() *http.Request { return registerRequest(`{"redirect_uris":"https://a.example"}`) }, nil, 400, "invalid_client_metadata"},
+		"two objects":  {func() *http.Request { return registerRequest(`{"redirect_uris":["https://a.example"]}{}`) }, nil, 400, "invalid_client_metadata"},
+		"array":        {func() *http.Request { return registerRequest(`[]`) }, nil, 400, "invalid_client_metadata"},
+		"too large": {func() *http.Request {
+			return registerRequest(`{"client_name":"` + strings.Repeat("a", maxOAuthRegisterBody) + `"}`)
+		}, nil, 413, "invalid_client_metadata"},
 		"form encoded": {func() *http.Request {
 			r := registerRequest(`{}`)
 			r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -136,6 +139,8 @@ func TestOAuthGuardBoundsRateAndConcurrency(t *testing.T) {
 	w := hit()
 	require.Equal(t, http.StatusTooManyRequests, w.Code)
 	assert.Equal(t, "1", w.Header().Get("Retry-After"))
+	assert.Equal(t, "no-store", w.Header().Get("Cache-Control"))
+	assert.Equal(t, "*", w.Header().Get("Access-Control-Allow-Origin"), "browser clients can read the refusal")
 	assert.Contains(t, w.Body.String(), "temporarily_unavailable")
 	assert.Equal(t, oauthRequestBurst, served)
 
@@ -169,4 +174,31 @@ func TestOAuthGuardBoundsRateAndConcurrency(t *testing.T) {
 	assert.Equal(t, http.StatusTooManyRequests, w.Code)
 	close(release)
 	wg.Wait()
+}
+
+func TestOAuthGuardAdmitsEachRequestAndAnswersMaintenanceInOAuthTerms(t *testing.T) {
+	a := &guardAdmission{}
+	served := 0
+	h := GuardOAuth(platform.AdmittedHandlerRefusing(a, "api", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		served++
+		assert.True(t, domain.OperationSettled(r.Context()), "the request runs inside effect accounting")
+		w.WriteHeader(201)
+	}), RefuseOAuthMaintenance(nil)), nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, registerRequest(`{}`))
+	require.Equal(t, 201, w.Code)
+	assert.Equal(t, int64(1), a.admitted.Load())
+	assert.Equal(t, int64(1), a.finished.Load())
+
+	a.denied = true
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, registerRequest(`{}`))
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+	var body oauthErrorBody
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, "temporarily_unavailable", body.Error)
+	assert.Equal(t, "*", w.Header().Get("Access-Control-Allow-Origin"))
+	assert.Equal(t, "no-store", w.Header().Get("Cache-Control"))
+	assert.NotEmpty(t, w.Header().Get("Retry-After"))
+	assert.Equal(t, 1, served, "nothing runs outside admission")
 }
