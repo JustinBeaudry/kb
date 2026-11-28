@@ -103,11 +103,12 @@ func (f *ClientMetadataFetcher) FetchClientMetadata(ctx context.Context, clientI
 	return body, cacheLifetime(resp.Header), nil
 }
 
-// cacheLifetime reads max-age from Cache-Control. no-store and no-cache ask
-// for no reuse, which the caller still bounds below to keep fetches rare.
+// cacheLifetime reads max-age from every Cache-Control field. no-store and
+// no-cache ask for no reuse and win over any max-age; the caller still bounds
+// the lifetime below to keep fetches rare.
 func cacheLifetime(h http.Header) time.Duration {
 	lifetime := time.Duration(0)
-	for _, directive := range strings.Split(h.Get("Cache-Control"), ",") {
+	for _, directive := range strings.Split(strings.Join(h.Values("Cache-Control"), ","), ",") {
 		name, value, _ := strings.Cut(strings.TrimSpace(directive), "=")
 		switch strings.ToLower(name) {
 		case "no-store", "no-cache":
@@ -131,12 +132,16 @@ var nonPublicPrefixes = func() []netip.Prefix {
 		"192.0.0.0/24", "192.0.2.0/24", "192.88.99.0/24", "192.168.0.0/16", "198.18.0.0/15",
 		"198.51.100.0/24", "203.0.113.0/24", "224.0.0.0/3",
 		"::/128", "::1/128", "::ffff:0:0/96", "64:ff9b::/96", "64:ff9b:1::/48", "100::/64", "2001::/23",
-		"2001:db8::/32", "2002::/16", "3fff::/20", "5f00::/16", "fc00::/7", "fe80::/10", "ff00::/8",
+		"2001:db8::/32", "2002::/16", "3fff::/20", "5f00::/16", "fc00::/7", "fe80::/10", "fec0::/10", "ff00::/8",
 	} {
 		out = append(out, netip.MustParsePrefix(p))
 	}
 	return out
 }()
+
+// globalUnicast6 is the only IPv6 range IANA allocates for global unicast, so
+// anything outside it (site-local fec0::/10 included) is never dialed.
+var globalUnicast6 = netip.MustParsePrefix("2000::/3")
 
 // PublicAddress reports whether addr is a globally routable unicast address,
 // excluding private, shared, loopback, link-local, documentation, benchmark,
@@ -144,7 +149,7 @@ var nonPublicPrefixes = func() []netip.Prefix {
 // IPv4 address through a gateway).
 func PublicAddress(addr netip.Addr) bool {
 	addr = addr.Unmap()
-	if !addr.IsValid() || !addr.IsGlobalUnicast() || addr.IsPrivate() {
+	if !addr.IsValid() || !addr.IsGlobalUnicast() || addr.IsPrivate() || (addr.Is6() && !globalUnicast6.Contains(addr)) {
 		return false
 	}
 	for _, p := range nonPublicPrefixes {

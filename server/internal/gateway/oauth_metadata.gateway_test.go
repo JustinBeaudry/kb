@@ -92,7 +92,7 @@ func TestPublicAddressExcludesInternalAndSpecialRanges(t *testing.T) {
 		"0.0.0.0", "10.1.2.3", "100.64.0.1", "127.0.0.1", "169.254.169.254", "172.16.0.1", "192.0.0.8", "192.0.2.1",
 		"192.168.1.1", "198.18.0.1", "198.51.100.1", "203.0.113.1", "224.0.0.1", "240.0.0.1", "255.255.255.255",
 		"::", "::1", "::ffff:10.0.0.1", "::ffff:127.0.0.1", "64:ff9b::a00:1", "2001:db8::1", "2002:a00:1::1",
-		"fc00::1", "fd12:3456::1", "fe80::1", "ff02::1",
+		"fc00::1", "fd12:3456::1", "fe80::1", "fec0::1", "4000::1", "ff02::1",
 	} {
 		assert.False(t, PublicAddress(netip.MustParseAddr(internal)), internal)
 	}
@@ -114,4 +114,8 @@ func TestCacheLifetimeReadsMaxAgeAndRefusals(t *testing.T) {
 		h.Set("Cache-Control", header)
 		assert.Equal(t, want, cacheLifetime(h), header)
 	}
+	h := http.Header{}
+	h.Add("Cache-Control", "max-age=86400")
+	h.Add("Cache-Control", "no-store")
+	assert.Equal(t, time.Nanosecond, cacheLifetime(h), "every Cache-Control field counts")
 }
