@@ -147,7 +147,9 @@ kb transfer vault-sync --project <p> --out "<vault>/kb-memory" \
   `sync_running` and leaves the folder alone. A running sync renews its lock
   every minute. A lock left by a run that stopped is reclaimed when its
   process has exited on this machine, or once it goes ten minutes without
-  renewal (the test for a vault synced between machines).
+  renewal (the test for a vault synced between machines). A lock that cannot
+  be read is never reclaimed, and a run that finds its lock taken over stops
+  writing.
 - `Ctrl-C` or `SIGTERM` stops the command between runs.
 
 To run it without a terminal open, let the system scheduler start a single run

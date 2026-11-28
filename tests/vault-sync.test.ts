@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { runCommand } from "citty";
@@ -286,10 +286,12 @@ describe("vault-sync locking", () => {
     const exited = Bun.spawnSync(["true"]).pid;
     lock(exited, hostname(), 0);
     expect((await attempt()).ok, "a lock from an exited process on this machine is abandoned at once").toBe(true);
-    lock(process.pid, hostname(), 0);
-    writeFileSync(join(out, SYNC_LOCK_FILE), "not json");
-    expect((await attempt()).ok, "an unreadable lock is abandoned").toBe(true);
-    expect(existsSync(join(out, SYNC_LOCK_FILE))).toBe(false);
+    writeFileSync(join(out, SYNC_LOCK_FILE), "");
+    expect((r => !r.ok && r.error.code)(await attempt()), "a lock with no content yet may be a run still writing it").toBe("sync_running");
+    const old = new Date(Date.now() - 11 * 60_000);
+    utimesSync(join(out, SYNC_LOCK_FILE), old, old);
+    expect((await attempt()).ok, "a malformed lock untouched for ten minutes is abandoned").toBe(true);
+    expect(readdirSync(out).filter((e) => e.startsWith(SYNC_LOCK_FILE)), "no lock or draft is left behind").toEqual([]);
   });
 
   test("a running sync renews its lock, so a slow export is never taken for a stopped one", async () => {
@@ -305,6 +307,22 @@ describe("vault-sync locking", () => {
     slow.release();
     expect((await first).ok).toBe(true);
     expect(existsSync(join(out, SYNC_LOCK_FILE))).toBe(false);
+  });
+
+  test("a sync whose lock another run took over stops writing and leaves that run's lock", async () => {
+    const out = join(temp(), "kb");
+    await sync(new PagedExports(pages([claim("a", "One")]))).sync(scope, out);
+    const before = readdirSync(join(out, "claims"));
+    const slow = new HeldExports(pages([claim("b", "Two")]));
+    const first = sync(slow).sync(scope, out);
+    await slow.started;
+    const theirs = JSON.stringify({ pid: process.pid, host: "another-machine", token: "theirs", renewedAt: new Date().toISOString() });
+    writeFileSync(join(out, SYNC_LOCK_FILE), theirs);
+    slow.release();
+    const result = await first;
+    expect(result.ok).toBe(false);
+    expect(readdirSync(join(out, "claims"))).toEqual(before);
+    expect(readFileSync(join(out, SYNC_LOCK_FILE), "utf8")).toBe(theirs);
   });
 
   test("a new folder holding only a stopped run's lock is still the sync's to fill", async () => {
