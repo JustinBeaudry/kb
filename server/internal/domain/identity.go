@@ -23,7 +23,7 @@ type Principal struct {
 	AuthEpoch    uint64
 	// Resource, when set, binds the credential to one endpoint: an OAuth
 	// access token holds OAuthResourceMCP and authenticates only at /mcp.
-	Resource string
+	Resource string `json:",omitempty"`
 }
 
 type Scope struct{ ProjectID, TaskID, SessionID string }
