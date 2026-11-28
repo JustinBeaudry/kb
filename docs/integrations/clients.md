@@ -182,5 +182,6 @@ Codex and Gemini CLI can also use this flow instead of a bearer.
 Agents built on a model API's function calling can use the same tools from
 published OpenAI and Gemini definitions; see
 [function-calling.md](function-calling.md). Agents that only speak HTTP use
-the REST API under `/v1` with the same bearer; see [remote.md](remote.md) and
-`server/api/openapi.yaml`.
+the REST API under `/v1` with the same bearer; see [remote.md](remote.md),
+`server/api/openapi.yaml`, and the typed TypeScript client in
+[sdk/typescript](../../sdk/typescript/README.md).

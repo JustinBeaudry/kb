@@ -1,0 +1,14 @@
+{
+  "name": "@beaudry/kb-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Typed TypeScript client for kb's REST API, generated from server/api/openapi.yaml",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/kb.ts"
+  },
+  "files": [
+    "src"
+  ]
+}

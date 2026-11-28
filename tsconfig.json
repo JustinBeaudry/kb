@@ -12,6 +12,6 @@
     "rootDir": ".",
     "types": ["bun-types"]
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts", "evals/**/*.ts"],
+  "include": ["src/**/*.ts", "tests/**/*.ts", "evals/**/*.ts", "sdk/typescript/src/**/*.ts", "scripts/generate-sdk.ts"],
   "exclude": ["node_modules", "dist"]
 }
