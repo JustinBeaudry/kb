@@ -76,12 +76,15 @@ RETURN reg.redirectURIs, reg.clientName, reg.createdAt, reg.expiresAt`, map[stri
 }
 
 // PruneRegistrations deletes up to limit unapproved registrations that
-// expired at or before now, and returns how many it deleted.
+// expired at or before now, and returns how many it deleted. A registration a
+// live or approved request still depends on is kept until that request is
+// pruned, so an approval near the registration's expiry can still be redeemed.
 func (r *OAuthRepository) PruneRegistrations(ctx context.Context, tx domain.Tx, now time.Time, limit int) (int, error) {
 	if limit < 1 {
 		return 0, domain.ErrInvalidInput
 	}
 	rows, err := r.query(ctx, tx, `MATCH (reg:OAuthRegistration) WHERE reg.approved = false AND reg.expiresAt <= $now
+AND NOT EXISTS { MATCH (r:OAuthRequest {clientID:reg.id}) WHERE r.expiresAt > $now OR r.status = 'approved' }
 WITH reg LIMIT $limit DETACH DELETE reg RETURN count(*)`, map[string]any{"now": now.UTC().UnixNano(), "limit": int64(limit)})
 	if err != nil {
 		return 0, err
@@ -96,7 +99,7 @@ WITH reg LIMIT $limit DETACH DELETE reg RETURN count(*)`, map[string]any{"now": 
 	return int(n), nil
 }
 
-const oauthRequestFields = `r.id, r.approvalCode, r.clientID, r.clientName, r.redirectURI, r.state, r.codeChallenge, r.requestedProjects, r.requestedCapabilities, r.status, r.grantedProjects, r.grantedCapabilities, r.grantTTL, r.cookieDigest, r.codeDigest, r.codeExpiresAt, r.released, r.createdAt, r.expiresAt`
+const oauthRequestFields = `r.id, r.approvalCode, r.clientID, r.clientName, r.redirectURI, r.state, r.codeChallenge, r.requestedProjects, r.requestedCapabilities, r.status, r.grantedProjects, r.grantedCapabilities, r.grantTTL, r.cookieDigest, r.codeDigest, r.codeExpiresAt, r.released, r.createdAt, r.expiresAt, coalesce(r.codeUsed, false), coalesce(r.grantID, ''), coalesce(r.grantExpiresAt, 0)`
 
 // AddRequest stores a pending grant request unless maxPending pending requests
 // are unexpired (ErrBudget) or an unexpired request already holds its approval
@@ -184,12 +187,17 @@ func (r *OAuthRepository) ListPendingRequests(ctx context.Context, tx domain.Tx,
 }
 
 // DecideRequest records the owner's decision on a pending, unexpired request.
-// A request decided already, or expired, is ErrConflict.
+// An approval fixes when the grant ends, counted from now. A request decided
+// already, or expired, is ErrConflict.
 func (r *OAuthRepository) DecideRequest(ctx context.Context, tx domain.Tx, id string, status domain.OAuthRequestStatus, granted domain.OAuthScope, ttl time.Duration, now time.Time) error {
+	grantExpires := int64(0)
+	if status == domain.OAuthRequestApproved {
+		grantExpires = now.Add(ttl).UTC().UnixNano()
+	}
 	rows, err := r.query(ctx, tx, `MATCH (r:OAuthRequest {id:$id}) SET r.lockedAt = timestamp()
 WITH r WHERE r.status = 'pending' AND r.released = false AND r.expiresAt > $now
-SET r.status = $status, r.grantedProjects = $projects, r.grantedCapabilities = $capabilities, r.grantTTL = $ttl
-RETURN r.id`, map[string]any{"id": id, "now": now.UTC().UnixNano(), "status": string(status), "projects": nonNil(granted.Projects), "capabilities": nonNil(granted.Capabilities), "ttl": int64(ttl)})
+SET r.status = $status, r.grantedProjects = $projects, r.grantedCapabilities = $capabilities, r.grantTTL = $ttl, r.grantExpiresAt = $grantExpires
+RETURN r.id`, map[string]any{"id": id, "now": now.UTC().UnixNano(), "status": string(status), "projects": nonNil(granted.Projects), "capabilities": nonNil(granted.Capabilities), "ttl": int64(ttl), "grantExpires": grantExpires})
 	if err != nil {
 		return err
 	}
@@ -247,7 +255,7 @@ WITH r LIMIT $limit DETACH DELETE r RETURN count(*)`, map[string]any{"before": b
 
 func decodeOAuthRequest(row *neo4j.Record) (domain.OAuthRequest, error) {
 	v := row.Values
-	if len(v) != 19 {
+	if len(v) != 22 {
 		return domain.OAuthRequest{}, domain.ErrUnavailable
 	}
 	var req domain.OAuthRequest
@@ -259,7 +267,7 @@ func decodeOAuthRequest(row *neo4j.Record) (domain.OAuthRequest, error) {
 		}
 		*dst = s
 	}
-	var ok [12]bool
+	var ok [15]bool
 	req.Requested.Projects, ok[0] = stringList(v[7])
 	req.Requested.Capabilities, ok[1] = stringList(v[8])
 	var status string
@@ -267,7 +275,7 @@ func decodeOAuthRequest(row *neo4j.Record) (domain.OAuthRequest, error) {
 	req.Status = domain.OAuthRequestStatus(status)
 	req.Granted.Projects, ok[3] = stringList(v[10])
 	req.Granted.Capabilities, ok[4] = stringList(v[11])
-	var ttl, codeExpires, created, expires int64
+	var ttl, codeExpires, created, expires, grantExpires int64
 	ttl, ok[5] = v[12].(int64)
 	req.CookieDigest, ok[6] = v[13].(string)
 	req.CodeDigest, ok[7] = v[14].(string)
@@ -275,6 +283,9 @@ func decodeOAuthRequest(row *neo4j.Record) (domain.OAuthRequest, error) {
 	req.Released, ok[9] = v[16].(bool)
 	created, ok[10] = v[17].(int64)
 	expires, ok[11] = v[18].(int64)
+	req.CodeUsed, ok[12] = v[19].(bool)
+	req.GrantID, ok[13] = v[20].(string)
+	grantExpires, ok[14] = v[21].(int64)
 	for _, good := range ok {
 		if !good {
 			return domain.OAuthRequest{}, domain.ErrUnavailable
@@ -284,7 +295,169 @@ func decodeOAuthRequest(row *neo4j.Record) (domain.OAuthRequest, error) {
 	if codeExpires != 0 {
 		req.CodeExpiresAt = time.Unix(0, codeExpires).UTC()
 	}
+	if grantExpires != 0 {
+		req.GrantExpiresAt = time.Unix(0, grantExpires).UTC()
+	}
 	req.CreatedAt = time.Unix(0, created).UTC()
 	req.ExpiresAt = time.Unix(0, expires).UTC()
 	return req, nil
+}
+
+// ClaimCode finds the released, approved request holding an authorization
+// code digest and marks the code used, recording the grant it will produce.
+// The request node is written first, so of two concurrent exchanges one sees
+// the other's claim. A code already used returns the request with
+// ErrConflict, so its grant can be revoked; an unknown code is ErrForbidden.
+func (r *OAuthRepository) ClaimCode(ctx context.Context, tx domain.Tx, codeDigest, grantID string) (domain.OAuthRequest, error) {
+	if codeDigest == "" {
+		return domain.OAuthRequest{}, domain.ErrForbidden
+	}
+	rows, err := r.query(ctx, tx, `MATCH (r:OAuthRequest {codeDigest:$digest}) WHERE r.status = 'approved' AND r.released = true
+SET r.lockedAt = timestamp()
+WITH r RETURN `+oauthRequestFields, map[string]any{"digest": codeDigest})
+	if err != nil {
+		return domain.OAuthRequest{}, err
+	}
+	if len(rows) != 1 {
+		return domain.OAuthRequest{}, domain.ErrForbidden
+	}
+	req, err := decodeOAuthRequest(rows[0])
+	if err != nil {
+		return domain.OAuthRequest{}, err
+	}
+	if req.CodeUsed {
+		return req, domain.ErrConflict
+	}
+	if _, err := r.query(ctx, tx, `MATCH (r:OAuthRequest {id:$id}) SET r.codeUsed = true, r.grantID = $grant`, map[string]any{"id": req.ID, "grant": grantID}); err != nil {
+		return domain.OAuthRequest{}, err
+	}
+	req.CodeUsed, req.GrantID = true, grantID
+	return req, nil
+}
+
+// AddGrant stores an approved grant and marks its registration approved, so
+// the registration is no longer pruned.
+func (r *OAuthRepository) AddGrant(ctx context.Context, tx domain.Tx, g domain.OAuthGrant) error {
+	rows, err := r.query(ctx, tx, `MATCH (reg:OAuthRegistration {id:$registration})
+SET reg.approved = true
+CREATE (g:OAuthGrant {id:$id, clientID:$client, registrationID:$registration, redirectURI:$redirect, refreshDigest:$refresh, createdAt:$created, expiresAt:$expires})
+RETURN g.id`, map[string]any{"id": g.ID, "client": g.ClientID, "registration": g.RegistrationID, "redirect": g.RedirectURI, "refresh": g.RefreshDigest, "created": g.CreatedAt.UTC().UnixNano(), "expires": g.ExpiresAt.UTC().UnixNano()})
+	if err != nil {
+		return err
+	}
+	if len(rows) != 1 {
+		return domain.ErrForbidden
+	}
+	return nil
+}
+
+const oauthGrantFields = `g.id, g.clientID, g.registrationID, g.redirectURI, g.refreshDigest, g.createdAt, g.expiresAt`
+
+// FindGrantByRefresh returns the grant whose current refresh token has this
+// digest, locking it. If the digest belongs to a refresh token already used,
+// it returns that grant with ErrConflict. An unknown digest is ErrForbidden.
+func (r *OAuthRepository) FindGrantByRefresh(ctx context.Context, tx domain.Tx, digest string) (domain.OAuthGrant, error) {
+	if digest == "" {
+		return domain.OAuthGrant{}, domain.ErrForbidden
+	}
+	rows, err := r.query(ctx, tx, `MATCH (g:OAuthGrant {refreshDigest:$digest}) SET g.lockedAt = timestamp() WITH g RETURN `+oauthGrantFields, map[string]any{"digest": digest})
+	if err != nil {
+		return domain.OAuthGrant{}, err
+	}
+	if len(rows) == 1 {
+		return decodeOAuthGrant(rows[0])
+	}
+	rows, err = r.query(ctx, tx, `MATCH (u:OAuthUsedRefresh {digest:$digest}) MATCH (g:OAuthGrant {id:u.grantID}) RETURN `+oauthGrantFields, map[string]any{"digest": digest})
+	if err != nil {
+		return domain.OAuthGrant{}, err
+	}
+	if len(rows) != 1 {
+		return domain.OAuthGrant{}, domain.ErrForbidden
+	}
+	g, err := decodeOAuthGrant(rows[0])
+	if err != nil {
+		return domain.OAuthGrant{}, err
+	}
+	return g, domain.ErrConflict
+}
+
+// FindGrantByClient returns the grant a client record belongs to, or
+// ErrForbidden.
+func (r *OAuthRepository) FindGrantByClient(ctx context.Context, tx domain.Tx, clientID string) (domain.OAuthGrant, error) {
+	rows, err := r.query(ctx, tx, `MATCH (g:OAuthGrant {clientID:$client}) RETURN `+oauthGrantFields, map[string]any{"client": clientID})
+	if err != nil {
+		return domain.OAuthGrant{}, err
+	}
+	if len(rows) != 1 {
+		return domain.OAuthGrant{}, domain.ErrForbidden
+	}
+	return decodeOAuthGrant(rows[0])
+}
+
+// RotateRefresh replaces a grant's current refresh digest, keeping the old one
+// as used so presenting it again is detected. A grant whose current digest is
+// no longer old is ErrConflict.
+func (r *OAuthRepository) RotateRefresh(ctx context.Context, tx domain.Tx, grantID, old, next string) error {
+	rows, err := r.query(ctx, tx, `MATCH (g:OAuthGrant {id:$id}) SET g.lockedAt = timestamp()
+WITH g WHERE g.refreshDigest = $old
+SET g.refreshDigest = $next
+CREATE (:OAuthUsedRefresh {digest:$old, grantID:g.id})
+RETURN g.id`, map[string]any{"id": grantID, "old": old, "next": next})
+	if err != nil {
+		return err
+	}
+	if len(rows) != 1 {
+		return domain.ErrConflict
+	}
+	return nil
+}
+
+// DeleteGrant removes a grant and the used refresh digests it kept.
+func (r *OAuthRepository) DeleteGrant(ctx context.Context, tx domain.Tx, grantID string) error {
+	_, err := r.query(ctx, tx, `OPTIONAL MATCH (u:OAuthUsedRefresh {grantID:$id}) DETACH DELETE u
+WITH count(*) AS used
+OPTIONAL MATCH (g:OAuthGrant {id:$id}) DETACH DELETE g`, map[string]any{"id": grantID})
+	return err
+}
+
+// ExpiredGrants lists up to limit grants that expired at or before now.
+func (r *OAuthRepository) ExpiredGrants(ctx context.Context, tx domain.Tx, now time.Time, limit int) ([]domain.OAuthGrant, error) {
+	rows, err := r.query(ctx, tx, `MATCH (g:OAuthGrant) WHERE g.expiresAt <= $now RETURN `+oauthGrantFields+` LIMIT $limit`, map[string]any{"now": now.UTC().UnixNano(), "limit": int64(limit)})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.OAuthGrant, 0, len(rows))
+	for _, row := range rows {
+		g, err := decodeOAuthGrant(row)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, g)
+	}
+	return out, nil
+}
+
+func decodeOAuthGrant(row *neo4j.Record) (domain.OAuthGrant, error) {
+	v := row.Values
+	if len(v) != 7 {
+		return domain.OAuthGrant{}, domain.ErrUnavailable
+	}
+	var g domain.OAuthGrant
+	var ok [7]bool
+	g.ID, ok[0] = v[0].(string)
+	g.ClientID, ok[1] = v[1].(string)
+	g.RegistrationID, ok[2] = v[2].(string)
+	g.RedirectURI, ok[3] = v[3].(string)
+	g.RefreshDigest, ok[4] = v[4].(string)
+	created, ok5 := v[5].(int64)
+	expires, ok6 := v[6].(int64)
+	ok[5], ok[6] = ok5, ok6
+	for _, good := range ok {
+		if !good {
+			return domain.OAuthGrant{}, domain.ErrUnavailable
+		}
+	}
+	g.CreatedAt = time.Unix(0, created).UTC()
+	g.ExpiresAt = time.Unix(0, expires).UTC()
+	return g, nil
 }

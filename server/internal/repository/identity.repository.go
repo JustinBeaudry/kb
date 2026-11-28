@@ -32,7 +32,7 @@ func (r *IdentityRepository) query(ctx context.Context, tx domain.Tx, statement 
 	return rows, nil
 }
 func (r *IdentityRepository) FindToken(ctx context.Context, tx domain.Tx, digest string) (domain.ClientRecord, error) {
-	rows, err := r.query(ctx, tx, `MATCH (o:OwnerState {id:'owner'}), (c:Client {tokenDigest:$digest}) RETURN c.id,c.ownerID,c.role,c.projectIDs,c.capabilities,o.authEpoch,c.revokedAt,c.expiresAt`, map[string]any{"digest": digest})
+	rows, err := r.query(ctx, tx, `MATCH (o:OwnerState {id:'owner'}), (c:Client {tokenDigest:$digest}) RETURN c.id,c.ownerID,c.role,c.projectIDs,c.capabilities,o.authEpoch,c.revokedAt,c.expiresAt,coalesce(c.resource,'')`, map[string]any{"digest": digest})
 	if err != nil {
 		return domain.ClientRecord{}, err
 	}
@@ -46,10 +46,11 @@ func (r *IdentityRepository) FindToken(ctx context.Context, tx domain.Tx, digest
 	projects, ok4 := stringList(v[3])
 	caps, ok5 := stringList(v[4])
 	epoch, ok6 := v[5].(int64)
-	if !ok1 || !ok2 || !ok3 || !ok4 || !ok5 || !ok6 || epoch < 0 {
+	resource, ok7 := v[8].(string)
+	if !ok1 || !ok2 || !ok3 || !ok4 || !ok5 || !ok6 || !ok7 || epoch < 0 {
 		return domain.ClientRecord{}, domain.ErrUnavailable
 	}
-	record := domain.ClientRecord{Principal: domain.Principal{ClientID: id, OwnerID: owner, Role: domain.Role(role), ProjectIDs: projects, Capabilities: caps, AuthEpoch: uint64(epoch)}, TokenDigest: digest}
+	record := domain.ClientRecord{Principal: domain.Principal{ClientID: id, OwnerID: owner, Role: domain.Role(role), ProjectIDs: projects, Capabilities: caps, AuthEpoch: uint64(epoch), Resource: resource}, TokenDigest: digest}
 	var ok bool
 	if record.RevokedAt, ok = optionalInstant(v[6]); !ok {
 		return domain.ClientRecord{}, domain.ErrUnavailable
@@ -104,7 +105,7 @@ func (r *IdentityRepository) PutClient(ctx context.Context, tx domain.Tx, c doma
 	if len(rows) > 0 {
 		return domain.ErrConflict
 	}
-	_, err = r.query(ctx, tx, `CREATE (c:Client {id:$id,ownerID:$owner,role:$role,projectIDs:$projects,capabilities:$caps,tokenDigest:$digest}) SET c.expiresAt=$expires`, map[string]any{"id": c.Principal.ClientID, "owner": c.Principal.OwnerID, "role": string(c.Principal.Role), "projects": c.Principal.ProjectIDs, "caps": c.Principal.Capabilities, "digest": c.TokenDigest, "expires": optionalNanos(c.ExpiresAt)})
+	_, err = r.query(ctx, tx, `CREATE (c:Client {id:$id,ownerID:$owner,role:$role,projectIDs:$projects,capabilities:$caps,tokenDigest:$digest}) SET c.expiresAt=$expires, c.resource=$resource`, map[string]any{"resource": c.Principal.Resource, "id": c.Principal.ClientID, "owner": c.Principal.OwnerID, "role": string(c.Principal.Role), "projects": c.Principal.ProjectIDs, "caps": c.Principal.Capabilities, "digest": c.TokenDigest, "expires": optionalNanos(c.ExpiresAt)})
 	return err
 }
 func (r *IdentityRepository) RevokeClient(ctx context.Context, tx domain.Tx, id string) error {

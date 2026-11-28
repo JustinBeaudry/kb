@@ -123,6 +123,23 @@ Residual: a flood can fill the pending cap for up to 24 hours and block new regi
 
 Residual: a flood can fill the pending cap for up to 10 minutes, so the owner's own request waits. Owners should approve only a code from a request they started, for the host they expect.
 
+### OAuth tokens
+
+`POST /oauth/token` turns an approved request's code into tokens, and refreshes them. `POST /oauth/revoke` ends a grant. Both take no client credential, because kb registers public clients only; a code or refresh token is useless without the PKCE verifier or the client ID it was issued to.
+
+| Defense | Test |
+| --- | --- |
+| A code works once, within 60 seconds, only with its PKCE verifier, redirect URI and client ID. A code presented wrongly is spent all the same, so it cannot be retried with other guesses. Claiming a code locks its request first, so two concurrent exchanges cannot both win. | `TestOAuthCodeWorksOnceOnlyWithItsVerifierRedirectAndClient`, `TestOAuthGrantsRealGraph` |
+| A second use of a code revokes the grant it produced (OAuth 2.1 §4.1.2). | `TestOAuthSecondUseOfACodeRevokesItsGrant` |
+| Each grant is the client `oauth-<grant id>` with role agent and exactly the owner's grant. Its access token is bound to `/mcp` (RFC 8707): every other route refuses it with `401`, and the refusal is counted against that client in the access audit trail. A token request naming any other `resource` is refused. | `TestOAuthCodeExchangeIssuesAGrantBoundToMCP`, `TestOAuthAccessTokenIsRefusedEverywhereButMCP`, `TestAccessAuditRecordsAnOAuthTokenUsedOffMCP`, `TestOAuthTokenRequestRefusals` |
+| Access tokens live one hour, or until the grant ends if that is sooner. The grant's expiry is fixed at approval, so refreshing never carries it further. Expired grants are removed. | `TestOAuthGrantThatKeepsRefreshingStillEndsAtItsExpiry` |
+| Refresh tokens rotate on every use. The used digest is kept until the grant ends, so presenting a used token revokes the grant (RFC 9700 §4.14). | `TestOAuthRefreshRotatesAndReuseRevokesTheGrant`, `TestOAuthGrantsRealGraph` |
+| Revoking `oauth-<id>` on the host with `kb-admin revoke` stops its access token at once, and its next refresh removes the grant. `/oauth/revoke` ends the grant from either token, for the client it was issued to only, and answers the same for any token so it reveals nothing. | `TestOAuthRefreshAfterHostRevocationEndsTheGrant`, `TestOAuthRevokeEndsTheGrantFromEitherToken`, `TestOAuthRevokeEndpointAnswersOKForAnyToken` |
+| Tokens are stored only as digests. Parameters are read from a form body only, never the URL, so tokens stay out of access logs. A request that sends a client secret, an assertion, an `Authorization` header or a repeated parameter is refused. Responses are `no-store`. | `TestOAuthTokenEndpointIssuesUncacheableTokens`, `TestOAuthTokenEndpointRefusesWhatPublicClientsMustNotSend` |
+| Authorization server metadata (RFC 8414) names only what kb issues: the code and refresh grants, S256, public clients. | `TestAuthorizationServerMetadataNamesOnlyWhatKbIssues` |
+
+Residual: a stolen access token works at `/mcp`, within its grant, for up to an hour; run `kb-admin revoke --client-id oauth-<id>` on the host to stop it at once. Approval is on the host in this phase; approval in the browser with the owner's key is phase 3.
+
 ### Owner key compromise
 
 Whoever holds the owner's Nostr key can publish anything. The key never reaches the service; signatures are verified against the enrolled public key (`TestNostrVerifierChecksOwnerDigestSignature`), and each adjudication binds the exact candidate head and digest (`TestOwnerAdjudicationRequiresExactHeadAndDigest`). A lost or stolen key is replaced on the host with `kb-admin owner-rotate`: signatures by the old key stop verifying at once, and the retired key can never be enrolled again (`TestReplaceOwnerKeyRetiresTheOldKeyForGood`, and the owner key replacement case in `TestIdentityRealGraph`). The steps, including reviewing what the old key approved, are in [credentials](runbooks/credentials.md#owner-key-loss-or-theft).
@@ -141,6 +158,5 @@ Evidence and backups are encrypted with age keyrings before upload, authenticate
 
 1. **Failed authentication by source.** Refused bearers are counted per client, or as unknown, but not per source address. A guessing campaign shows as a rise in `auth:unknown`, not where it comes from. Decide whether a bounded per-source counter is worth the personal data it would hold.
 2. **Tool descriptions do not tell agents to treat stored text as data.** kb deliberately sends no instructions, but each retrieval tool's description could say that returned text is stored content, not instructions, without adding a server voice. Decide and test.
-3. **OAuth grants** (roadmap Tier 1) will add a new path to a bearer. Registration is live and grants nothing. Each grant must expire, be owner-approved with the owner's key, and appear in the access audit trail before authorize and token exchange ship.
-4. **Owner key review tooling.** `owner-rotate` replaces the key, but finding everything a retired key approved is a manual review today. Add a host listing of owner judgments by signing key and time.
-5. **Branch protection on `main`** (roadmap security item 2): require the Memory service and Security checks before merge.
+3. **Owner key review tooling.** `owner-rotate` replaces the key, but finding everything a retired key approved is a manual review today. Add a host listing of owner judgments by signing key and time.
+4. **Branch protection on `main`** (roadmap security item 2): require the Memory service and Security checks before merge.

@@ -62,6 +62,9 @@ func authentication(identity Authenticator, access AccessRecorder) echo.Middlewa
 				if err != nil {
 					return problem(c, err)
 				}
+				if !resourceAllows(p, c.Request()) {
+					return problem(c, domain.ErrUnauthorized)
+				}
 				c.SetRequest(c.Request().WithContext(context.WithValue(c.Request().Context(), principalKey{}, p)))
 				return next(c)
 			}
@@ -85,9 +88,26 @@ func authentication(identity Authenticator, access AccessRecorder) echo.Middlewa
 			if err != nil {
 				return problem(c, err)
 			}
+			if !resourceAllows(p, c.Request()) {
+				domain.ObserveAuthFailure(ctx, p.ClientID, domain.AccessAuthResource)
+				return problem(c, domain.ErrUnauthorized)
+			}
 			c.SetRequest(c.Request().WithContext(context.WithValue(ctx, principalKey{}, p)))
 			return refused(c.Request().Context(), next(c))
 		}
+	}
+}
+
+// resourceAllows refuses a credential bound to one endpoint everywhere else:
+// an OAuth access token authenticates only at /mcp.
+func resourceAllows(p domain.Principal, r *http.Request) bool {
+	switch p.Resource {
+	case "":
+		return true
+	case domain.OAuthResourceMCP:
+		return r.URL.Path == RemoteMCPPath
+	default:
+		return false
 	}
 }
 func Capability(capability string, projects func(echo.Context) []string) echo.MiddlewareFunc {
