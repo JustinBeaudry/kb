@@ -8,7 +8,7 @@ import type { CaptureError, CredentialStore, Result } from "../src/capture/types
 import { createTransferCommand } from "../src/commands/transfer";
 import { profileAccount } from "../src/services/remote.service";
 import { HTTPTransferGateway } from "../src/gateways/memory.gateway";
-import { inertMarkdown, liveMarkdown, renderVaultPages } from "../src/services/obsidian.service";
+import { inertMarkdown, liveMarkdown, renderVaultPages, statusNote } from "../src/services/obsidian.service";
 import { FileBundleWriter, FileVaultRepository, type VaultEntry, type VaultError, type VaultRepository } from "../src/repositories/vault.repository";
 import {
   TransferService,
@@ -471,6 +471,22 @@ describe("portable export", () => {
       expect(c.text).not.toContain("[!warning]");
       expect(c.text).not.toContain("## Evidence");
     }
+  });
+
+  test("text a person wrote that looks like kb's callout or evidence list is kept", async () => {
+    const vault = temp();
+    const own = `${statusNote("candidate")}\n\nKeep both.\n\n## Evidence\n\n- my notes`;
+    const lookalike: ExportedClaim = { ...verified, claim_id: "claim-lookalike", text: own, evidence: [] };
+    const [page] = renderVaultPages({ project_id: "demo" }, [lookalike], "complete").filter((p) => p.path.startsWith("claims/"));
+    mkdirSync(join(vault, "kb-memory", page!.path, ".."), { recursive: true });
+    writeFileSync(join(vault, "kb-memory", page!.path), page!.content);
+    const server = exportServer();
+    const svc = new TransferService(server, (p) => FileVaultRepository.open(p), (d) => new FileBundleWriter(d));
+    const manifest = await svc.preview({ vaultPath: vault, scope, fileIds: ["kb-memory/" + page!.path] });
+    if (!manifest.ok) throw Error(manifest.error.code);
+    const report = await svc.apply(manifest.value, manifest.value.digest);
+    expect(report.ok).toBe(true);
+    expect([...server.claims.values()].map((c) => c.text)).toEqual([own]);
   });
 
   test("kb's escaping on synced pages is undone exactly", () => {

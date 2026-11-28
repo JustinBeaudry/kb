@@ -49,6 +49,12 @@ export function statusNote(status: ExportedClaim["claim_status"]): string | unde
   return `> [!caution] ${status[0]!.toUpperCase()}${status.slice(1)}\n> The owner has not accepted this claim as current knowledge.`;
 }
 
+/** The evidence list a synced page ends with, or undefined when it has none. */
+export function evidenceSection(evidence: { locator: string; origin_trust: string }[]): string | undefined {
+  if (evidence.length === 0) return undefined;
+  return "## Evidence\n\n" + evidence.map((e) => `- ${inertMarkdown(e.locator.replace(/\s+/g, " "))} (${tagPart(e.origin_trust)})`).join("\n");
+}
+
 function claimPage(c: ExportedClaim): VaultPage & { title: string } {
   const title = claimTitle(c.text);
   const path = `claims/${title} (${shortID(c.claim_id)}).md`;
@@ -70,9 +76,8 @@ function claimPage(c: ExportedClaim): VaultPage & { title: string } {
   const note = statusNote(c.claim_status);
   if (note) parts.push(note);
   parts.push(inertMarkdown(c.text.trim()));
-  if (c.evidence.length > 0) {
-    parts.push("## Evidence\n\n" + c.evidence.map((e) => `- ${inertMarkdown(e.locator.replace(/\s+/g, " "))} (${tagPart(e.origin.trust)})`).join("\n"));
-  }
+  const evidence = evidenceSection(c.evidence.map((e) => ({ locator: e.locator, origin_trust: e.origin.trust })));
+  if (evidence) parts.push(evidence);
   return { path, title, content: parts.join("\n\n") + "\n" };
 }
 
