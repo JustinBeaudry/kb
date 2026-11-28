@@ -15,20 +15,44 @@ The endpoint's guarantees are in [remote.md](remote.md#remote-mcp-over-http).
 2. **Keep the bearer out of files you share.** Each recipe reads it from an
    environment variable, here `KB_MEMORY_BEARER`, set in your shell profile or
    a secret manager. Never put it in a checked-in project config.
-3. **Check the connection** by asking the agent to call `memory_status`. A
-   `401` means the bearer is wrong, revoked or expired. A `403` means the
-   project or capability is outside the credential's grant.
+3. **Check the connection** by asking the agent to call `memory_status`. An
+   HTTP `401` means the bearer is wrong, revoked or expired, and the client
+   reports the server as failing to connect. A tool call outside the
+   credential's projects or capabilities still connects, but the tool returns
+   an error result with the code `forbidden`.
 
 Replace `https://memory.example.com` with your kb origin throughout.
 
 ## Claude Code
 
+Claude Code expands `${VAR}` in a server's `headers` when it loads the
+server, so the bearer stays out of the file and out of the command line. Add
+the server to the project's `.mcp.json`:
+
 ```sh
-claude mcp add --transport http kb https://memory.example.com/mcp \
-  --header "Authorization: Bearer $KB_MEMORY_BEARER"
+claude mcp add --scope project --transport http kb https://memory.example.com/mcp \
+  --header 'Authorization: Bearer ${KB_MEMORY_BEARER}'
 ```
 
-Add `--scope user` to use it in every project.
+The single quotes matter: they keep your shell from putting the bearer itself
+into the command's arguments, where other processes on the machine can read
+it. The resulting entry is safe to check in, since it names only the variable:
+
+```json
+{
+  "mcpServers": {
+    "kb": {
+      "type": "http",
+      "url": "https://memory.example.com/mcp",
+      "headers": { "Authorization": "Bearer ${KB_MEMORY_BEARER}" }
+    }
+  }
+}
+```
+
+To keep the bearer in a keychain or secret manager instead of the
+environment, use `headersHelper`, a command that prints
+`{"Authorization": "Bearer ..."}`.
 
 ## Codex
 
