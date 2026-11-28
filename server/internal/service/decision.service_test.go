@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -101,11 +102,25 @@ func (f *decisionRepoFake) PutJudgment(_ context.Context, _ Tx, j domain.OwnerJu
 	f.judgments = append(f.judgments, j)
 	return nil
 }
-func (f *decisionRepoFake) ListJudgments(context.Context, Tx) ([]domain.JudgmentRecord, error) {
+func (f *decisionRepoFake) ListJudgments(_ context.Context, _ Tx, signer string, sinceAt, afterAt int64, afterID string, limit int) ([]domain.JudgmentRecord, error) {
+	// Mirrors the graph query: filter, order by recorded time then ID, limit.
 	out := make([]domain.JudgmentRecord, 0, len(f.judgments))
 	for _, j := range f.judgments {
+		at := j.RecordedAt.UnixNano()
+		if (signer != "" && strings.ToLower(j.SignerID) != signer) || at < sinceAt || at < afterAt || (at == afterAt && j.ID <= afterID) {
+			continue
+		}
 		d := f.decisions[j.DecisionID]
 		out = append(out, domain.JudgmentRecord{ID: j.ID, RecordedAt: j.RecordedAt, SignerID: j.SignerID, Action: j.Action, ProjectID: d.ProjectID, DecisionID: j.DecisionID, RequestedAction: d.RequestedAction, CandidateRevision: j.CandidateRevision, EvidenceDigest: j.EvidenceDigest, OwnerID: j.OwnerID, EventID: j.EventID, Channel: j.Channel})
+	}
+	sort.Slice(out, func(a, b int) bool {
+		if !out[a].RecordedAt.Equal(out[b].RecordedAt) {
+			return out[a].RecordedAt.Before(out[b].RecordedAt)
+		}
+		return out[a].ID < out[b].ID
+	})
+	if len(out) > limit {
+		out = out[:limit]
 	}
 	return out, nil
 }

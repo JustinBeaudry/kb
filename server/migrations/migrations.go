@@ -66,3 +66,9 @@ var OAuthRequests string
 //
 //go:embed 016_oauth_grants.cypher
 var OAuthGrants string
+
+// OwnerJudgmentReview indexes owner judgments by signing key and recorded
+// time, and backfills both on judgments written before kb kept them.
+//
+//go:embed 017_owner_judgment_review.cypher
+var OwnerJudgmentReview string

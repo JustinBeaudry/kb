@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/JustinBeaudry/kb/server/internal/domain"
 	"github.com/JustinBeaudry/kb/server/internal/platform/graph"
@@ -123,15 +124,17 @@ func (r *DecisionRepository) PutJudgment(ctx context.Context, tx domain.Tx, j do
 	if err != nil {
 		return err
 	}
-	return expectOne(r.query(ctx, tx, `MATCH (d:Decision {id:$decision}) CREATE (j:OwnerJudgment {id:$id,decisionID:$decision,candidateRevision:$revision,action:$action,data:$data})-[:JUDGES]->(d) RETURN j.id`, map[string]any{"id": j.ID, "decision": j.DecisionID, "revision": j.CandidateRevision, "action": j.Action, "data": data}))
+	return expectOne(r.query(ctx, tx, `MATCH (d:Decision {id:$decision}) CREATE (j:OwnerJudgment {id:$id,decisionID:$decision,candidateRevision:$revision,action:$action,signerID:$signer,recordedAt:$at,data:$data})-[:JUDGES]->(d) RETURN j.id`, map[string]any{"id": j.ID, "decision": j.DecisionID, "revision": j.CandidateRevision, "action": j.Action, "signer": strings.ToLower(j.SignerID), "at": j.RecordedAt.UnixNano(), "data": data}))
 }
 
-// ListJudgments returns every owner judgment with the decision it answered,
-// in no particular order. Judgments are written only by the owner's own
-// signatures, so the set stays small enough to read whole; the service
-// filters, orders and pages it for review.
-func (r *DecisionRepository) ListJudgments(ctx context.Context, tx domain.Tx) ([]domain.JudgmentRecord, error) {
-	rows, err := r.query(ctx, tx, `MATCH (j:OwnerJudgment)-[:JUDGES]->(d:Decision) RETURN j.data, d.data`, nil)
+// ListJudgments returns up to limit owner judgments with the decisions they
+// answered, ordered by recorded time and then ID. signer, when set, keeps one
+// signing key; sinceAt keeps judgments recorded at or after it; and the page
+// starts strictly after (afterAt, afterID).
+func (r *DecisionRepository) ListJudgments(ctx context.Context, tx domain.Tx, signer string, sinceAt, afterAt int64, afterID string, limit int) ([]domain.JudgmentRecord, error) {
+	rows, err := r.query(ctx, tx, `MATCH (j:OwnerJudgment)-[:JUDGES]->(d:Decision)
+WHERE ($signer = '' OR j.signerID = $signer) AND j.recordedAt >= $since AND (j.recordedAt > $afterAt OR (j.recordedAt = $afterAt AND j.id > $afterID))
+RETURN j.data, d.data ORDER BY j.recordedAt, j.id LIMIT $limit`, map[string]any{"signer": signer, "since": sinceAt, "afterAt": afterAt, "afterID": afterID, "limit": limit})
 	if err != nil {
 		return nil, err
 	}

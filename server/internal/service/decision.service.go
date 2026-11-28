@@ -29,7 +29,7 @@ type DecisionRepository interface {
 	ReplyReceipt(context.Context, Tx, string) (domain.DecisionReplyReceipt, error)
 	PutReplyReceipt(context.Context, Tx, domain.DecisionReplyReceipt) error
 	PutJudgment(context.Context, Tx, domain.OwnerJudgment) error
-	ListJudgments(context.Context, Tx) ([]domain.JudgmentRecord, error)
+	ListJudgments(ctx context.Context, tx Tx, signer string, sinceAt, afterAt int64, afterID string, limit int) ([]domain.JudgmentRecord, error)
 	Cursor(context.Context, Tx) (string, error)
 	PutCursor(context.Context, Tx, string) error
 	PutChallenge(context.Context, Tx, domain.OwnerChallenge) error
@@ -344,15 +344,16 @@ func (s *DecisionService) JudgmentsHost(ctx context.Context, q domain.JudgmentQu
 	if q.Limit < 1 || q.Limit > domain.MaxJudgmentPage || (q.Signer != "" && !validDigest(q.Signer)) || (q.Since != "" && !domain.ValidAccessDay(q.Since)) {
 		return domain.JudgmentPage{}, domain.ErrInvalidInput
 	}
-	var since time.Time
+	sinceAt := int64(0)
 	if q.Since != "" {
-		since, _ = time.Parse(time.DateOnly, q.Since)
+		day, _ := time.Parse(time.DateOnly, q.Since)
+		sinceAt = day.UnixNano()
 	}
 	afterAt, afterID, err := parseJudgmentCursor(q.After)
 	if err != nil {
 		return domain.JudgmentPage{}, err
 	}
-	var all []domain.JudgmentRecord
+	var rows []domain.JudgmentRecord
 	var current string
 	err = s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
 		owner, e := s.owners.Owner(ctx, tx)
@@ -363,31 +364,15 @@ func (s *DecisionService) JudgmentsHost(ctx context.Context, q domain.JudgmentQu
 			return domain.ErrForbidden
 		}
 		current = owner.PublicKey
-		all, e = s.repo.ListJudgments(ctx, tx)
+		// One more than the page shows whether there is a next page.
+		rows, e = s.repo.ListJudgments(ctx, tx, q.Signer, sinceAt, afterAt, afterID, q.Limit+1)
 		return e
 	})
 	if err != nil {
 		return domain.JudgmentPage{}, err
 	}
-	slices.SortFunc(all, func(a, b domain.JudgmentRecord) int {
-		if c := a.RecordedAt.Compare(b.RecordedAt); c != 0 {
-			return c
-		}
-		return strings.Compare(a.ID, b.ID)
-	})
 	page := domain.JudgmentPage{Judgments: []domain.JudgmentRecord{}}
-	for _, j := range all {
-		if q.Signer != "" && strings.ToLower(j.SignerID) != q.Signer {
-			continue
-		}
-		if !since.IsZero() && j.RecordedAt.Before(since) {
-			continue
-		}
-		if q.After != "" {
-			if c := j.RecordedAt.UnixNano() - afterAt; c < 0 || (c == 0 && j.ID <= afterID) {
-				continue
-			}
-		}
+	for _, j := range rows {
 		if len(page.Judgments) == q.Limit {
 			last := page.Judgments[len(page.Judgments)-1]
 			page.Next = strconv.FormatInt(last.RecordedAt.UnixNano(), 10) + "." + last.ID
@@ -403,7 +388,7 @@ func (s *DecisionService) JudgmentsHost(ctx context.Context, q domain.JudgmentQu
 // in Unix nanoseconds, a dot, and its ID.
 func parseJudgmentCursor(after string) (int64, string, error) {
 	if after == "" {
-		return 0, "", nil
+		return -1, "", nil
 	}
 	at, id, ok := strings.Cut(after, ".")
 	n, err := strconv.ParseInt(at, 10, 64)
