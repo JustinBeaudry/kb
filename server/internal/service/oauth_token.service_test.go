@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -35,6 +36,9 @@ func (g *grantStoreFake) ClaimCode(_ context.Context, _ Tx, digest, grantID stri
 }
 
 func (g *grantStoreFake) AddGrant(_ context.Context, _ Tx, grant domain.OAuthGrant) error {
+	if !slices.ContainsFunc(g.repo.regs, func(r domain.OAuthRegistration) bool { return r.ID == grant.RegistrationID }) {
+		return domain.ErrForbidden
+	}
 	g.grants[grant.ID] = grant
 	return nil
 }
@@ -376,4 +380,51 @@ func TestOAuthTokenRequestRefusals(t *testing.T) {
 	}
 	_, err := f.svc.Token(t.Context(), f.exchangeInput(code))
 	require.NoError(t, err, "refusals before the code is looked up do not spend it")
+}
+
+func TestOAuthGrantLifetimeStartsWhenTheOwnerApproves(t *testing.T) {
+	f := newTokenFlow(t)
+	approved := f.now
+	in := f.input()
+	in.CodeChallenge = challenge(testVerifier)
+	a, err := f.svc.Authorize(t.Context(), in)
+	require.NoError(t, err)
+	_, err = f.svc.ApproveHost(t.Context(), a.Request.ApprovalCode, domain.OAuthScope{Projects: []string{"demo"}, Capabilities: []string{"retrieval:read"}}, time.Hour)
+	require.NoError(t, err)
+	// The browser polls late and the client exchanges late.
+	f.now = f.now.Add(9 * time.Minute)
+	poll, err := f.svc.Poll(t.Context(), a.Request.ID, a.Cookie)
+	require.NoError(t, err)
+	u, err := url.Parse(poll.Redirect)
+	require.NoError(t, err)
+	f.now = f.now.Add(30 * time.Second)
+	tokens, err := f.svc.Token(t.Context(), f.exchangeInput(u.Query().Get("code")))
+	require.NoError(t, err)
+	for _, g := range f.grants.grants {
+		assert.Equal(t, approved.Add(time.Hour), g.ExpiresAt, "the delay is not added to the grant")
+	}
+	assert.Equal(t, int64((time.Hour-9*time.Minute-30*time.Second)/time.Second), tokens.ExpiresIn)
+}
+
+func TestOAuthCodeForAGrantThatAlreadyEndedIsRefused(t *testing.T) {
+	f := newTokenFlow(t)
+	code := f.approvedCode(time.Minute)
+	f.now = f.now.Add(time.Minute)
+	_, err := f.svc.Token(t.Context(), f.exchangeInput(code))
+	requireTokenError(t, err, "invalid_grant")
+	assert.Empty(t, f.clients.clients)
+	assert.Empty(t, f.grants.grants)
+}
+
+func TestOAuthCodeWhoseRegistrationIsGoneIsSpentAndCreatesNothing(t *testing.T) {
+	f := newTokenFlow(t)
+	code := f.approvedCode(0)
+	f.repo.regs = nil
+	_, err := f.svc.Token(t.Context(), f.exchangeInput(code))
+	requireTokenError(t, err, "invalid_grant")
+	assert.Empty(t, f.clients.clients, "no client without its grant")
+	assert.Empty(t, f.grants.grants)
+	for _, r := range f.repo.requests {
+		assert.True(t, r.CodeUsed, "the code is spent all the same")
+	}
 }

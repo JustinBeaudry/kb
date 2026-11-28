@@ -135,7 +135,13 @@ func (s *OAuthService) exchange(ctx context.Context, in OAuthTokenInput) (OAuthT
 		if err != nil {
 			return err
 		}
-		grantExpires := now.Add(req.GrantTTL)
+		// The grant's lifetime started when the owner approved it; a slow
+		// browser or client cannot stretch it.
+		grantExpires := req.GrantExpiresAt
+		if !now.Before(grantExpires) {
+			refused = errInvalidGrant
+			return nil
+		}
 		access, err := newBearer()
 		if err != nil {
 			return err
@@ -147,10 +153,16 @@ func (s *OAuthService) exchange(ctx context.Context, in OAuthTokenInput) (OAuthT
 		accessExpires := accessExpiry(now, grantExpires)
 		clientID := domain.OAuthClientPrefix + grantID
 		p := domain.Principal{ClientID: clientID, OwnerID: owner.OwnerID, Role: domain.RoleAgent, ProjectIDs: slices.Clone(req.Granted.Projects), Capabilities: slices.Clone(req.Granted.Capabilities), Resource: domain.OAuthResourceMCP}
-		if err := s.clients.PutClient(ctx, tx, ClientRecord{Principal: p, TokenDigest: TokenDigest(access), ExpiresAt: &accessExpires}); err != nil {
+		// The grant goes first: if its registration is gone, the code is
+		// spent and nothing else is created.
+		switch err := s.grants.AddGrant(ctx, tx, domain.OAuthGrant{ID: grantID, ClientID: clientID, RegistrationID: req.ClientID, RedirectURI: req.RedirectURI, RefreshDigest: TokenDigest(refresh), CreatedAt: now, ExpiresAt: grantExpires}); {
+		case errors.Is(err, domain.ErrForbidden):
+			refused = errInvalidGrant
+			return nil
+		case err != nil:
 			return err
 		}
-		if err := s.grants.AddGrant(ctx, tx, domain.OAuthGrant{ID: grantID, ClientID: clientID, RegistrationID: req.ClientID, RedirectURI: req.RedirectURI, RefreshDigest: TokenDigest(refresh), CreatedAt: now, ExpiresAt: grantExpires}); err != nil {
+		if err := s.clients.PutClient(ctx, tx, ClientRecord{Principal: p, TokenDigest: TokenDigest(access), ExpiresAt: &accessExpires}); err != nil {
 			return err
 		}
 		tokens = OAuthTokens{AccessToken: access, ExpiresIn: int64(accessExpires.Sub(now) / time.Second), RefreshToken: refresh, Scope: req.Granted.String()}

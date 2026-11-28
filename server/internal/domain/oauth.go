@@ -150,10 +150,13 @@ type OAuthRequest struct {
 	Released      bool               `json:"-"`
 	// CodeUsed marks an authorization code already exchanged, and GrantID the
 	// grant it produced, so a second use can revoke that grant.
-	CodeUsed  bool      `json:"-"`
-	GrantID   string    `json:"-"`
-	CreatedAt time.Time `json:"created_at"`
-	ExpiresAt time.Time `json:"expires_at"`
+	CodeUsed bool   `json:"-"`
+	GrantID  string `json:"-"`
+	// GrantExpiresAt is fixed when the owner approves: the grant ends then
+	// however late the browser polls or the client exchanges its code.
+	GrantExpiresAt time.Time `json:"-"`
+	CreatedAt      time.Time `json:"created_at"`
+	ExpiresAt      time.Time `json:"expires_at"`
 }
 
 // ParseOAuthScope reads a space-separated scope: project:<id> tokens and

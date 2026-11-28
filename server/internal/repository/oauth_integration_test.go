@@ -131,6 +131,7 @@ func TestOAuthRequestsRealGraph(t *testing.T) {
 	assert.Equal(t, domain.OAuthRequestApproved, got.Status)
 	assert.Equal(t, []string{"retrieval:read"}, got.Granted.Capabilities)
 	assert.Equal(t, 720*time.Hour, got.GrantTTL)
+	assert.True(t, at.Add(720*time.Hour).Equal(got.GrantExpiresAt), "the grant's lifetime starts at approval")
 
 	codeExpires := at.Add(domain.OAuthCodeTTL)
 	require.NoError(t, within(func(ctx context.Context, tx domain.Tx) error {
@@ -275,4 +276,64 @@ func TestOAuthGrantsRealGraph(t *testing.T) {
 		assert.Equal(t, domain.OAuthResourceMCP, record.Principal.Resource)
 		return err
 	}))
+}
+
+func TestOAuthRegistrationsOutliveTheRequestsThatNeedThemRealGraph(t *testing.T) {
+	store, _, _ := jobsGraph(t)
+	repo := repository.NewOAuthRepository(store)
+	ctx := t.Context()
+	at := time.Date(2026, 11, 27, 9, 0, 0, 0, time.UTC)
+	within := func(fn func(context.Context, domain.Tx) error) error { return store.Within(ctx, fn) }
+	regExpires := at.Add(domain.OAuthRegistrationTTL)
+	for _, id := range []string{"oc_live", "oc_approved", "oc_free"} {
+		r := domain.OAuthRegistration{ID: id, RedirectURIs: []string{"https://client.example/cb"}, ClientName: "Example", CreatedAt: at, ExpiresAt: regExpires}
+		require.NoError(t, within(func(ctx context.Context, tx domain.Tx) error { return repo.AddRegistration(ctx, tx, r, 10) }))
+	}
+	// Both requests start shortly before their registrations expire.
+	started := regExpires.Add(-domain.OAuthRequestTTL / 2)
+	for i, client := range []string{"oc_live", "oc_approved"} {
+		id, code := "or_"+client, []string{"AAAAAAAA", "BBBBBBBB"}[i]
+		r := domain.OAuthRequest{
+			ID: id, ApprovalCode: code, ClientID: client, ClientName: "Example", RedirectURI: "https://client.example/cb",
+			State: "s", CodeChallenge: "c", CookieDigest: "cookie-" + id,
+			Requested: domain.OAuthScope{Projects: []string{"demo"}, Capabilities: []string{}},
+			Status:    domain.OAuthRequestPending, Granted: domain.OAuthScope{Projects: []string{}, Capabilities: []string{}},
+			CreatedAt: started, ExpiresAt: started.Add(domain.OAuthRequestTTL),
+		}
+		require.NoError(t, within(func(ctx context.Context, tx domain.Tx) error { return repo.AddRequest(ctx, tx, r, 10) }))
+	}
+	require.NoError(t, within(func(ctx context.Context, tx domain.Tx) error {
+		return repo.DecideRequest(ctx, tx, "or_oc_approved", domain.OAuthRequestApproved, domain.OAuthScope{Projects: []string{"demo"}, Capabilities: []string{}}, time.Hour, started)
+	}))
+	prune := func(now time.Time) (n int) {
+		require.NoError(t, within(func(ctx context.Context, tx domain.Tx) (err error) {
+			n, err = repo.PruneRegistrations(ctx, tx, now, 10)
+			return err
+		}))
+		return n
+	}
+	exists := func(id string) bool {
+		err := within(func(ctx context.Context, tx domain.Tx) error {
+			_, err := repo.FindRegistration(ctx, tx, id, at)
+			return err
+		})
+		return err == nil
+	}
+
+	assert.Equal(t, 1, prune(regExpires), "only the registration no request needs goes")
+	assert.False(t, exists("oc_free"))
+	assert.True(t, exists("oc_live"), "a live request keeps its registration")
+	assert.True(t, exists("oc_approved"))
+
+	requestsOver := started.Add(domain.OAuthRequestTTL)
+	assert.Equal(t, 1, prune(requestsOver), "an expired pending request no longer holds its registration")
+	assert.False(t, exists("oc_live"))
+	assert.True(t, exists("oc_approved"), "an approved request holds its registration until it is pruned")
+
+	require.NoError(t, within(func(ctx context.Context, tx domain.Tx) error {
+		_, err := repo.PruneRequests(ctx, tx, requestsOver, 10)
+		return err
+	}))
+	assert.Equal(t, 1, prune(requestsOver))
+	assert.False(t, exists("oc_approved"))
 }
