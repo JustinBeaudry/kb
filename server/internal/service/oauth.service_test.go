@@ -12,9 +12,11 @@ import (
 )
 
 type oauthRepoFake struct {
-	regs   []domain.OAuthRegistration
-	pruned []time.Time
-	full   bool
+	regs     []domain.OAuthRegistration
+	pruned   []time.Time
+	full     bool
+	requests map[string]domain.OAuthRequest
+	clashes  int
 }
 
 func (f *oauthRepoFake) AddRegistration(_ context.Context, _ Tx, reg domain.OAuthRegistration, maxPending int) error {
@@ -25,8 +27,85 @@ func (f *oauthRepoFake) AddRegistration(_ context.Context, _ Tx, reg domain.OAut
 	return nil
 }
 
-func (f *oauthRepoFake) FindRegistration(context.Context, Tx, string, time.Time) (domain.OAuthRegistration, error) {
+func (f *oauthRepoFake) FindRegistration(_ context.Context, _ Tx, id string, now time.Time) (domain.OAuthRegistration, error) {
+	for _, r := range f.regs {
+		if r.ID == id && now.Before(r.ExpiresAt) {
+			return r, nil
+		}
+	}
 	return domain.OAuthRegistration{}, domain.ErrUnauthorized
+}
+
+func (f *oauthRepoFake) AddRequest(_ context.Context, _ Tx, req domain.OAuthRequest, maxPending int) error {
+	if f.requests == nil {
+		f.requests = map[string]domain.OAuthRequest{}
+	}
+	pending := 0
+	for _, r := range f.requests {
+		if r.Status == domain.OAuthRequestPending && r.ExpiresAt.After(req.CreatedAt) {
+			pending++
+		}
+	}
+	if pending >= maxPending {
+		return domain.ErrBudget
+	}
+	if f.clashes > 0 {
+		f.clashes--
+		return domain.ErrConflict
+	}
+	f.requests[req.ID] = req
+	return nil
+}
+
+func (f *oauthRepoFake) FindRequest(_ context.Context, _ Tx, id string) (domain.OAuthRequest, error) {
+	r, ok := f.requests[id]
+	if !ok {
+		return domain.OAuthRequest{}, domain.ErrForbidden
+	}
+	return r, nil
+}
+
+func (f *oauthRepoFake) FindPendingRequest(_ context.Context, _ Tx, code string, now time.Time) (domain.OAuthRequest, error) {
+	for _, r := range f.requests {
+		if r.ApprovalCode == code && r.Status == domain.OAuthRequestPending && now.Before(r.ExpiresAt) {
+			return r, nil
+		}
+	}
+	return domain.OAuthRequest{}, domain.ErrForbidden
+}
+
+func (f *oauthRepoFake) ListPendingRequests(_ context.Context, _ Tx, now time.Time, _ int) ([]domain.OAuthRequest, error) {
+	var out []domain.OAuthRequest
+	for _, r := range f.requests {
+		if r.Status == domain.OAuthRequestPending && now.Before(r.ExpiresAt) {
+			out = append(out, r)
+		}
+	}
+	return out, nil
+}
+
+func (f *oauthRepoFake) DecideRequest(_ context.Context, _ Tx, id string, status domain.OAuthRequestStatus, granted domain.OAuthScope, ttl time.Duration, now time.Time) error {
+	r, ok := f.requests[id]
+	if !ok || r.Status != domain.OAuthRequestPending || r.Released || !now.Before(r.ExpiresAt) {
+		return domain.ErrConflict
+	}
+	r.Status, r.Granted, r.GrantTTL = status, granted, ttl
+	f.requests[id] = r
+	return nil
+}
+
+func (f *oauthRepoFake) ReleaseRequest(_ context.Context, _ Tx, id, digest string, expires time.Time) error {
+	r, ok := f.requests[id]
+	if !ok || r.Released || (digest != "") != (r.Status == domain.OAuthRequestApproved) {
+		return domain.ErrConflict
+	}
+	r.Released, r.CodeDigest, r.CodeExpiresAt = true, digest, expires
+	f.requests[id] = r
+	return nil
+}
+
+func (f *oauthRepoFake) PruneRequests(context.Context, Tx, time.Time, int) (int, error) {
+	return 0, nil
 }
 
 func (f *oauthRepoFake) PruneRegistrations(_ context.Context, _ Tx, now time.Time, _ int) (int, error) {

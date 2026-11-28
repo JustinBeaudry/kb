@@ -170,6 +170,11 @@ func (h *oauthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	started := h.now()
 	r = withOAuthRequestID(w, r)
 	setOAuthHeaders(w.Header())
+	if grants, ok := h.registrar.(OAuthGrants); ok && grants.Issuer() != "" {
+		if h.serveGrants(w, r, grants, started) {
+			return
+		}
+	}
 	if r.URL.Path != OAuthRegisterPath {
 		writeOAuthError(w, r, h.logger, started, h.now, http.StatusNotFound, "not_found", "No such OAuth endpoint.")
 		return

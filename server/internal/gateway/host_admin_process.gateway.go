@@ -98,6 +98,14 @@ func childArguments(r domain.HostAdminRequest) ([]string, error) {
 		add("--client-id", o.ClientID)
 	case "owner-rotate":
 		add("--owner-public-key", o.PublicKey)
+	case "oauth-requests":
+	case "oauth-approve":
+		add("--code", o.Code)
+		add("--project", o.ProjectID)
+		add("--capabilities", o.Capabilities)
+		add("--ttl", o.TTL)
+	case "oauth-deny":
+		add("--code", o.Code)
 	case "list":
 		if o.Limit != 0 {
 			args = append(args, "--limit", strconv.Itoa(o.Limit))

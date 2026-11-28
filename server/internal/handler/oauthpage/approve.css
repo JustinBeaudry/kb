@@ -1,0 +1,9 @@
+body { font-family: system-ui, -apple-system, sans-serif; max-width: 40rem; margin: 3rem auto; padding: 0 1rem; line-height: 1.5; color: #1a1a1a; background: #fff; }
+h1 { font-size: 1.4rem; }
+.code { font-size: 2.6rem; font-family: ui-monospace, monospace; letter-spacing: 0.2em; margin: 1rem 0; }
+.host { font-size: 1.5rem; font-weight: 600; word-break: break-all; }
+.unverified { font-size: 0.85rem; opacity: 0.7; }
+pre { padding: 0.8rem; overflow-x: auto; background: #f3f3f3; border-radius: 6px; }
+#kb-status { font-weight: 600; }
+/* Last, so the dark background wins over the light rules above. */
+@media (prefers-color-scheme: dark) { body { color: #eee; background: #111; } code, pre { background: #222; } }

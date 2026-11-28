@@ -68,3 +68,18 @@ func TestChildArgumentsForOwnerRotate(t *testing.T) {
 	assert.Equal(t, []string{"owner-rotate", "--owner-public-key", key}, args)
 	assert.False(t, domain.HostAdminIssuesCredential("owner-rotate"), "owner-rotate never mints a bearer")
 }
+
+func TestChildArgumentsForOAuthDecisions(t *testing.T) {
+	args, err := childArguments(domain.HostAdminRequest{Version: 1, Action: "oauth-approve", Options: domain.HostAdminOptions{Code: "ABCD-EFGH", ProjectID: "demo,notes", Capabilities: "retrieval:read", TTL: "720h"}})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"oauth-approve", "--code", "ABCD-EFGH", "--project", "demo,notes", "--capabilities", "retrieval:read", "--ttl", "720h"}, args)
+	args, err = childArguments(domain.HostAdminRequest{Version: 1, Action: "oauth-deny", Options: domain.HostAdminOptions{Code: "ABCD-EFGH"}})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"oauth-deny", "--code", "ABCD-EFGH"}, args)
+	args, err = childArguments(domain.HostAdminRequest{Version: 1, Action: "oauth-requests"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"oauth-requests"}, args)
+	for _, action := range []string{"oauth-requests", "oauth-approve", "oauth-deny"} {
+		assert.False(t, domain.HostAdminIssuesCredential(action), action)
+	}
+}

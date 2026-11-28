@@ -392,3 +392,64 @@ func TestOwnerRotateReplacesTheOwnerKeyAndPrintsOnlyPublicKeys(t *testing.T) {
 		assert.ErrorIs(t, runAdmin(t.Context(), args, &out, strings.NewReader(""), factory), domain.ErrInvalidInput, args)
 	}
 }
+
+type fakeHostOAuth struct {
+	code  string
+	grant domain.OAuthScope
+	ttl   time.Duration
+	deny  bool
+}
+
+func (f *fakeHostOAuth) ListRequestsHost(context.Context) ([]domain.OAuthRequest, error) {
+	return nil, nil
+}
+
+func (f *fakeHostOAuth) ApproveHost(_ context.Context, code string, grant domain.OAuthScope, ttl time.Duration) (domain.OAuthRequest, error) {
+	f.code, f.grant, f.ttl = code, grant, ttl
+	return domain.OAuthRequest{ID: "or_1", ApprovalCode: code, Status: domain.OAuthRequestApproved, Granted: grant, State: "secret-state", CodeChallenge: "secret-challenge", CookieDigest: "secret-digest"}, nil
+}
+
+func (f *fakeHostOAuth) DenyHost(_ context.Context, code string) (domain.OAuthRequest, error) {
+	f.code, f.deny = code, true
+	return domain.OAuthRequest{ID: "or_1", ApprovalCode: code, Status: domain.OAuthRequestDenied}, nil
+}
+
+func TestHostAdminOAuthCommandsReachTheGrantService(t *testing.T) {
+	f := &fakeHostOAuth{}
+	factory := func(context.Context, bool) (administration, func(), error) {
+		return administration{oauth: f, recovery: &fakeHostRecovery{}}, func() {}, nil
+	}
+	var out bytes.Buffer
+	require.NoError(t, runAdmin(t.Context(), []string{"oauth-requests"}, &out, strings.NewReader(""), factory))
+	assert.Equal(t, "[]\n", out.String(), "an empty list prints as a list")
+
+	out.Reset()
+	require.NoError(t, runAdmin(t.Context(), []string{"oauth-approve", "--code", "ABCD-EFGH", "--project", "demo, notes", "--capabilities", "retrieval:read", "--ttl", "720h"}, &out, strings.NewReader(""), factory))
+	assert.Equal(t, "ABCD-EFGH", f.code)
+	assert.Equal(t, domain.OAuthScope{Projects: []string{"demo", "notes"}, Capabilities: []string{"retrieval:read"}}, f.grant)
+	assert.Equal(t, 720*time.Hour, f.ttl)
+	assert.Contains(t, out.String(), `"status":"approved"`)
+	for _, secret := range []string{"secret-state", "secret-challenge", "secret-digest"} {
+		assert.NotContains(t, out.String(), secret, "approval output never carries the flow's secrets")
+	}
+
+	out.Reset()
+	require.NoError(t, runAdmin(t.Context(), []string{"oauth-deny", "--code", "ABCDEFGH"}, &out, strings.NewReader(""), factory))
+	assert.True(t, f.deny)
+	assert.Contains(t, out.String(), `"status":"denied"`)
+
+	for _, args := range [][]string{
+		{"oauth-approve", "ABCDEFGH"},
+		{"oauth-approve", "--code", "ABCDEFGH", "--ttl", "-1h"},
+		{"oauth-deny", "--code", "ABCDEFGH", "--project", "demo"},
+		{"oauth-requests", "--code", "ABCDEFGH"},
+	} {
+		called := false
+		err := runAdmin(t.Context(), args, io.Discard, strings.NewReader(""), func(context.Context, bool) (administration, func(), error) {
+			called = true
+			return administration{oauth: f}, func() {}, nil
+		})
+		assert.ErrorIs(t, err, domain.ErrInvalidInput, args)
+		assert.False(t, called, args)
+	}
+}
