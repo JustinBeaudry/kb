@@ -245,3 +245,41 @@ func TestRemoteMCPIsOffUnlessEnabled(t *testing.T) {
 func TestStdioMCPStillReportsTheTransportGap(t *testing.T) {
 	assert.Equal(t, []string{mcpTransportGap}, NewMCPServer(nil, nil, nil, nil).transportGaps)
 }
+
+const oauthAccessBearer = "oauth-access-fixture"
+
+// resourceBoundIdentity authenticates an OAuth access token bound to /mcp.
+type resourceBoundIdentity struct{ remoteMCPIdentity }
+
+func (resourceBoundIdentity) Authenticate(_ context.Context, bearer string) (domain.Principal, error) {
+	if bearer != oauthAccessBearer {
+		return domain.Principal{}, domain.ErrUnauthorized
+	}
+	return domain.Principal{ClientID: "oauth-G1", Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"retrieval:read", "status:read", "memory:export"}, Resource: domain.OAuthResourceMCP}, nil
+}
+
+func TestOAuthAccessTokenIsRefusedEverywhereButMCP(t *testing.T) {
+	services := &remoteMCPServices{}
+	e, err := NewServer(resourceBoundIdentity{}, nil, services, services, services, nil, services, nil, slog.New(slog.NewJSONHandler(io.Discard, nil)), WithRemoteMCP())
+	require.NoError(t, err)
+
+	rec := mcpPost(e, toolCall("memory_status", `{}`), map[string]string{"Authorization": "Bearer " + oauthAccessBearer})
+	payload, isError := httpToolPayload(t, rec)
+	assert.False(t, isError, payload)
+
+	for _, target := range []struct{ method, path string }{
+		{http.MethodGet, "/v1/status"},
+		{http.MethodGet, "/v1/exports"},
+		{http.MethodPost, "/v1/retrieval:search"},
+		{http.MethodPost, "/v1/candidates"},
+		{http.MethodGet, "/v1/policies/demo"},
+	} {
+		req := httptest.NewRequest(target.method, target.path, strings.NewReader(`{}`))
+		req.Header.Set("Authorization", "Bearer "+oauthAccessBearer)
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		e.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusUnauthorized, rec.Code, target.path)
+	}
+	assert.Equal(t, []string{"oauth-G1"}, services.principals, "only the /mcp call reached a service")
+}

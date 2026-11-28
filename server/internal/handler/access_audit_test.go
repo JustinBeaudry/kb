@@ -107,3 +107,15 @@ func TestMCPToolRefusalIsRecordedAsDenied(t *testing.T) {
 	assert.Contains(t, string(frame), `\"code\":\"forbidden\"`)
 	assert.Equal(t, []domain.AccessObservation{{ClientID: "agent", ProjectID: "demo", Capability: "retrieval:read", Allowed: false}}, c.Observations())
 }
+
+func TestAccessAuditRecordsAnOAuthTokenUsedOffMCP(t *testing.T) {
+	rec := &accessRecorderFake{}
+	e, err := configuredServer(resourceBoundIdentity{}, nil, nil, nil, nil, nil, nil, nil, slog.New(slog.NewJSONHandler(io.Discard, nil)), WithAccessAudit(rec))
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodGet, "/v1/exports", nil)
+	req.Header.Set("Authorization", "Bearer "+oauthAccessBearer)
+	w := httptest.NewRecorder()
+	e.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Equal(t, [][]domain.AccessObservation{{{ClientID: "oauth-G1", Capability: domain.AccessAuthResource, Allowed: false}}}, rec.seen, "the grant's misuse is attributed to its client")
+}

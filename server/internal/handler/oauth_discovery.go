@@ -3,6 +3,9 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"slices"
+
+	"github.com/JustinBeaudry/kb/server/internal/domain"
 )
 
 // MCPResourceMetadataPath is where OAuth protected resource metadata (RFC 9728)
@@ -12,11 +15,35 @@ import (
 // resource (§3.3), and kb protects only /mcp with this metadata.
 const MCPResourceMetadataPath = "/.well-known/oauth-protected-resource" + RemoteMCPPath
 
+// AuthorizationServerMetadataPath is where OAuth authorization server metadata
+// (RFC 8414) is served. kb is its own authorization server, with the public
+// origin as issuer, so the address has no path suffix.
+const AuthorizationServerMetadataPath = "/.well-known/oauth-authorization-server"
+
 type protectedResourceMetadata struct {
 	Resource               string   `json:"resource"`
+	AuthorizationServers   []string `json:"authorization_servers"`
+	ScopesSupported        []string `json:"scopes_supported"`
 	BearerMethodsSupported []string `json:"bearer_methods_supported"`
 	ResourceName           string   `json:"resource_name"`
 	ResourceDocumentation  string   `json:"resource_documentation,omitempty"`
+}
+
+type authorizationServerMetadata struct {
+	Issuer                                     string   `json:"issuer"`
+	AuthorizationEndpoint                      string   `json:"authorization_endpoint"`
+	TokenEndpoint                              string   `json:"token_endpoint"`
+	RegistrationEndpoint                       string   `json:"registration_endpoint"`
+	RevocationEndpoint                         string   `json:"revocation_endpoint"`
+	ScopesSupported                            []string `json:"scopes_supported"`
+	ResponseTypesSupported                     []string `json:"response_types_supported"`
+	ResponseModesSupported                     []string `json:"response_modes_supported"`
+	GrantTypesSupported                        []string `json:"grant_types_supported"`
+	TokenEndpointAuthMethodsSupported          []string `json:"token_endpoint_auth_methods_supported"`
+	RevocationEndpointAuthMethodsSupported     []string `json:"revocation_endpoint_auth_methods_supported"`
+	CodeChallengeMethodsSupported              []string `json:"code_challenge_methods_supported"`
+	AuthorizationResponseIssParameterSupported bool     `json:"authorization_response_iss_parameter_supported"`
+	ServiceDocumentation                       string   `json:"service_documentation,omitempty"`
 }
 
 // WithOAuthDiscovery serves protected resource metadata for /mcp and adds the
@@ -26,15 +53,18 @@ type protectedResourceMetadata struct {
 // and never touches the graph. origin is the operator-configured public origin
 // and is never taken from the request; with none, next is returned unchanged.
 //
-// The metadata names no authorization server until kb issues OAuth grants, so
-// clients learn that /mcp takes a bearer and, for now, nothing more.
+// It also serves authorization server metadata (RFC 8414), naming kb itself
+// as the authorization server for /mcp.
 func WithOAuthDiscovery(next http.Handler, origin string) http.Handler {
 	if origin == "" {
 		return next
 	}
 	metadataURL := origin + MCPResourceMetadataPath
+	scopes := slices.Clone(domain.OAuthGrantCapabilities)
 	body, err := json.Marshal(protectedResourceMetadata{
 		Resource:               origin + RemoteMCPPath,
+		AuthorizationServers:   []string{origin},
+		ScopesSupported:        scopes,
 		BearerMethodsSupported: []string{"header"},
 		ResourceName:           "kb",
 		ResourceDocumentation:  "https://github.com/JustinBeaudry/kb",
@@ -42,19 +72,41 @@ func WithOAuthDiscovery(next http.Handler, origin string) http.Handler {
 	if err != nil {
 		return next
 	}
-	return &oauthDiscovery{next: next, metadata: body, challenge: `Bearer resource_metadata="` + metadataURL + `"`}
+	server, err := json.Marshal(authorizationServerMetadata{
+		Issuer:                                     origin,
+		AuthorizationEndpoint:                      origin + OAuthAuthorizePath,
+		TokenEndpoint:                              origin + OAuthTokenPath,
+		RegistrationEndpoint:                       origin + OAuthRegisterPath,
+		RevocationEndpoint:                         origin + OAuthRevokePath,
+		ScopesSupported:                            scopes,
+		ResponseTypesSupported:                     []string{"code"},
+		ResponseModesSupported:                     []string{"query"},
+		GrantTypesSupported:                        []string{"authorization_code", "refresh_token"},
+		TokenEndpointAuthMethodsSupported:          []string{"none"},
+		RevocationEndpointAuthMethodsSupported:     []string{"none"},
+		CodeChallengeMethodsSupported:              []string{"S256"},
+		AuthorizationResponseIssParameterSupported: true,
+		ServiceDocumentation:                       "https://github.com/JustinBeaudry/kb",
+	})
+	if err != nil {
+		return next
+	}
+	return &oauthDiscovery{next: next, metadata: body, server: server, challenge: `Bearer resource_metadata="` + metadataURL + `"`}
 }
 
 type oauthDiscovery struct {
 	next      http.Handler
 	metadata  []byte
+	server    []byte
 	challenge string
 }
 
 func (d *oauthDiscovery) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case MCPResourceMetadataPath:
-		d.serveMetadata(w, r)
+		d.serveMetadata(w, r, d.metadata)
+	case AuthorizationServerMetadataPath:
+		d.serveMetadata(w, r, d.server)
 	case RemoteMCPPath:
 		d.next.ServeHTTP(&challengeWriter{ResponseWriter: w, challenge: d.challenge}, r)
 	default:
@@ -62,7 +114,7 @@ func (d *oauthDiscovery) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (d *oauthDiscovery) serveMetadata(w http.ResponseWriter, r *http.Request) {
+func (d *oauthDiscovery) serveMetadata(w http.ResponseWriter, r *http.Request, body []byte) {
 	h := w.Header()
 	// Public, credential-free metadata that browser-based MCP clients fetch
 	// cross-origin. No credentials are ever accepted or returned here.
@@ -74,7 +126,7 @@ func (d *oauthDiscovery) serveMetadata(w http.ResponseWriter, r *http.Request) {
 		h.Set("Cache-Control", "public, max-age=3600")
 		w.WriteHeader(http.StatusOK)
 		if r.Method == http.MethodGet {
-			_, _ = w.Write(d.metadata)
+			_, _ = w.Write(body)
 		}
 	case http.MethodOptions:
 		h.Set("Access-Control-Allow-Methods", "GET, HEAD")

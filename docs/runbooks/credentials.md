@@ -58,7 +58,11 @@ An app that connects by URL (a hosted MCP connector) opens kb's approval page in
 4. Or refuse with `kb-admin oauth-deny --code CODE`. The page returns the browser to the app with `access_denied`.
 5. The page notices your decision within a few seconds and returns you to the app. A request you leave alone expires after 10 minutes.
 
-Until token exchange ships (phase 2c), an approval produces a code the app cannot yet redeem, so no client can use this flow end to end.
+The app then holds the client `oauth-<grant id>`, with exactly the projects and capabilities you granted. Its access token works only at `/mcp`, lasts an hour and is refreshed by the app until the grant expires.
+
+- `kb-admin access --client-id oauth-<grant id>` shows what the app touched, including any use of its token outside `/mcp`.
+- `kb-admin revoke --client-id oauth-<grant id>` stops the app at once. Its next refresh fails and removes the grant. To connect it again, start a new approval.
+- A refresh token used twice revokes the grant by itself, because one copy is in someone else's hands. If an app reports it was disconnected, look at its access before approving it again.
 
 ## Access audit trail
 

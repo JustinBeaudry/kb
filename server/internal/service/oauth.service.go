@@ -39,11 +39,13 @@ const oauthPruneBatch = 100
 // OAuthService registers public OAuth clients. A registration grants nothing:
 // it only lets a client ask the owner for a grant.
 type OAuthService struct {
-	tx     Transactor
-	repo   OAuthRepository
-	now    func() time.Time
-	issuer string
-	owners AccessOwners
+	tx      Transactor
+	repo    OAuthRepository
+	now     func() time.Time
+	issuer  string
+	owners  AccessOwners
+	clients OAuthClients
+	grants  OAuthGrantStore
 }
 
 func NewOAuthService(tx Transactor, repo OAuthRepository, now func() time.Time) *OAuthService {
