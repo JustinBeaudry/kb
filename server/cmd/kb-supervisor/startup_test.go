@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/JustinBeaudry/kb/server/internal/domain"
+	"github.com/JustinBeaudry/kb/server/internal/platform"
 	"github.com/JustinBeaudry/kb/server/internal/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -81,7 +83,9 @@ func TestMissingBootstrapPrerequisiteReleasesOnlySettledRecovery(t *testing.T) {
 func TestStartupMaskedUnknownEffectCannotOpen(t *testing.T) {
 	m := newStartupMaintenance(t)
 	snapshot := &startupSnapshotFake{uncertain: "journal"}
-	require.ErrorIs(t, startupRecovery(t.Context(), m, snapshot, "fixture"), domain.ErrUnknownOutcome)
+	err := startupRecovery(t.Context(), m, snapshot, "fixture")
+	require.ErrorIs(t, err, domain.ErrUnknownOutcome)
+	assert.Equal(t, "finish_operation", platform.FailureStage(err), "the closed warning names where recovery stopped")
 	state, e := m.State(t.Context())
 	require.NoError(t, e)
 	assert.Equal(t, "bootstrap", state.Phase)
@@ -97,4 +101,47 @@ func TestStartupFailedUnknownSchemaRemainsUnreconciled(t *testing.T) {
 	require.NoError(t, e)
 	assert.Equal(t, 1, state.Unknown)
 	assert.Equal(t, []string{"schema"}, snapshot.calls)
+}
+func TestStartupWaitsForRestoredPermitAndOpensOnceItsHolderFinishes(t *testing.T) {
+	store := &startupStateStore{state: domain.MaintenanceState{Phase: "bootstrap", Fence: domain.MaintenanceFence{OperationID: "bootstrap", Generation: 1}}}
+	m, e := service.NewMaintenanceService(t.Context(), store)
+	require.NoError(t, e)
+	require.NoError(t, startupRecovery(t.Context(), m, &startupSnapshotFake{}, "fixture"))
+	held, e := m.Admit(t.Context(), "worker-1", "worker")
+	require.NoError(t, e)
+	// The supervisor restarts while the worker still holds its permit.
+	m, e = service.NewMaintenanceService(t.Context(), store)
+	require.NoError(t, e)
+	snapshot := &startupSnapshotFake{}
+	e = startupRecovery(t.Context(), m, snapshot, "fixture")
+	require.ErrorIs(t, e, domain.ErrMaintenance)
+	assert.Equal(t, "admission", platform.FailureStage(e))
+	assert.Empty(t, snapshot.calls)
+	require.NoError(t, m.Finish(t.Context(), held))
+	require.NoError(t, startupRecovery(t.Context(), m, snapshot, "fixture"))
+	state, e := m.State(t.Context())
+	require.NoError(t, e)
+	assert.Equal(t, "open", state.Phase)
+}
+func TestStartupFailureNamesItsStage(t *testing.T) {
+	for stage, want := range map[string]string{"schema": "graph_connect", "prerequisites": "bootstrap_prerequisites", "journal": "journal"} {
+		m := newStartupMaintenance(t)
+		e := startupRecovery(t.Context(), m, &startupSnapshotFake{failure: stage}, "fixture")
+		require.Error(t, e)
+		assert.Equal(t, want, platform.FailureStage(e), stage)
+		assert.Equal(t, "unavailable", platform.ErrorClass(e), stage)
+	}
+}
+func TestClosedReporterLogsChangesAndThenEveryFiveMinutes(t *testing.T) {
+	var lines []string
+	c := closedReporter{log: func(stage, class string, unknown int) {
+		lines = append(lines, stage+"/"+class+"/"+string(rune('0'+unknown)))
+	}}
+	start := time.Unix(0, 0)
+	c.report(start, "admission", "maintenance", 1)
+	c.report(start.Add(5*time.Second), "admission", "maintenance", 1)
+	c.report(start.Add(10*time.Second), "admission", "maintenance", 2)
+	c.report(start.Add(4*time.Minute), "admission", "maintenance", 2)
+	c.report(start.Add(10*time.Minute), "admission", "maintenance", 2)
+	assert.Equal(t, []string{"admission/maintenance/1", "admission/maintenance/2", "admission/maintenance/2"}, lines)
 }

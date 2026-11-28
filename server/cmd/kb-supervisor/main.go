@@ -72,6 +72,8 @@ const supervisorUsage = `Usage: kb-supervisor COMMAND [FLAGS]
                                     Restore under the exact paused fence with a fresh
                                     evidence bucket and rotated retrieval HMAC key.
   recover --id BACKUP_ID             Recover a failed backup only when effects are settled.
+  settle --id PERMIT_ID              Remove a restored operation permit (listed by status)
+                                    after proving its holder's process ended.
 
 Operator commands run as the graph host runtime UID through its protected local
 Unix socket. Restore startup uses KB_SUPERVISOR_RESTORE_MODE=1 and never resets
@@ -185,13 +187,15 @@ func serveSupervisor(parent context.Context) error {
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithCancel(parent)
+	// The graph and the control servers outlive the shutdown signal until admitted
+	// operations drain; cancel ends them.
+	ctx, cancel := context.WithCancel(context.WithoutCancel(parent))
 	defer cancel()
 	process, err := gateway.NewNeo4jProcess(gateway.Neo4jProcessConfig{Root: filepath.Join(cfg.Root, "graph"), Home: "/var/lib/neo4j", Neo4jBinary: "/var/lib/neo4j/bin/neo4j", AdminBinary: "/var/lib/neo4j/bin/neo4j-admin", JavaBinary: "/opt/java/openjdk/bin/java", AuthClassPath: "/opt/kb:/var/lib/neo4j/lib/*", GraphSecret: cfg.Platform.Graph.Secret}, backupState, ctx)
 	if err != nil {
 		return err
 	}
-	if err = process.Start(ctx); err != nil {
+	if err = process.Start(parent); err != nil {
 		return err
 	}
 	defer func() {
@@ -254,6 +258,9 @@ func serveSupervisor(parent context.Context) error {
 			return operatorStatus{}, e
 		}
 		out := operatorStatus{Maintenance: m, Operation: op, Schedule: schedule}
+		if out.RestoredPermits, e = maintenance.Restored(ctx); e != nil {
+			return operatorStatus{}, e
+		}
 		out.HostReady = snapshot.HostReady() && (m.Phase == "bootstrap" || m.Phase == "recovering" || m.Phase == "open")
 		available, total, spaceErr := gateway.BackupDiskSpace(cfg.Root)
 		if spaceErr != nil {
@@ -287,14 +294,27 @@ func serveSupervisor(parent context.Context) error {
 	results := make(chan error, 3)
 	go func() { results <- adminServer.Serve(ctx) }()
 	go func() {
-		results <- serveOperator(ctx, operatorListener, evidenceRunner{operatorRunner: backup, state: maintenance, observe: logBackupEvidence}, status)
+		results <- serveOperator(ctx, operatorListener, evidenceRunner{operatorRunner: backup, state: maintenance, observe: logBackupEvidence, settle: maintenance.SettleRestored}, status)
 	}()
 	go func() { results <- server.ListenAndServe() }()
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
+	closed := closedReporter{log: func(stage, class string, unknown int) {
+		logger.Warn("maintenance_closed", "reason", "maintenance", "stage", stage, "error_class", class, "unknown_operations", int64(unknown))
+	}}
 	for {
 		select {
-		case <-ctx.Done():
+		case <-parent.Done():
+			// A deploy stops this process with SIGTERM and a draining window.
+			// Refuse new operations and give admitted ones time to finish while
+			// the graph is still up, so the restart does not leave them unknown.
+			maintenance.Quiesce()
+			drain, stopDrain := context.WithTimeout(context.Background(), shutdownDrain)
+			if maintenance.WaitIdle(drain) != nil {
+				logger.Warn("shutdown_drain_incomplete", "reason", "maintenance")
+			}
+			stopDrain()
+			cancel()
 			cleanup, stop := context.WithTimeout(context.Background(), 10*time.Second)
 			_ = server.Shutdown(cleanup)
 			stop()
@@ -316,12 +336,14 @@ func serveSupervisor(parent context.Context) error {
 			startupFence := state.Fence.OperationID == "bootstrap" || strings.HasPrefix(state.Fence.OperationID, "startup-")
 			if (state.Phase == "bootstrap" || state.Phase == "recovering") && startupFence && !pending && os.Getenv("KB_SUPERVISOR_RESTORE_MODE") != "1" {
 				if e = startupRecovery(ctx, maintenance, snapshot, cfg.InstanceID); e != nil {
-					logger.Info("maintenance_closed", "reason", "maintenance")
+					closed.report(time.Now(), platform.FailureStage(e), platform.ErrorClass(e), state.Unknown)
 				} else if e = backup.CheckpointStartup(ctx); e != nil {
 					return e
+				} else {
+					closed = closedReporter{log: closed.log}
 				}
 			} else if state.Phase == "open" {
-				work, stop := context.WithTimeout(ctx, 4*time.Hour)
+				work, stop := context.WithTimeout(parent, 4*time.Hour)
 				e = scheduler.Tick(work)
 				stop()
 				if errors.Is(e, platform.ErrScheduleNotSaved) {
@@ -356,13 +378,14 @@ func startupRecovery(ctx context.Context, m *service.MaintenanceService, snapsho
 	ctx = domain.WithOperationOutcome(ctx)
 	state, err := m.State(ctx)
 	if err != nil {
-		return err
+		return platform.AtStage("maintenance", err)
 	}
 	permit, err := m.AdmitRecovery(ctx, state.Fence, instance, "startup-recovery")
 	if err != nil {
-		return err
+		return platform.AtStage("admission", err)
 	}
 	if err = snapshot.InitializeAndRecover(ctx); err != nil {
+		err = platform.AtStage("graph_connect", err)
 		if domain.OperationSettled(ctx) {
 			_ = m.Finish(context.WithoutCancel(ctx), permit)
 		} else {
@@ -371,6 +394,7 @@ func startupRecovery(ctx context.Context, m *service.MaintenanceService, snapsho
 		return err
 	}
 	if err = snapshot.bootstrapPrerequisites(ctx); err != nil {
+		err = platform.AtStage("bootstrap_prerequisites", err)
 		if domain.OperationSettled(ctx) {
 			_ = m.Finish(context.WithoutCancel(ctx), permit)
 		} else {
@@ -379,6 +403,7 @@ func startupRecovery(ctx context.Context, m *service.MaintenanceService, snapsho
 		return err
 	}
 	if _, err = snapshot.ReconcileJournal(ctx); err != nil {
+		err = platform.AtStage("journal", err)
 		if domain.OperationSettled(ctx) {
 			_ = m.Finish(context.WithoutCancel(ctx), permit)
 		} else {
@@ -388,16 +413,38 @@ func startupRecovery(ctx context.Context, m *service.MaintenanceService, snapsho
 	}
 	if !domain.OperationSettled(ctx) {
 		_ = m.MarkUnknown(context.WithoutCancel(ctx), permit)
-		return domain.ErrUnknownOutcome
+		return platform.AtStage("finish_operation", domain.ErrUnknownOutcome)
 	}
 	if err = m.Finish(ctx, permit); err != nil {
-		return err
+		return platform.AtStage("finish_operation", err)
 	}
 	if err = m.SetPhase(ctx, state.Fence, "recovering"); err != nil {
-		return err
+		return platform.AtStage("maintenance", err)
 	}
 	if err = m.MarkRecoveryComplete(ctx, state.Fence); err != nil {
-		return err
+		return platform.AtStage("maintenance", err)
 	}
-	return m.Resume(ctx, state.Fence)
+	return platform.AtStage("maintenance", m.Resume(ctx, state.Fence))
+}
+
+// shutdownDrain bounds how long a stopping supervisor waits for admitted
+// operations. It stays inside the graph service's 120 second draining window.
+const shutdownDrain = 90 * time.Second
+
+// closedReporter logs a failed startup recovery when its stage, class or
+// unknown count changes, and at most every five minutes otherwise, so a long
+// closure stays visible at warn level without a line every tick.
+type closedReporter struct {
+	log          func(stage, class string, unknown int)
+	stage, class string
+	unknown      int
+	last         time.Time
+}
+
+func (c *closedReporter) report(now time.Time, stage, class string, unknown int) {
+	if !c.last.IsZero() && stage == c.stage && class == c.class && unknown == c.unknown && now.Sub(c.last) < 5*time.Minute {
+		return
+	}
+	c.stage, c.class, c.unknown, c.last = stage, class, unknown, now
+	c.log(stage, class, unknown)
 }

@@ -75,7 +75,7 @@ func TestMaintenanceDrainHoldsCanceledOperationUntilExactFinish(t *testing.T) {
 	require.NoError(t, s.MarkRecoveryComplete(ctx, fence))
 	require.NoError(t, s.Resume(ctx, fence))
 }
-func TestMaintenanceRestartPersistsUnknownAndCannotForgetIt(t *testing.T) {
+func TestMaintenanceRestartKeepsPermitUntilItsHolderFinishes(t *testing.T) {
 	ctx := context.Background()
 	s, store := newMaintenance(t)
 	openMaintenance(t, s)
@@ -88,9 +88,148 @@ func TestMaintenanceRestartPersistsUnknownAndCannotForgetIt(t *testing.T) {
 	assert.Equal(t, "recovering", st.Phase)
 	assert.Equal(t, 1, st.Unknown)
 	assert.Equal(t, 0, st.Active)
-	require.ErrorIs(t, s.Finish(ctx, p), domain.ErrUnknownOutcome)
 	require.ErrorIs(t, s.MarkRecoveryComplete(ctx, st.Fence), domain.ErrMaintenance)
+	require.ErrorIs(t, s.ValidatePermit(ctx, p), domain.ErrMaintenance, "a restored permit grants nothing")
 	assert.True(t, store.permits[0].Unknown)
+	assert.True(t, store.permits[0].Restored)
+	wrong := p
+	wrong.Generation++
+	require.ErrorIs(t, s.Finish(ctx, wrong), domain.ErrStale)
+	// Another restart keeps it restored; only the holder's exact Finish ends it.
+	s, err = service.NewMaintenanceService(ctx, store)
+	require.NoError(t, err)
+	require.NoError(t, s.Finish(ctx, p))
+	st, err = s.State(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 0, st.Unknown)
+	require.NoError(t, s.MarkRecoveryComplete(ctx, st.Fence))
+}
+func TestMaintenanceUncertainPermitSurvivesRestartAndCannotBeForgotten(t *testing.T) {
+	ctx := context.Background()
+	s, store := newMaintenance(t)
+	openMaintenance(t, s)
+	p, err := s.Admit(ctx, "supervisor", "private-status")
+	require.NoError(t, err)
+	require.NoError(t, s.MarkUnknown(ctx, p))
+	s, err = service.NewMaintenanceService(ctx, store)
+	require.NoError(t, err)
+	require.ErrorIs(t, s.Finish(ctx, p), domain.ErrUnknownOutcome)
+	_, err = s.SettleRestored(ctx, p.ID)
+	require.ErrorIs(t, err, domain.ErrUnknownOutcome)
+	restored, err := s.Restored(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, restored)
+}
+func TestMaintenanceLegacyUnknownRecordsRestoreOnlyServiceRoleKinds(t *testing.T) {
+	ctx := context.Background()
+	store := &maintenanceStore{
+		state: domain.MaintenanceState{Phase: "recovering", Fence: domain.MaintenanceFence{OperationID: "startup-x", Generation: 3}},
+		permits: []domain.OperationPermit{
+			{ID: "s", InstanceID: "graph", Kind: "private-status", Generation: 2, Unknown: true},
+			{ID: "b", InstanceID: "graph", Kind: "backup-recovery", Generation: 2, Unknown: true},
+		},
+	}
+	// Every kind a worker or api process asks for (cmd/server, cmd/worker and
+	// the platform handlers) must come back as restored, or a restart while it
+	// was held leaves kb closed with no way to settle it.
+	holderKinds := []string{"access-audit", "api", "api-startup", "health", "sweep", "worker", "worker-startup"}
+	for _, kind := range holderKinds {
+		store.permits = append(store.permits, domain.OperationPermit{ID: "h-" + kind, InstanceID: "holder", Kind: kind, Generation: 2, Unknown: true})
+	}
+	s, err := service.NewMaintenanceService(ctx, store)
+	require.NoError(t, err)
+	restored, err := s.Restored(ctx)
+	require.NoError(t, err)
+	ids := []string{}
+	for _, p := range restored {
+		ids = append(ids, p.ID)
+	}
+	want := []string{}
+	for _, kind := range holderKinds {
+		want = append(want, "h-"+kind)
+	}
+	assert.Equal(t, want, ids)
+}
+func TestMaintenanceSettleRestoredOnlyWhileClosed(t *testing.T) {
+	ctx := context.Background()
+	s, store := newMaintenance(t)
+	openMaintenance(t, s)
+	p, err := s.Admit(ctx, "old-worker", "worker")
+	require.NoError(t, err)
+	_, err = s.SettleRestored(ctx, p.ID)
+	require.ErrorIs(t, err, domain.ErrMaintenance, "a live permit of an open supervisor is never settled")
+	s, err = service.NewMaintenanceService(ctx, store)
+	require.NoError(t, err)
+	_, err = s.SettleRestored(ctx, "missing")
+	require.ErrorIs(t, err, domain.ErrIncomplete)
+	settled, err := s.SettleRestored(ctx, p.ID)
+	require.NoError(t, err)
+	assert.Equal(t, p.ID, settled.ID)
+	assert.Empty(t, store.permits)
+	st, err := s.State(ctx)
+	require.NoError(t, err)
+	require.NoError(t, s.MarkRecoveryComplete(ctx, st.Fence))
+	require.NoError(t, s.Resume(ctx, st.Fence))
+}
+func TestMaintenanceQuiesceRefusesNewWorkAndWaitsForRunning(t *testing.T) {
+	ctx := context.Background()
+	s, _ := newMaintenance(t)
+	openMaintenance(t, s)
+	p, err := s.Admit(ctx, "api-one", "api")
+	require.NoError(t, err)
+	s.Quiesce()
+	_, err = s.Admit(ctx, "api-two", "api")
+	require.ErrorIs(t, err, domain.ErrMaintenance)
+	short, cancel := context.WithTimeout(ctx, 5*time.Millisecond)
+	t.Cleanup(cancel)
+	require.ErrorIs(t, s.WaitIdle(short), context.DeadlineExceeded)
+	done := make(chan error, 1)
+	go func() { done <- s.WaitIdle(ctx) }()
+	require.NoError(t, s.Finish(ctx, p))
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("WaitIdle did not return after the last Finish")
+	}
+}
+func TestMaintenanceShutdownDrainWaitsForRestoredButNotUncertainPermits(t *testing.T) {
+	ctx := context.Background()
+	s, store := newMaintenance(t)
+	openMaintenance(t, s)
+	p, err := s.Admit(ctx, "api-one", "api")
+	require.NoError(t, err)
+	uncertain, err := s.Admit(ctx, "graph", "private-status")
+	require.NoError(t, err)
+	require.NoError(t, s.MarkUnknown(ctx, uncertain))
+	s, err = service.NewMaintenanceService(ctx, store)
+	require.NoError(t, err)
+	s.Quiesce()
+	short, cancel := context.WithTimeout(ctx, 5*time.Millisecond)
+	t.Cleanup(cancel)
+	require.ErrorIs(t, s.WaitIdle(short), context.DeadlineExceeded, "a holder from before the restart may still be running")
+	done := make(chan error, 1)
+	go func() { done <- s.WaitIdle(ctx) }()
+	require.NoError(t, s.Finish(ctx, p))
+	select {
+	case err := <-done:
+		require.NoError(t, err, "the uncertain permit is not waited on")
+	case <-time.After(5 * time.Second):
+		t.Fatal("WaitIdle did not return after the restored holder finished")
+	}
+}
+func TestMaintenanceFinishKeepsThePermitUntilItsRemovalIsSaved(t *testing.T) {
+	ctx := context.Background()
+	s, store := newMaintenance(t)
+	openMaintenance(t, s)
+	p, err := s.Admit(ctx, "api-one", "api")
+	require.NoError(t, err)
+	store.fail = true
+	require.ErrorIs(t, s.Finish(ctx, p), domain.ErrUnavailable)
+	require.Len(t, store.permits, 1, "the permit is still on disk")
+	store.fail = false
+	require.NoError(t, s.Finish(ctx, p), "a retry saves the removal")
+	assert.Empty(t, store.permits)
 }
 func TestMaintenancePersistenceFailureNeverGrantsOrReopens(t *testing.T) {
 	ctx := context.Background()
