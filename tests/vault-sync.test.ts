@@ -7,10 +7,11 @@ import { parse as yamlParse } from "yaml";
 import type { CaptureError, CredentialStore, Result } from "../src/capture/types";
 import { createTransferCommand } from "../src/commands/transfer";
 import { profileAccount } from "../src/services/remote.service";
-import { FileSyncFolder, SYNC_STATE_FILE } from "../src/repositories/vault-sync.repository";
+import { FileSyncFolder, SYNC_LOCK_FILE, SYNC_STATE_FILE } from "../src/repositories/vault-sync.repository";
 import { claimTitle, inertMarkdown, renderVaultPages } from "../src/services/obsidian.service";
 import type { ExportPage, ExportedClaim, GatewayError, TransferGateway } from "../src/services/transfer.service";
-import { VaultSyncService } from "../src/services/vault-sync.service";
+import { syncOnSchedule, VaultSyncService, type VaultSyncSummary } from "../src/services/vault-sync.service";
+import type { TransferError } from "../src/services/transfer.service";
 
 const scope = { project_id: "demo" };
 const dirs: string[] = [];
@@ -84,6 +85,45 @@ describe("rendering", () => {
     expect(renderVaultPages(scope, [], "partial")[0]!.content).toContain("[!warning] Incomplete");
   });
 });
+
+/** Holds its first export page until released, so a sync stays in progress. */
+class HeldExports extends PagedExports {
+  release!: () => void;
+  readonly held = new Promise<void>((resolve) => { this.release = resolve; });
+  entered!: () => void;
+  readonly started = new Promise<void>((resolve) => { this.entered = resolve; });
+  override async exportPage(input: { continuation?: string }): Promise<Result<ExportPage, GatewayError>> {
+    this.entered();
+    await this.held;
+    return super.exportPage(input);
+  }
+}
+
+function credentialsFor(endpoint: string, token: () => string | undefined): CredentialStore {
+  return {
+    async get(account: string): Promise<Result<string, CaptureError>> {
+      const value = account === profileAccount("agent", endpoint) ? token() : undefined;
+      return value ? { ok: true, value } : { ok: false, error: { code: "credential_unavailable" } };
+    },
+    async set(): Promise<Result<void, CaptureError>> { return { ok: true, value: undefined }; },
+  };
+}
+
+async function captured(fn: () => Promise<unknown>): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  let stdout = "", stderr = "";
+  const originalOut = process.stdout.write, originalErr = process.stderr.write, previousExit = process.exitCode;
+  // SAFETY: test-only capture of CLI output streams.
+  process.stdout.write = ((c: string) => { stdout += c; return true; }) as typeof process.stdout.write;
+  // SAFETY: test-only capture of CLI output streams.
+  process.stderr.write = ((c: string) => { stderr += c; return true; }) as typeof process.stderr.write;
+  try {
+    process.exitCode = 0;
+    await fn();
+    return { stdout, stderr, exitCode: Number(process.exitCode ?? 0) };
+  } finally {
+    process.stdout.write = originalOut; process.stderr.write = originalErr; process.exitCode = previousExit ?? 0;
+  }
+}
 
 describe("vault-sync", () => {
   test("writes an index and one page per claim, then only changes what changed", async () => {
@@ -209,5 +249,109 @@ describe("vault-sync", () => {
     } finally {
       process.stdout.write = originalOut; process.stderr.write = originalErr; process.exitCode = previousExit ?? 0;
     }
+  });
+});
+
+describe("vault-sync locking", () => {
+  test("a second sync of the same folder waits for the first instead of interleaving", async () => {
+    const out = join(temp(), "kb");
+    const slow = new HeldExports(pages([claim("a", "One")]));
+    const first = sync(slow).sync(scope, out);
+    await slow.started;
+    const second = await sync(new PagedExports(pages([claim("b", "Two")]))).sync(scope, out);
+    expect(!second.ok && second.error.code).toBe("sync_running");
+    slow.release();
+    const done = await first;
+    expect(done.ok && done.value.written).toBe(2);
+    expect(existsSync(join(out, SYNC_LOCK_FILE))).toBe(false);
+
+    const after = await sync(new PagedExports(pages([claim("b", "Two")]))).sync(scope, out);
+    expect(after.ok && after.value).toMatchObject({ written: 2, removed: 1 });
+  });
+
+  test("a lock left by a crashed run is reclaimed once it is stale", async () => {
+    const out = join(temp(), "kb");
+    await sync(new PagedExports(pages([claim("a", "One")]))).sync(scope, out);
+    writeFileSync(join(out, SYNC_LOCK_FILE), JSON.stringify({ pid: 1, createdAt: new Date(Date.now() - 60_000).toISOString() }));
+    const fresh = await sync(new PagedExports(pages([claim("a", "One")]))).sync(scope, out);
+    expect(!fresh.ok && fresh.error.code).toBe("sync_running");
+    writeFileSync(join(out, SYNC_LOCK_FILE), JSON.stringify({ pid: 1, createdAt: new Date(Date.now() - 31 * 60_000).toISOString() }));
+    const reclaimed = await sync(new PagedExports(pages([claim("a", "One")]))).sync(scope, out);
+    expect(reclaimed.ok && reclaimed.value.unchanged).toBe(2);
+    expect(existsSync(join(out, SYNC_LOCK_FILE))).toBe(false);
+  });
+
+  test("a new folder holding only a crashed run's lock is still the sync's to fill", async () => {
+    const out = join(temp(), "kb");
+    mkdirSync(out);
+    writeFileSync(join(out, SYNC_LOCK_FILE), JSON.stringify({ pid: 1, createdAt: new Date(Date.now() - 31 * 60_000).toISOString() }));
+    const result = await sync(new PagedExports(pages([claim("a", "One")]))).sync(scope, out);
+    expect(result.ok && result.value.written).toBe(2);
+  });
+
+  test("never takes the lock through a symlinked folder", async () => {
+    const base = temp();
+    const target = join(base, "elsewhere");
+    mkdirSync(target);
+    const out = join(base, "kb");
+    symlinkSync(target, out);
+    const result = await sync(new PagedExports(pages([claim("a", "One")]))).sync(scope, out);
+    expect(!result.ok && result.error.code).toBe("invalid_input");
+    expect(readdirSync(target)).toEqual([]);
+  });
+});
+
+describe("vault-sync on a schedule", () => {
+  const ok = (): Result<VaultSyncSummary, TransferError> => ({ ok: true, value: { out: "o", claims: 1, omitted: 0, completeness: "complete", written: 0, unchanged: 2, removed: 0 } });
+  const failed = (code: TransferError["code"]): Result<VaultSyncSummary, TransferError> => ({ ok: false, error: { code } });
+
+  test("keeps going past failures a later run can get past, and stops on ones that need someone", async () => {
+    const outcomes = [ok(), failed("unavailable"), failed("sync_running"), ok(), failed("unauthorized"), ok()];
+    const seen: Result<VaultSyncSummary, TransferError>[] = [];
+    const waits: number[] = [];
+    const stopped = await syncOnSchedule(async () => outcomes.shift()!, { everyMs: 300_000, signal: new AbortController().signal, sleep: async (ms) => { waits.push(ms); }, onResult: (r) => seen.push(r) });
+    expect(stopped?.code).toBe("unauthorized");
+    expect(seen).toHaveLength(5);
+    expect(waits).toEqual([300_000, 300_000, 300_000, 300_000]);
+  });
+
+  test("stops between runs when asked to", async () => {
+    const stop = new AbortController();
+    let runs = 0;
+    const stopped = await syncOnSchedule(async () => { runs++; return ok(); }, { everyMs: 1, signal: stop.signal, sleep: async () => { if (runs === 3) stop.abort(); }, onResult: () => {} });
+    expect(stopped).toBeUndefined();
+    expect(runs).toBe(3);
+  });
+
+  test("the CLI refuses an interval outside 5 minutes to a day", async () => {
+    const endpoint = "http://127.0.0.1:9";
+    const command = createTransferCommand({ credentials: credentialsFor(endpoint, () => "a".repeat(64)), gateway: () => new PagedExports(pages([claim("a", "One")])) });
+    for (const every of ["4", "1441", "five", "5.5", "-5"]) {
+      const { stderr, exitCode } = await captured(() => runCommand(command, { rawArgs: ["vault-sync", "--project", "demo", "--out", join(temp(), "kb"), "--profile", "agent", "--endpoint", endpoint, "--every", every] }));
+      expect(JSON.parse(stderr).error.code).toBe("invalid_input");
+      expect(exitCode).toBe(1);
+    }
+  });
+
+  test("the CLI logs one line per run, reads the credential each run, and stops when it is revoked", async () => {
+    const endpoint = "http://127.0.0.1:9";
+    const tokens = ["a".repeat(64), "b".repeat(64), undefined];
+    let current = 0;
+    const used: string[] = [];
+    const out = join(temp(), "kb");
+    const command = createTransferCommand({
+      credentials: credentialsFor(endpoint, () => tokens[current]),
+      gateway: (_origin, agent) => { used.push(agent); return new PagedExports(pages([claim("a", "One")])); },
+      sleep: async (ms) => { expect(ms).toBe(5 * 60_000); current++; },
+    });
+    const { stdout, stderr, exitCode } = await captured(() => runCommand(command, { rawArgs: ["vault-sync", "--project", "demo", "--out", out, "--profile", "agent", "--endpoint", endpoint, "--every", "5"] }));
+    const lines = stdout.trim().split("\n").map((l) => JSON.parse(l));
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toMatchObject({ claims: 1, written: 2 });
+    expect(lines[1]).toMatchObject({ claims: 1, unchanged: 2 });
+    expect(Number.isFinite(Date.parse(lines[0].at))).toBe(true);
+    expect(used).toEqual(["a".repeat(64), "b".repeat(64)]);
+    expect(JSON.parse(stderr).error.code).toBe("credential_unavailable");
+    expect(exitCode).toBe(1);
   });
 });

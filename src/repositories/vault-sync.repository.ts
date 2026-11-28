@@ -1,10 +1,15 @@
-import { lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, rmdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Result } from "../capture/types";
+import { LockBusyError, withExclusiveLock } from "../lib/lockfile";
 import { isWithin } from "../lib/path-safety";
 import { validVaultID, type VaultError } from "./vault.repository";
 
 export const SYNC_STATE_FILE = ".kb-vault-sync.json";
+/** Held while a sync runs, so a scheduled run and a manual one never interleave. */
+export const SYNC_LOCK_FILE = ".kb-vault-sync.lock";
+/** A sync of the largest export finishes well within this; an older lock is a crashed run's. */
+const SYNC_LOCK_STALE_MS = 30 * 60 * 1000;
 
 export type SyncState = {
   version: "kb-vault-sync-1";
@@ -13,9 +18,15 @@ export type SyncState = {
   files: string[];
 };
 export type WriteOutcome = "written" | "unchanged";
+export type SyncFolderError = VaultError | { code: "busy" };
 
 /** A folder that vault sync owns. It never touches a file it did not write. */
 export interface SyncFolder {
+  /**
+   * Runs fn while holding the folder's lock. Another sync of the same folder
+   * in progress gives busy, and fn does not run.
+   */
+  exclusive<T>(fn: () => Promise<T>): Promise<Result<T, SyncFolderError>>;
   open(): Promise<Result<SyncState | undefined, VaultError>>;
   /** Whether anything (file, folder or link) is at a sync path. */
   occupied(path: string): Promise<Result<boolean, VaultError>>;
@@ -74,6 +85,30 @@ export class FileSyncFolder implements SyncFolder {
     }
   }
 
+  async exclusive<T>(fn: () => Promise<T>): Promise<Result<T, SyncFolderError>> {
+    let existed: boolean;
+    try {
+      // The lock is created inside the folder, so it must not be a link.
+      if (lstatSync(this.dir).isSymbolicLink()) return fail("path_unsafe");
+      existed = true;
+    } catch (e) {
+      if (errno(e) !== "ENOENT") return fail("unreadable");
+      existed = false;
+    }
+    try {
+      const value = await withExclusiveLock(join(this.dir, SYNC_LOCK_FILE), fn, { staleMs: SYNC_LOCK_STALE_MS, retries: 1, retryMs: 50 });
+      return { ok: true, value };
+    } catch (e) {
+      if (e instanceof LockBusyError) return { ok: false, error: { code: "busy" } };
+      return fail("unreadable");
+    } finally {
+      // A first sync that failed leaves no folder behind, as before locking.
+      if (!existed) {
+        try { if (readdirSync(this.dir).length === 0) rmdirSync(this.dir); } catch { /* best effort */ }
+      }
+    }
+  }
+
   async open(): Promise<Result<SyncState | undefined, VaultError>> {
     try {
       let entries: string[] | undefined;
@@ -89,7 +124,7 @@ export class FileSyncFolder implements SyncFolder {
         // SAFETY: the service revalidates scope and every listed path.
         return { ok: true, value: parsed as SyncState };
       }
-      if (entries && entries.length > 0) return fail("output_exists");
+      if (entries && entries.some((e) => e !== SYNC_LOCK_FILE)) return fail("output_exists");
       // Nothing is created until the export has been read, so a failed first
       // sync leaves no folder behind and can simply be retried.
       return { ok: true, value: undefined };

@@ -27,8 +27,8 @@ Status as of 2026-11-27. Items are in priority order within each tier. Linear tr
 
 ## Tier 1: people read the same knowledge in Obsidian
 
-1. **`kb remote export --vault <dir>`**: render published memory (verified claims, lessons, decisions, with their citations) as Markdown pages with YAML frontmatter and wikilinks in a read-only `remote/` folder of a vault. Deterministic output, so reruns only change what changed. Builds on the existing `/v1/exports`.
-2. **Scheduled sync** of that export, so the vault stays current without manual runs.
+1. **Read-only Obsidian view** (done, kb#22): `kb transfer vault-sync` renders the memory a client may see as Markdown pages with provenance front matter, tags and wikilinks in a folder of a vault. Output is deterministic, so reruns only change what changed, and claim text is rendered inert.
+2. **Scheduled sync** (done): `vault-sync --every <minutes>` keeps the view current and logs one line per run, and the [migration runbook](runbooks/migration.md#keep-the-view-current) has launchd and systemd timers for running it unattended. A folder lock keeps two syncs from interleaving.
 3. **From notes back to memory:** submit a selected vault page as a candidate (the import path from kb#10), so a person can correct memory from Obsidian and the owner adjudicates it like any other candidate.
 
 ## Tier 1: security hardening
