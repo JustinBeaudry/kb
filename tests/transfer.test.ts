@@ -8,6 +8,7 @@ import type { CaptureError, CredentialStore, Result } from "../src/capture/types
 import { createTransferCommand } from "../src/commands/transfer";
 import { profileAccount } from "../src/services/remote.service";
 import { HTTPTransferGateway } from "../src/gateways/memory.gateway";
+import { inertMarkdown, liveMarkdown, renderVaultPages, statusNote } from "../src/services/obsidian.service";
 import { FileBundleWriter, FileVaultRepository, type VaultEntry, type VaultError, type VaultRepository } from "../src/repositories/vault.repository";
 import {
   TransferService,
@@ -439,6 +440,57 @@ describe("portable export", () => {
     expect(provenance).toMatchObject({ exported_claim_id: "claim-verified", exported_revision: "rev-v", exported_status: "verified", exported_origin_trust: "collector_attested" });
     expect(provenance.exported_evidence[0]).toMatchObject({ artifact_id: "artifact-1", digest: "a".repeat(64) });
     for (const s of server.submissions) expect(Object.keys(s as object)).not.toContain("claim_status");
+  });
+
+  test("a synced Obsidian page, edited by a person, comes back as a candidate with only their text", async () => {
+    const vault = temp();
+    const tricky: ExportedClaim = { ...candidate, claim_id: "claim-tricky", text: "Run `bun test` in C:\\repo before <merge>, see ![chart](x.png) and ~~old~~.", evidence: verified.evidence };
+    const pages = renderVaultPages({ project_id: "demo" }, [verified, candidate, tricky], "complete");
+    for (const page of pages) {
+      mkdirSync(join(vault, "kb-memory", page.path, ".."), { recursive: true });
+      writeFileSync(join(vault, "kb-memory", page.path), page.content);
+    }
+    const page = (id: string) => pages.find((p) => p.content.includes(`claim_id: ${id}`))!;
+    const verifiedPath = "kb-memory/" + page("claim-verified").path;
+    // The person rewrites the verified claim's text in place, under kb's front matter.
+    writeFileSync(join(vault, verifiedPath), page("claim-verified").content.replace("Builds use bun.", "Builds use bun 1.3, not npm."));
+    const server = exportServer();
+    const svc = new TransferService(server, (p) => FileVaultRepository.open(p), (d) => new FileBundleWriter(d));
+    const files = [verifiedPath, "kb-memory/" + page("claim-candidate").path, "kb-memory/" + page("claim-tricky").path];
+    const manifest = await svc.preview({ vaultPath: vault, scope, fileIds: files });
+    if (!manifest.ok) throw Error(manifest.error.code);
+    expect(manifest.value.omissions).toEqual([]);
+    const report = await svc.apply(manifest.value, manifest.value.digest);
+    expect(report.ok).toBe(true);
+    const texts = [...server.claims.values()].map((c) => c.text).sort();
+    expect(texts).toEqual(["Builds use bun 1.3, not npm.", "Maybe flaky.", tricky.text].sort());
+    const corrected = [...server.claims.values()].find((c) => c.text.startsWith("Builds"))!;
+    expect(corrected.kind).toBe("fact");
+    expect(JSON.parse(corrected.evidence[0]!.locator).provenance).toMatchObject({ exported_claim_id: "claim-verified", exported_revision: "rev-v", exported_status: "verified" });
+    for (const c of server.claims.values()) {
+      expect(c.text).not.toContain("[!warning]");
+      expect(c.text).not.toContain("## Evidence");
+    }
+  });
+
+  test("text a person wrote that looks like kb's callout or evidence list is kept", async () => {
+    const vault = temp();
+    const own = `${statusNote("candidate")}\n\nKeep both.\n\n## Evidence\n\n- my notes`;
+    const lookalike: ExportedClaim = { ...verified, claim_id: "claim-lookalike", text: own, evidence: [] };
+    const [page] = renderVaultPages({ project_id: "demo" }, [lookalike], "complete").filter((p) => p.path.startsWith("claims/"));
+    mkdirSync(join(vault, "kb-memory", page!.path, ".."), { recursive: true });
+    writeFileSync(join(vault, "kb-memory", page!.path), page!.content);
+    const server = exportServer();
+    const svc = new TransferService(server, (p) => FileVaultRepository.open(p), (d) => new FileBundleWriter(d));
+    const manifest = await svc.preview({ vaultPath: vault, scope, fileIds: ["kb-memory/" + page!.path] });
+    if (!manifest.ok) throw Error(manifest.error.code);
+    const report = await svc.apply(manifest.value, manifest.value.digest);
+    expect(report.ok).toBe(true);
+    expect([...server.claims.values()].map((c) => c.text)).toEqual([own]);
+  });
+
+  test("kb's escaping on synced pages is undone exactly", () => {
+    for (const text of ["plain", "a `b` ~c~ <d> ![e](f) \\ \\` \\[", "!\\[ already escaped"]) expect(liveMarkdown(inertMarkdown(text))).toBe(text);
   });
 
   test("export resumes from the last completed chunk", async () => {
