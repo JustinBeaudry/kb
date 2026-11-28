@@ -214,7 +214,7 @@ func ValidCodeChallenge(c string) bool {
 		return false
 	}
 	for _, r := range c {
-		if !(r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' || r == '_') {
+		if !alnumOr(r, "-_") {
 			return false
 		}
 	}
@@ -262,9 +262,14 @@ func validScopeProject(p string) bool {
 		return false
 	}
 	for _, r := range p {
-		if !(r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '.' || r == '-' || r == '_') {
+		if !alnumOr(r, ".-_") {
 			return false
 		}
 	}
 	return true
+}
+
+// alnumOr reports whether r is an ASCII letter or digit, or one of extra.
+func alnumOr(r rune, extra string) bool {
+	return r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || strings.ContainsRune(extra, r)
 }

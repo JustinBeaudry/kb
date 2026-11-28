@@ -48,6 +48,18 @@ Drill it once on a test instance: rotate to a new key, confirm a challenge signe
 
 Host access is a separate authority. Anyone who can run `kb-admin` on the host can already enroll clients and adjudicate, so `owner-rotate` adds no power the host did not have. Protect host access as you would the key itself.
 
+## Approving an app over OAuth
+
+An app that connects by URL (a hosted MCP connector) opens kb's approval page in your browser. The page shows the host it will send you back to, the name the app gives itself (not verified), what it asks for, and an eight-character approval code. Nothing is granted from the page.
+
+1. Make sure you started this connection yourself, and that the host on the page is the app you expect. If not, close the page.
+2. On the service host, `kb-admin oauth-requests` lists pending requests as JSON, with their codes, hosts and requested scope.
+3. Approve with `kb-admin oauth-approve --code CODE --project LIST --capabilities LIST [--ttl 720h]`. You may grant fewer projects or capabilities than the app asked for, never more, and only agent capabilities. The grant lasts `--ttl`, 30 days by default and 90 at most.
+4. Or refuse with `kb-admin oauth-deny --code CODE`. The page returns the browser to the app with `access_denied`.
+5. The page notices your decision within a few seconds and returns you to the app. A request you leave alone expires after 10 minutes.
+
+Until token exchange ships (phase 2c), an approval produces a code the app cannot yet redeem, so no client can use this flow end to end.
+
 ## Access audit trail
 
 The api counts every authorization decision an authenticated client causes: one row per client, project, capability and UTC day, with allowed and denied counts and the first and last time seen. It records counts and times only, never request content, queries, bearers or source addresses. Rows are buffered in memory and written to the graph every 30 seconds and on clean shutdown, and rows older than 400 days are pruned.

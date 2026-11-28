@@ -106,6 +106,23 @@ An agent, its host or its tools are fully controlled by an attacker who holds a 
 
 Residual: a flood can fill the pending cap for up to 24 hours and block new registrations. There is no per-source limit, because kb takes nothing about the caller from proxy headers. Bearer clients are unaffected.
 
+### OAuth grant requests
+
+`GET /oauth/authorize` also takes no credential. It records a pending request and shows a page with an approval code; nothing is granted until the owner approves the code on the host with `kb-admin oauth-approve`, over the owner-only socket.
+
+| Defense | Test |
+| --- | --- |
+| A browser click grants nothing: only the owner, on the host, approves or denies a request, and only with an enrolled owner. | `TestOAuthHostDecisionsNeedAnEnrolledOwner`, `TestHostAdminOAuthCommandsReachTheGrantService` |
+| The owner's grant can narrow the request's projects and capabilities, never widen them, and holds agent capabilities only. Grants last at most 90 days. | `TestOAuthGrantNeverWidensTheRequest` |
+| Until the client and redirect URI match a registration exactly, errors are shown on kb's page and never redirected, so kb is no open redirect. | `TestOAuthAuthorizeNeverRedirectsToAnUnregisteredURI`, `TestOAuthAuthorizeNeverRedirectsBeforeTheRedirectURIIsKnown` |
+| PKCE S256, `state` and a `resource` naming kb's own `/mcp` are required. Protocol errors after that reach the client with `state` and `iss` (RFC 9207). | `TestOAuthAuthorizeRedirectsProtocolErrors`, `TestOAuthAuthorizeRedirectsClientErrorsWithStateAndIssuer` |
+| The page's poll answers only the browser that opened the request: a random cookie (`HttpOnly`, `Secure`, `SameSite=Strict`, scoped to that request's poll path) whose digest is compared in constant time. The outcome is released once, and the authorization code is stored only as a digest and lives 60 seconds. | `TestOAuthApprovedRequestReleasesOneCodeToItsBrowser`, `TestOAuthPollAnswersOnlyTheBrowserThatStartedTheRequest`, `TestOAuthRequestsRealGraph` |
+| A denied or expired request returns the browser with `error=access_denied` and the original `state`. | `TestOAuthDeniedOrExpiredRequestRedirectsAccessDenied` |
+| The page cannot be framed, runs no inline script, sends no referrer and loads nothing from elsewhere. The client's name is escaped and marked unverified; the page names the host the browser will return to. | `TestOAuthAuthorizeShowsALockedDownApprovalPage` |
+| At most 64 requests are pending, each expiring after 10 minutes. Two live requests never share an approval code. | `TestOAuthAuthorizeCapsPendingRequests`, `TestOAuthRequestsRealGraph` |
+
+Residual: a flood can fill the pending cap for up to 10 minutes, so the owner's own request waits. Owners should approve only a code from a request they started, for the host they expect.
+
 ### Owner key compromise
 
 Whoever holds the owner's Nostr key can publish anything. The key never reaches the service; signatures are verified against the enrolled public key (`TestNostrVerifierChecksOwnerDigestSignature`), and each adjudication binds the exact candidate head and digest (`TestOwnerAdjudicationRequiresExactHeadAndDigest`). A lost or stolen key is replaced on the host with `kb-admin owner-rotate`: signatures by the old key stop verifying at once, and the retired key can never be enrolled again (`TestReplaceOwnerKeyRetiresTheOldKeyForGood`, and the owner key replacement case in `TestIdentityRealGraph`). The steps, including reviewing what the old key approved, are in [credentials](runbooks/credentials.md#owner-key-loss-or-theft).

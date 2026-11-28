@@ -45,10 +45,10 @@ Client ID Metadata Documents (the newer MCP registration path) follow in phase 4
 The owner approves on the host:
 
 ```sh
-kb-admin oauth-approve CODE --project demo --capability retrieval:read --ttl 30d
+kb-admin oauth-approve --code CODE --project demo --capabilities retrieval:read --ttl 720h
 ```
 
-The command runs over the existing owner-only Unix socket. The owner chooses the final grant: projects and capabilities may be narrowed from the request and never widened beyond it, and `--ttl` is capped at 90 days. `kb-admin oauth-deny CODE` refuses it. The page polls the request. Once the owner approves, the poll returns the registered redirect URI with the code and the original `state`, and the page sends the browser there. Once the owner denies, or the request expires, it returns the same redirect URI with `error=access_denied` and `state` (RFC 6749 §4.1.2.1), so the connector stops waiting.
+The command runs over the existing owner-only Unix socket. The owner chooses the final grant: projects and capabilities may be narrowed from the request and never widened beyond it, and `--ttl` is capped at 90 days. `kb-admin oauth-deny --code CODE` refuses it. (As built in 2b: flags rather than a positional code, matching the other commands, and `--ttl` is a Go duration.) The page polls the request. Once the owner approves, the poll returns the registered redirect URI with the code and the original `state`, and the page sends the browser there. Once the owner denies, or the request expires, it returns the same redirect URI with `error=access_denied` and `state` (RFC 6749 §4.1.2.1), so the connector stops waiting.
 
 The poll answers only the browser that opened the request. `/oauth/authorize` sets a random request cookie (`HttpOnly`, `Secure`, `SameSite=Strict`, path `/oauth/requests/`), and the service keeps only its digest with the request. A poll without the matching cookie gets `404`, and the redirect URL is released once. So a code reaches the browser that started the flow, and the client still has to present the code verifier and the same redirect URI to use it.
 

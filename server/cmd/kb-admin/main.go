@@ -49,6 +49,14 @@ owner key runbook before running it.
 duration between 1h and 8784h (366 days), for example 2160h for 90 days. Without
 it the bearer does not expire. rotate issues a fresh bearer for an active client
 with the same grants; the old bearer stops working at once. list shows ExpiresAt.
+kb-admin oauth-requests
+kb-admin oauth-approve --code CODE --project LIST --capabilities LIST [--ttl DURATION]
+kb-admin oauth-deny --code CODE
+An app connecting over OAuth shows an approval page with a code and the address
+it will return to. oauth-requests lists the requests waiting for you. Approve
+only a request you started, for the address you expect. The grant may narrow
+the projects and capabilities the app asked for, never widen them; agent
+capabilities only. --ttl is a Go duration up to 2160h (90 days), default 720h.
 kb-admin list [--limit 50] [--after ID]
 kb-admin access [--client-id ID] [--project PROJECT] [--since YYYY-MM-DD] [--limit 100] [--after CURSOR]
 Prints the access audit trail: per client, project, capability and UTC day, how
@@ -159,6 +167,11 @@ func safeError(err error) string {
 	}
 }
 
+type hostOAuth interface {
+	ListRequestsHost(context.Context) ([]domain.OAuthRequest, error)
+	ApproveHost(ctx context.Context, code string, grant domain.OAuthScope, ttl time.Duration) (domain.OAuthRequest, error)
+	DenyHost(ctx context.Context, code string) (domain.OAuthRequest, error)
+}
 type hostAccess interface {
 	ListHost(context.Context, domain.AccessQuery) (domain.AccessPage, error)
 }
@@ -185,6 +198,7 @@ type administration struct {
 	recovery     hostRecovery
 	decisions    hostDecisions
 	access       hostAccess
+	oauth        hostOAuth
 }
 type adminFactory func(context.Context, bool) (administration, func(), error)
 
@@ -206,7 +220,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	}
 	if err != nil && len(args) > 0 {
 		switch args[0] {
-		case "setup", "enroll", "rotate", "revoke", "owner-rotate", "list", "access", "verify", "reject", "invalidate", "verify-check", "lesson-publish", "recover", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-request", "decision-sync", "decision-challenge", "decision-approve":
+		case "setup", "enroll", "rotate", "revoke", "owner-rotate", "oauth-requests", "oauth-approve", "oauth-deny", "list", "access", "verify", "reject", "invalidate", "verify-check", "lesson-publish", "recover", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-request", "decision-sync", "decision-challenge", "decision-approve":
 			return commandError{command: args[0], cause: err}
 		}
 	}
@@ -228,13 +242,13 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 		return domain.ErrUnavailable
 	}
 	switch command {
-	case "setup", "enroll", "rotate", "revoke", "owner-rotate", "list", "access", "verify", "reject", "invalidate", "verify-check", "lesson-publish", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-request", "decision-sync", "decision-challenge", "decision-approve":
+	case "setup", "enroll", "rotate", "revoke", "owner-rotate", "oauth-requests", "oauth-approve", "oauth-deny", "list", "access", "verify", "reject", "invalidate", "verify-check", "lesson-publish", "delete", "deletion-status", "policy", "policy-update", "journal-init", "journal-check", "decisions", "decision-request", "decision-sync", "decision-challenge", "decision-approve":
 	default:
 		return domain.ErrInvalidInput
 	}
 	flags := flag.NewFlagSet(command, flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	var ownerID, key, project, role, capabilities, clientID, after, inputPath, ttlText, since string
+	var ownerID, key, project, role, capabilities, clientID, after, inputPath, ttlText, since, code string
 	var fd, limit int
 	var preview bool
 	switch command {
@@ -253,6 +267,14 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 		flags.StringVar(&ttlText, "ttl", "", "credential lifetime")
 	case "owner-rotate":
 		flags.StringVar(&key, "owner-public-key", "", "new public signing key")
+	case "oauth-requests":
+	case "oauth-approve":
+		flags.StringVar(&code, "code", "", "approval code shown on the page")
+		flags.StringVar(&project, "project", "", "comma-separated projects to grant")
+		flags.StringVar(&capabilities, "capabilities", "", "comma-separated capabilities to grant")
+		flags.StringVar(&ttlText, "ttl", "", "grant lifetime")
+	case "oauth-deny":
+		flags.StringVar(&code, "code", "", "approval code shown on the page")
 	case "rotate":
 		flags.StringVar(&clientID, "client-id", "", "client ID")
 		flags.StringVar(&ttlText, "ttl", "", "credential lifetime")
@@ -364,7 +386,7 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 		}
 	}
 	if route != nil {
-		request := domain.HostAdminRequest{Version: 1, Action: command, Options: domain.HostAdminOptions{OwnerID: ownerID, PublicKey: key, ProjectID: project, Role: role, Capabilities: capabilities, ClientID: clientID, After: after, Limit: limit, Preview: preview, TTL: ttlText, Since: since}}
+		request := domain.HostAdminRequest{Version: 1, Action: command, Options: domain.HostAdminOptions{OwnerID: ownerID, PublicKey: key, ProjectID: project, Role: role, Capabilities: capabilities, ClientID: clientID, After: after, Limit: limit, Preview: preview, TTL: ttlText, Since: since, Code: code}}
 		var input any
 		switch {
 		case lifecycleCommand(command) && command != "journal-init" && command != "journal-check":
@@ -441,6 +463,25 @@ func runAdminRouted(ctx context.Context, args []string, output io.Writer, stdin 
 		return err
 	case "revoke":
 		return admin.identity.RevokeHost(ctx, clientID)
+	case "oauth-requests", "oauth-approve", "oauth-deny":
+		if admin.oauth == nil {
+			return domain.ErrUnavailable
+		}
+		var result any
+		switch command {
+		case "oauth-requests":
+			var requests []domain.OAuthRequest
+			requests, err = admin.oauth.ListRequestsHost(ctx)
+			result = append([]domain.OAuthRequest{}, requests...)
+		case "oauth-approve":
+			result, err = admin.oauth.ApproveHost(ctx, code, domain.OAuthScope{Projects: splitList(project), Capabilities: splitList(capabilities)}, ttl)
+		default:
+			result, err = admin.oauth.DenyHost(ctx, code)
+		}
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(output).Encode(result)
 	case "owner-rotate":
 		change, err := admin.identity.ReplaceOwnerKeyHost(ctx, key)
 		if err != nil {
@@ -521,7 +562,7 @@ func composeAdministration(ctx context.Context, withObjects bool) (administratio
 		_ = store.Close(closeCtx)
 	}
 	identities := repository.NewIdentityRepository(store)
-	admin := administration{identity: service.NewIdentityService(store, identities, gateway.NostrIdentity{}), access: service.NewAccessService(store, repository.NewAccessRepository(store), identities, time.Now, nil)}
+	admin := administration{identity: service.NewIdentityService(store, identities, gateway.NostrIdentity{}), access: service.NewAccessService(store, repository.NewAccessRepository(store), identities, time.Now, nil), oauth: service.NewOAuthService(store, repository.NewOAuthRepository(store), time.Now).WithGrants("", identities)}
 	if withObjects {
 		objectConfig, err := platform.LoadObjectConfig()
 		if err != nil {
@@ -598,4 +639,15 @@ func protectedDescriptor(ctx context.Context, fd int) (*os.File, error) {
 		return nil, domain.ErrInvalidInput
 	}
 	return file, nil
+}
+
+// splitList splits a comma-separated flag, dropping empty entries.
+func splitList(s string) []string {
+	out := []string{}
+	for _, part := range strings.Split(s, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }

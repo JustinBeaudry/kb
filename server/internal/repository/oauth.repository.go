@@ -100,9 +100,12 @@ const oauthRequestFields = `r.id, r.approvalCode, r.clientID, r.clientName, r.re
 
 // AddRequest stores a pending grant request unless maxPending pending requests
 // are unexpired (ErrBudget) or an unexpired request already holds its approval
-// code (ErrConflict).
+// code (ErrConflict). The requests limit node is written first, so concurrent
+// requests check and create one at a time.
 func (r *OAuthRepository) AddRequest(ctx context.Context, tx domain.Tx, req domain.OAuthRequest, maxPending int) error {
-	rows, err := r.query(ctx, tx, `OPTIONAL MATCH (p:OAuthRequest) WHERE p.status = 'pending' AND p.expiresAt > $created
+	rows, err := r.query(ctx, tx, `MERGE (l:OAuthLimit {id:'requests'}) SET l.at = $created
+WITH l
+OPTIONAL MATCH (p:OAuthRequest) WHERE p.status = 'pending' AND p.expiresAt > $created
 WITH count(p) AS pending
 OPTIONAL MATCH (c:OAuthRequest {approvalCode:$code}) WHERE c.expiresAt > $created
 WITH pending, count(c) AS clash
@@ -183,7 +186,8 @@ func (r *OAuthRepository) ListPendingRequests(ctx context.Context, tx domain.Tx,
 // DecideRequest records the owner's decision on a pending, unexpired request.
 // A request decided already, or expired, is ErrConflict.
 func (r *OAuthRepository) DecideRequest(ctx context.Context, tx domain.Tx, id string, status domain.OAuthRequestStatus, granted domain.OAuthScope, ttl time.Duration, now time.Time) error {
-	rows, err := r.query(ctx, tx, `MATCH (r:OAuthRequest {id:$id}) WHERE r.status = 'pending' AND r.expiresAt > $now
+	rows, err := r.query(ctx, tx, `MATCH (r:OAuthRequest {id:$id}) SET r.lockedAt = timestamp()
+WITH r WHERE r.status = 'pending' AND r.expiresAt > $now
 SET r.status = $status, r.grantedProjects = $projects, r.grantedCapabilities = $capabilities, r.grantTTL = $ttl
 RETURN r.id`, map[string]any{"id": id, "now": now.UTC().UnixNano(), "status": string(status), "projects": nonNil(granted.Projects), "capabilities": nonNil(granted.Capabilities), "ttl": int64(ttl)})
 	if err != nil {
@@ -203,7 +207,10 @@ func (r *OAuthRepository) ReleaseRequest(ctx context.Context, tx domain.Tx, id, 
 	if !codeExpires.IsZero() {
 		expires = codeExpires.UTC().UnixNano()
 	}
-	rows, err := r.query(ctx, tx, `MATCH (r:OAuthRequest {id:$id}) WHERE r.released = false
+	// Writing the node first takes its lock, so the released check below sees
+	// any concurrent release that committed first.
+	rows, err := r.query(ctx, tx, `MATCH (r:OAuthRequest {id:$id}) SET r.lockedAt = timestamp()
+WITH r WHERE r.released = false
 SET r.released = true, r.codeDigest = $digest, r.codeExpiresAt = $expires
 RETURN r.id`, map[string]any{"id": id, "digest": codeDigest, "expires": expires})
 	if err != nil {
