@@ -77,7 +77,7 @@ An attacker obtains a client bearer from a log, a terminal, a config file or the
 | A stolen bearer can never act as the owner. | `TestHostOwnerCannotAuthenticateAsBearer` |
 | Browsers cannot use a bearer against `/mcp`: any request with an `Origin` header is refused, which closes DNS rebinding and cross-site use. | `TestRemoteMCPRefusesUnauthenticatedAndMalformedRequests` |
 
-After a suspected theft: `kb-admin access --client-id ID` shows what the client touched per day, then `kb-admin rotate` or `revoke`. See [credentials](runbooks/credentials.md).
+After a suspected theft: `kb-admin access --client-id ID` shows what the client touched per day, then `kb-admin rotate` or `revoke`. Afterwards, `auth:revoked` or `auth:expired` rows for that client mean the stolen copy is still being tried. Well-formed bearers that name no client are counted under `*` as `auth:unknown`; requests with no bearer or a malformed one are refused by the public guard and appear only as `401` counts in request logs. See [credentials](runbooks/credentials.md).
 
 ### A compromised client
 
@@ -89,6 +89,7 @@ An agent, its host or its tools are fully controlled by an attacker who holds a 
 | It can write candidates and its own checkpoints, never verified knowledge, lessons, decisions or other clients' tasks. | `TestMemoryCandidatesRemainUntrustedAndRevalidate`, `TestCheckpointRejectsWrongTaskOwner` |
 | It cannot enroll, revoke, adjudicate or reach host administration. | `TestMCPToolCannotRequestOwnerCapability`, `TestOwnerAdjudicationRejectsClientAndVerifierAuthority`, `TestHostOwnerCannotAuthenticateAsBearer` |
 | Its activity is counted in the access audit trail, including denials. | `TestAccessAuditRecordsEachAuthenticatedRequestOnce` |
+| Once revoked or expired, its bearer is still counted when used, under its own client ID, so the owner can see a cut-off credential that is still in use. | `TestRefusedBearersAreAttributedInTheAccessAudit` |
 | Revoking it stops it at the next request. | `TestRevokedTokenFailsNextRequest` |
 | It cannot starve other clients: the public guard bounds the api to 8 requests a second and 8 in flight before any graph work, and each credential to half of that (kb#41). | `TestPublicGuardBoundsBurstAndRefillsEightPerSecond`, `TestPublicGuardGivesEachCredentialHalfTheCapacity` |
 
@@ -108,7 +109,7 @@ Evidence and backups are encrypted with age keyrings before upload, authenticate
 
 ## Open gaps
 
-1. **Failed authentication is not attributed.** Requests with a bad bearer appear only as `401` counts in request logs, not in the access audit trail. Add a bounded counter of failed attempts per source.
+1. **Failed authentication by source.** Refused bearers are counted per client, or as unknown, but not per source address. A guessing campaign shows as a rise in `auth:unknown`, not where it comes from. Decide whether a bounded per-source counter is worth the personal data it would hold.
 2. **Tool descriptions do not tell agents to treat stored text as data.** kb deliberately sends no instructions, but each retrieval tool's description could say that returned text is stored content, not instructions, without adding a server voice. Decide and test.
 3. **OAuth grants** (roadmap Tier 1) will add a new path to a bearer. Each grant must expire, be owner-approved with the owner's key, and appear in the access audit trail before it ships.
 4. **Owner key review tooling.** `owner-rotate` replaces the key, but finding everything a retired key approved is a manual review today. Add a host listing of owner judgments by signing key and time.

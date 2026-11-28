@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"slices"
 	"strings"
 	"time"
@@ -86,18 +87,28 @@ func TokenDigest(bearer string) string {
 }
 func (s *IdentityService) Authenticate(ctx context.Context, bearer string) (domain.Principal, error) {
 	if len(bearer) != 64 || strings.TrimSpace(bearer) != bearer {
+		domain.ObserveAuthFailure(ctx, "", domain.AccessAuthUnknown)
 		return domain.Principal{}, domain.ErrUnauthorized
 	}
 	var p domain.Principal
 	err := s.tx.Within(ctx, func(ctx context.Context, tx Tx) error {
 		record, err := s.repo.FindToken(ctx, tx, TokenDigest(bearer))
+		if errors.Is(err, domain.ErrUnauthorized) {
+			domain.ObserveAuthFailure(ctx, "", domain.AccessAuthUnknown)
+		}
 		if err != nil {
 			return err
 		}
-		if record.RevokedAt != nil || record.Principal.Role == domain.RoleOwner {
+		if record.Principal.Role == domain.RoleOwner {
+			domain.ObserveAuthFailure(ctx, "", domain.AccessAuthUnknown)
+			return domain.ErrUnauthorized
+		}
+		if record.RevokedAt != nil {
+			domain.ObserveAuthFailure(ctx, record.Principal.ClientID, domain.AccessAuthRevoked)
 			return domain.ErrUnauthorized
 		}
 		if record.ExpiresAt != nil && !s.now().Before(*record.ExpiresAt) {
+			domain.ObserveAuthFailure(ctx, record.Principal.ClientID, domain.AccessAuthExpired)
 			return domain.ErrUnauthorized
 		}
 		p = record.Principal
@@ -216,7 +227,9 @@ func (s *IdentityService) Revoke(ctx context.Context, owner domain.Principal, id
 	})
 }
 func validateEnrollment(input EnrollInput) error {
-	if strings.HasPrefix(input.ClientID, ownerActorPrefix) || (input.ClientID != "" && domain.ValidateIDs(input.ClientID) != nil) {
+	// AccessOutsideGrant stands for an unknown client in the access audit
+	// trail, so no client may take it as its ID.
+	if strings.HasPrefix(input.ClientID, ownerActorPrefix) || input.ClientID == domain.AccessOutsideGrant || (input.ClientID != "" && domain.ValidateIDs(input.ClientID) != nil) {
 		return domain.ErrInvalidInput
 	}
 	if !validTTL(input.TTL) {
@@ -341,6 +354,7 @@ func (s *IdentityService) RotateHost(ctx context.Context, id string, ttl time.Du
 	}
 	return c, nil
 }
+
 // ReplaceOwnerKeyHost replaces the owner's public signing key on the service
 // host, for a lost or stolen key. Signatures by the old key stop verifying at
 // once, so pending decision challenges signed with it fail. The old key is

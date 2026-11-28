@@ -13,6 +13,16 @@ import (
 // client write arbitrary strings, and unbounded rows, into the audit trail.
 const AccessOutsideGrant = "*"
 
+// Capabilities under which refused bearers are counted. A bearer that names a
+// known client is counted under that client, so the owner sees a revoked or
+// expired credential still being used; one that names no client is counted
+// under AccessOutsideGrant. Only the reason is kept, never the bearer.
+const (
+	AccessAuthRevoked = "auth:revoked"
+	AccessAuthExpired = "auth:expired"
+	AccessAuthUnknown = "auth:unknown"
+)
+
 // accessKeySeparator never appears in an accepted identifier.
 const accessKeySeparator = "\x1f"
 
@@ -169,6 +179,15 @@ func (c *AccessCollector) denyAll() {
 	for k := range c.seen {
 		c.seen[k] = false
 	}
+}
+
+// ObserveAuthFailure records one refused bearer on the request's collector.
+// An empty clientID means the bearer named no client.
+func ObserveAuthFailure(ctx context.Context, clientID, reason string) {
+	if clientID == "" {
+		clientID = AccessOutsideGrant
+	}
+	ObserveAccess(ctx, Principal{ClientID: clientID}, reason, nil, false)
 }
 
 // ObserveAccess records one authorization decision on the request's collector.

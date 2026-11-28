@@ -390,6 +390,35 @@ func TestRotateRequiresPersistedOwner(t *testing.T) {
 	assert.ErrorIs(t, err, domain.ErrForbidden)
 }
 
+func TestRefusedBearersAreAttributedInTheAccessAudit(t *testing.T) {
+	s, _ := newIdentityFixture()
+	clock := time.Date(2026, 11, 27, 12, 0, 0, 0, time.UTC)
+	s.now = func() time.Time { return clock }
+	_, err := s.Setup(t.Context(), OwnerIdentity{ID: "owner-public", PublicKey: ownerNostrPublicKey}, EnrollInput{ClientID: "client", Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"status:read"}})
+	require.NoError(t, err)
+	revoked, err := s.EnrollHost(t.Context(), EnrollInput{ClientID: "revoked", Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"status:read"}})
+	require.NoError(t, err)
+	expired, err := s.EnrollHost(t.Context(), EnrollInput{ClientID: "expired", Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"status:read"}, TTL: time.Hour})
+	require.NoError(t, err)
+	require.NoError(t, s.RevokeHost(t.Context(), "revoked"))
+	clock = clock.Add(time.Hour)
+
+	attempt := func(bearer string) []domain.AccessObservation {
+		c := domain.NewAccessCollector()
+		_, err := s.Authenticate(domain.WithAccessCollector(t.Context(), c), bearer)
+		require.ErrorIs(t, err, domain.ErrUnauthorized)
+		return c.Observations()
+	}
+	assert.Equal(t, []domain.AccessObservation{{ClientID: "revoked", Capability: domain.AccessAuthRevoked}}, attempt(revoked.Bearer))
+	assert.Equal(t, []domain.AccessObservation{{ClientID: "expired", Capability: domain.AccessAuthExpired}}, attempt(expired.Bearer))
+	unknown := []domain.AccessObservation{{ClientID: domain.AccessOutsideGrant, Capability: domain.AccessAuthUnknown}}
+	assert.Equal(t, unknown, attempt(strings.Repeat("ab", 32)), "a bearer that names no client")
+	assert.Equal(t, unknown, attempt("short"), "a malformed bearer")
+
+	_, err = s.EnrollHost(t.Context(), EnrollInput{ClientID: domain.AccessOutsideGrant, Role: domain.RoleAgent, ProjectIDs: []string{"demo"}, Capabilities: []string{"status:read"}})
+	assert.ErrorIs(t, err, domain.ErrInvalidInput, "no client may take the unknown-client marker as its ID")
+}
+
 // Two more valid BIP-340 x-only keys: the x coordinates of 2G and 3G.
 const (
 	replacementOwnerKey = "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5"
