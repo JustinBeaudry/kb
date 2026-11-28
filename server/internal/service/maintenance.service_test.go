@@ -125,11 +125,16 @@ func TestMaintenanceLegacyUnknownRecordsRestoreOnlyServiceRoleKinds(t *testing.T
 	store := &maintenanceStore{
 		state: domain.MaintenanceState{Phase: "recovering", Fence: domain.MaintenanceFence{OperationID: "startup-x", Generation: 3}},
 		permits: []domain.OperationPermit{
-			{ID: "w", InstanceID: "worker-1", Kind: "worker", Generation: 2, Unknown: true},
-			{ID: "a", InstanceID: "api-1", Kind: "access-audit", Generation: 2, Unknown: true},
 			{ID: "s", InstanceID: "graph", Kind: "private-status", Generation: 2, Unknown: true},
 			{ID: "b", InstanceID: "graph", Kind: "backup-recovery", Generation: 2, Unknown: true},
 		},
+	}
+	// Every kind a worker or api process asks for (cmd/server, cmd/worker and
+	// the platform handlers) must come back as restored, or a restart while it
+	// was held leaves kb closed with no way to settle it.
+	holderKinds := []string{"access-audit", "api", "api-startup", "health", "sweep", "worker", "worker-startup"}
+	for _, kind := range holderKinds {
+		store.permits = append(store.permits, domain.OperationPermit{ID: "h-" + kind, InstanceID: "holder", Kind: kind, Generation: 2, Unknown: true})
 	}
 	s, err := service.NewMaintenanceService(ctx, store)
 	require.NoError(t, err)
@@ -139,7 +144,11 @@ func TestMaintenanceLegacyUnknownRecordsRestoreOnlyServiceRoleKinds(t *testing.T
 	for _, p := range restored {
 		ids = append(ids, p.ID)
 	}
-	assert.Equal(t, []string{"a", "w"}, ids)
+	want := []string{}
+	for _, kind := range holderKinds {
+		want = append(want, "h-"+kind)
+	}
+	assert.Equal(t, want, ids)
 }
 func TestMaintenanceSettleRestoredOnlyWhileClosed(t *testing.T) {
 	ctx := context.Background()

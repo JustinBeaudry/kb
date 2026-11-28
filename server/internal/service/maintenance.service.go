@@ -98,7 +98,7 @@ func randomOperationID() (string, error) {
 // control API, which offers no way to declare an outcome uncertain.
 func serviceRoleKind(kind string) bool {
 	switch kind {
-	case "api", "worker", "worker-startup", "sweep", "access-audit", "health":
+	case "api", "api-startup", "worker", "worker-startup", "sweep", "access-audit", "health":
 		return true
 	}
 	return false
