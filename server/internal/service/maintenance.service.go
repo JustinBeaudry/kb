@@ -307,7 +307,10 @@ func (s *MaintenanceService) WaitIdle(ctx context.Context) error {
 		s.mu.Lock()
 		running := 0
 		for _, p := range s.permits {
-			if !p.Unknown {
+			// A restored permit's holder may still be running from before an
+			// earlier restart, so it gets the drain too. Only an uncertain
+			// permit, whose holder can no longer finish it, is not waited on.
+			if !p.Unknown || p.Restored {
 				running++
 			}
 		}

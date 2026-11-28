@@ -193,6 +193,31 @@ func TestMaintenanceQuiesceRefusesNewWorkAndWaitsForRunning(t *testing.T) {
 		t.Fatal("WaitIdle did not return after the last Finish")
 	}
 }
+func TestMaintenanceShutdownDrainWaitsForRestoredButNotUncertainPermits(t *testing.T) {
+	ctx := context.Background()
+	s, store := newMaintenance(t)
+	openMaintenance(t, s)
+	p, err := s.Admit(ctx, "api-one", "api")
+	require.NoError(t, err)
+	uncertain, err := s.Admit(ctx, "graph", "private-status")
+	require.NoError(t, err)
+	require.NoError(t, s.MarkUnknown(ctx, uncertain))
+	s, err = service.NewMaintenanceService(ctx, store)
+	require.NoError(t, err)
+	s.Quiesce()
+	short, cancel := context.WithTimeout(ctx, 5*time.Millisecond)
+	t.Cleanup(cancel)
+	require.ErrorIs(t, s.WaitIdle(short), context.DeadlineExceeded, "a holder from before the restart may still be running")
+	done := make(chan error, 1)
+	go func() { done <- s.WaitIdle(ctx) }()
+	require.NoError(t, s.Finish(ctx, p))
+	select {
+	case err := <-done:
+		require.NoError(t, err, "the uncertain permit is not waited on")
+	case <-time.After(5 * time.Second):
+		t.Fatal("WaitIdle did not return after the restored holder finished")
+	}
+}
 func TestMaintenancePersistenceFailureNeverGrantsOrReopens(t *testing.T) {
 	ctx := context.Background()
 	s, store := newMaintenance(t)
