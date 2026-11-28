@@ -101,9 +101,13 @@ func (g *grantStoreFake) ExpiredGrants(_ context.Context, _ Tx, now time.Time, _
 type clientsFake struct {
 	ownerFake
 	clients map[string]ClientRecord
+	findErr error
 }
 
 func (c *clientsFake) FindToken(_ context.Context, _ Tx, digest string) (ClientRecord, error) {
+	if c.findErr != nil {
+		return ClientRecord{}, c.findErr
+	}
 	for _, r := range c.clients {
 		if r.TokenDigest == digest {
 			return r, nil
@@ -353,6 +357,14 @@ func TestOAuthRevokeEndsTheGrantFromEitherToken(t *testing.T) {
 		require.NoError(t, f.svc.Revoke(t.Context(), "oc_client", token), "%s: revoking twice is not an error", which)
 	}
 	f := newTokenFlow(t)
+	tokens, err := f.svc.Token(t.Context(), f.exchangeInput(f.approvedCode(0)))
+	require.NoError(t, err)
+	f.clients.findErr = domain.ErrUnavailable
+	assert.ErrorIs(t, f.svc.Revoke(t.Context(), "oc_client", tokens.AccessToken), domain.ErrUnavailable, "a failed lookup is not reported as revoked")
+	assert.NotEmpty(t, f.grants.grants)
+	f.clients.findErr = nil
+
+	f = newTokenFlow(t)
 	require.NoError(t, f.svc.Revoke(t.Context(), "oc_client", strings.Repeat("0", 64)))
 	require.NoError(t, f.svc.Revoke(t.Context(), "oc_client", "short"))
 	requireTokenError(t, f.svc.Revoke(t.Context(), "", "x"), "invalid_request")
