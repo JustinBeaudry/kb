@@ -89,6 +89,19 @@ func TestOAuthAuthorizeShowsALockedDownApprovalPage(t *testing.T) {
 	assert.Contains(t, body, `data-request="or_ABC"`)
 }
 
+func TestOAuthApprovalPageNamesTheSiteThatPublishedAMetadataClient(t *testing.T) {
+	f := newGrantsFake()
+	f.auth.Request.ClientID = "https://publisher.example/oauth/client.json"
+	f.auth.Request.ClientName = "Published App"
+	w := httptest.NewRecorder()
+	NewOAuthHandler(f, nil).ServeHTTP(w, httptest.NewRequest(http.MethodGet, OAuthAuthorizePath+authorizeQuery, nil))
+	require.Equal(t, http.StatusOK, w.Code)
+	body := w.Body.String()
+	assert.Contains(t, body, "publisher.example")
+	assert.Contains(t, body, "Published App")
+	assert.NotContains(t, body, "not verified", "the publisher was read from the client ID itself")
+}
+
 func TestOAuthAuthorizeNeverRedirectsBeforeTheRedirectURIIsKnown(t *testing.T) {
 	for _, err := range []error{domain.ErrUnauthorized, domain.ErrInvalidInput} {
 		f := newGrantsFake()

@@ -50,7 +50,10 @@ var oauthPages = template.Must(template.New("approve").Parse(`<!doctype html>
 <h1>An app is asking for access to kb</h1>
 <p>It will send you back to</p>
 <p class="host">{{.Host}}</p>
-<p>It calls itself <strong>{{if .Name}}{{.Name}}{{else}}(no name){{end}}</strong> <span class="unverified">(not verified)</span>.</p>
+{{if .Publisher}}<p>It is published by</p>
+<p class="host">{{.Publisher}}</p>
+<p>kb read its description from that site. It calls itself <strong>{{if .Name}}{{.Name}}{{else}}(no name){{end}}</strong>.</p>
+{{else}}<p>It calls itself <strong>{{if .Name}}{{.Name}}{{else}}(no name){{end}}</strong> <span class="unverified">(not verified)</span>.</p>{{end}}
 <p>It asks for projects: <strong>{{if .Projects}}{{.Projects}}{{else}}none named, you choose{{end}}</strong>,
 and capabilities: <strong>{{if .Capabilities}}{{.Capabilities}}{{else}}none named, you choose{{end}}</strong>.</p>
 <p>Approval code</p>
@@ -67,7 +70,7 @@ and capabilities: <strong>{{if .Capabilities}}{{.Capabilities}}{{else}}none name
 <p>kb doesn't recognize the app or the address it asked to return to, so nothing was sent back to it. Start again from your app.</p></main></body></html>
 {{end}}`))
 
-type approvalPage struct{ ID, Host, Name, Projects, Capabilities, Code string }
+type approvalPage struct{ ID, Host, Publisher, Name, Projects, Capabilities, Code string }
 
 // serveGrants answers the grant endpoints and reports whether the path was
 // one of them.
@@ -134,12 +137,18 @@ func (h *oauthHandler) authorize(w http.ResponseWriter, r *http.Request, grants 
 		host = u.Host
 	}
 	http.SetCookie(w, &http.Cookie{Name: OAuthRequestCookie, Value: a.Cookie, Path: OAuthRequestsPath + req.ID, MaxAge: int((domain.OAuthRequestTTL + oauthRequestCookieGrace).Seconds()), Secure: true, HttpOnly: true, SameSite: http.SameSiteStrictMode})
+	publisher := ""
+	if domain.IsClientMetadataID(req.ClientID) {
+		if u, err := url.Parse(req.ClientID); err == nil {
+			publisher = u.Host
+		}
+	}
 	code := req.ApprovalCode
 	if len(code) == domain.OAuthApprovalCodeLength {
 		code = code[:4] + "-" + code[4:]
 	}
 	h.page(w, r, http.StatusOK, "approve", approvalPage{
-		ID: req.ID, Host: host, Name: req.ClientName, Code: code,
+		ID: req.ID, Host: host, Publisher: publisher, Name: req.ClientName, Code: code,
 		Projects: strings.Join(req.Requested.Projects, ", "), Capabilities: strings.Join(req.Requested.Capabilities, ", "),
 	}, started)
 }

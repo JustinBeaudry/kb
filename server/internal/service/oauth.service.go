@@ -13,6 +13,7 @@ import (
 type OAuthRepository interface {
 	AddRegistration(ctx context.Context, tx Tx, reg domain.OAuthRegistration, maxPending int) error
 	FindRegistration(ctx context.Context, tx Tx, id string, now time.Time) (domain.OAuthRegistration, error)
+	PutMetadataRegistration(ctx context.Context, tx Tx, reg domain.OAuthRegistration, maxPending int) error
 	PruneRegistrations(ctx context.Context, tx Tx, now time.Time, limit int) (int, error)
 	AddRequest(ctx context.Context, tx Tx, req domain.OAuthRequest, maxPending int) error
 	FindRequest(ctx context.Context, tx Tx, id string) (domain.OAuthRequest, error)
@@ -46,6 +47,7 @@ type OAuthService struct {
 	owners  AccessOwners
 	clients OAuthClients
 	grants  OAuthGrantStore
+	meta    *clientMetadataCache
 }
 
 func NewOAuthService(tx Transactor, repo OAuthRepository, now func() time.Time) *OAuthService {
@@ -67,38 +69,9 @@ func (s *OAuthService) WithGrants(issuer string, owners AccessOwners) *OAuthServ
 // Register validates the metadata and stores a new public client. Only public
 // clients using the authorization code grant with PKCE are accepted.
 func (s *OAuthService) Register(ctx context.Context, in OAuthRegistrationInput) (domain.OAuthRegistration, error) {
-	if len(in.RedirectURIs) == 0 || len(in.RedirectURIs) > domain.MaxOAuthRedirectURIs {
-		return domain.OAuthRegistration{}, domain.ErrInvalidRedirectURI
-	}
-	uris := make([]string, 0, len(in.RedirectURIs))
-	for _, raw := range in.RedirectURIs {
-		uri, err := domain.CanonicalRedirectURI(raw)
-		if err != nil {
-			return domain.OAuthRegistration{}, err
-		}
-		if !slices.Contains(uris, uri) {
-			uris = append(uris, uri)
-		}
-	}
-	name, err := domain.CanonicalClientName(in.ClientName)
+	uris, name, err := validClientMetadata(in, domain.MaxOAuthRedirectURIs)
 	if err != nil {
 		return domain.OAuthRegistration{}, err
-	}
-	if in.TokenEndpointAuthMethod != "" && in.TokenEndpointAuthMethod != "none" {
-		return domain.OAuthRegistration{}, domain.ErrInvalidClientMetadata
-	}
-	for _, g := range in.GrantTypes {
-		if g != "authorization_code" && g != "refresh_token" {
-			return domain.OAuthRegistration{}, domain.ErrInvalidClientMetadata
-		}
-	}
-	if len(in.GrantTypes) > 0 && !slices.Contains(in.GrantTypes, "authorization_code") {
-		return domain.OAuthRegistration{}, domain.ErrInvalidClientMetadata
-	}
-	for _, t := range in.ResponseTypes {
-		if t != "code" {
-			return domain.OAuthRegistration{}, domain.ErrInvalidClientMetadata
-		}
 	}
 	now := s.now().UTC()
 	reg := domain.OAuthRegistration{ID: "oc_" + rand.Text(), RedirectURIs: uris, ClientName: name, CreatedAt: now, ExpiresAt: now.Add(domain.OAuthRegistrationTTL)}
@@ -112,4 +85,45 @@ func (s *OAuthService) Register(ctx context.Context, in OAuthRegistrationInput) 
 		return domain.OAuthRegistration{}, err
 	}
 	return reg, nil
+}
+
+// validClientMetadata checks client metadata from a dynamic registration or a
+// client ID metadata document. Only public clients using the authorization
+// code grant are accepted. It returns the redirect URIs without duplicates
+// and the trimmed client name.
+func validClientMetadata(in OAuthRegistrationInput, maxURIs int) ([]string, string, error) {
+	if len(in.RedirectURIs) == 0 || len(in.RedirectURIs) > maxURIs {
+		return nil, "", domain.ErrInvalidRedirectURI
+	}
+	uris := make([]string, 0, len(in.RedirectURIs))
+	for _, raw := range in.RedirectURIs {
+		uri, err := domain.CanonicalRedirectURI(raw)
+		if err != nil {
+			return nil, "", err
+		}
+		if !slices.Contains(uris, uri) {
+			uris = append(uris, uri)
+		}
+	}
+	name, err := domain.CanonicalClientName(in.ClientName)
+	if err != nil {
+		return nil, "", err
+	}
+	if in.TokenEndpointAuthMethod != "" && in.TokenEndpointAuthMethod != "none" {
+		return nil, "", domain.ErrInvalidClientMetadata
+	}
+	for _, g := range in.GrantTypes {
+		if g != "authorization_code" && g != "refresh_token" {
+			return nil, "", domain.ErrInvalidClientMetadata
+		}
+	}
+	if len(in.GrantTypes) > 0 && !slices.Contains(in.GrantTypes, "authorization_code") {
+		return nil, "", domain.ErrInvalidClientMetadata
+	}
+	for _, t := range in.ResponseTypes {
+		if t != "code" {
+			return nil, "", domain.ErrInvalidClientMetadata
+		}
+	}
+	return uris, name, nil
 }
