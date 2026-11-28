@@ -88,3 +88,8 @@ func TestBackupsFromBeforeTheFormatDigestStillRestore(t *testing.T) {
 	old.ToolVersionsDigest = ""
 	assert.ErrorIs(t, empty.ValidateBackup(t.Context(), old), domain.ErrConflict, "an empty legacy digest never matches an empty backup digest")
 }
+
+func TestOnlyTheLegacyFormatAcceptsLegacyDigests(t *testing.T) {
+	assert.True(t, acceptsLegacyDigest(backupFormat), "this build writes the legacy format")
+	assert.False(t, acceptsLegacyDigest("kb-backup/2"), "a format bump refuses backups that carry only the whole-manifest digest")
+}

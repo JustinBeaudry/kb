@@ -38,10 +38,19 @@ func restoreFormatDigest(tools []byte) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
+// legacyBackupFormat is the format of backups written before the format
+// digest existed. They carry the digest of the whole tool manifest instead.
+const legacyBackupFormat = "kb-backup/1"
+
 // sameRestoreFormat reports whether a backup made with digest can be restored
-// by this build. Backups written before the format digest existed carry the
-// digest of the whole tool manifest, and still restore while that manifest is
-// unchanged.
+// by this build. A legacy backup still restores while the tool manifest is
+// unchanged, but only while this build writes the legacy format, so bumping
+// backupFormat refuses every older backup.
 func (r *runtimeSnapshot) sameRestoreFormat(digest string) bool {
-	return digest != "" && (digest == r.metadata.ToolVersionsDigest || digest == r.legacyToolsDigest)
+	if digest == "" {
+		return false
+	}
+	return digest == r.metadata.ToolVersionsDigest || (acceptsLegacyDigest(backupFormat) && digest == r.legacyToolsDigest)
 }
+
+func acceptsLegacyDigest(format string) bool { return format == legacyBackupFormat }
