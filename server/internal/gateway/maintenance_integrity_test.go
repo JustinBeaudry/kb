@@ -42,7 +42,7 @@ func TestMaintenanceIntegrityFreshCreationCannotOverwriteMalformedHistory(t *tes
 	}
 }
 
-func TestMaintenanceIntegrityFailedFinishReopensAsDurableUnknown(t *testing.T) {
+func TestMaintenanceIntegrityFailedFinishReopensRestoredUntilItsHolderFinishes(t *testing.T) {
 	ctx := context.Background()
 	path := maintenanceIntegrityPath(t)
 	store, err := gateway.NewMaintenanceStateStore(path, true)
@@ -71,10 +71,21 @@ func TestMaintenanceIntegrityFailedFinishReopensAsDurableUnknown(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, state.Unknown)
 	assert.Zero(t, state.Active)
-	require.ErrorIs(t, s.Finish(ctx, permit), domain.ErrUnknownOutcome)
+	// The permit survived on disk and was never declared uncertain, so it comes
+	// back restored: the reopened supervisor stays closed until its holder
+	// retries the Finish that failed to persist.
+	restored, err := s.Restored(ctx)
+	require.NoError(t, err)
+	require.Len(t, restored, 1)
+	assert.Equal(t, permit.ID, restored[0].ID)
 	deadline, cancel := context.WithTimeout(ctx, 5*time.Millisecond)
 	t.Cleanup(cancel)
 	require.ErrorIs(t, s.WaitDrained(deadline, state.Fence), context.DeadlineExceeded)
+	require.NoError(t, s.Finish(ctx, permit))
+	require.NoError(t, s.WaitDrained(ctx, state.Fence))
+	state, err = s.State(ctx)
+	require.NoError(t, err)
+	assert.Zero(t, state.Unknown)
 }
 
 func TestMaintenanceIntegrityReloadDoesNotTrustCachedDrainOrRecoveryProof(t *testing.T) {
